@@ -21,8 +21,6 @@ and **historical metrics tracking**.
 
 Aalekh **visualizes, enforces, and tracks**.
 
----
-
 ## Quick Start
 
 **Add to `settings.gradle.kts`** (recommended - settings plugin, fully configuration-cache safe):
@@ -40,8 +38,6 @@ plugins {
 ```
 
 That's it. An interactive HTML report opens in your browser.
-
----
 
 ## Installation
 
@@ -71,7 +67,6 @@ plugins {
 > **Note:** The project plugin (`io.github.shivathapaa.aalekh.project`) works correctly when Aalekh is consumed from the
 > Gradle Plugin Portal. For `includeBuild` setups, use the settings plugin to avoid configuration cache issues.
 
----
 
 ## Gradle Tasks
 
@@ -90,7 +85,6 @@ tasks.named("check") {
 }
 ```
 
----
 
 ## The Report
 
@@ -124,7 +118,6 @@ Aalekh distinguishes between two kinds of cycles:
 - **Test cycles** (`♻ pink`) - cycles that exist only through `testImplementation` / `androidTestImplementation`. These
   are common, usually acceptable, and do **not** cause a build failure.
 
----
 
 ## Configuration
 
@@ -149,14 +142,11 @@ aalekh {
 }
 ```
 
----
 
 ## Architecture Rules *(coming soon)*
 
 The rule engine core is implemented. A Kotlin DSL for declaring layer boundaries and custom rules is coming in the next
 release - letting you fail the build when modules cross architectural boundaries.
-
----
 
 ## Module Types
 
@@ -171,7 +161,6 @@ Aalekh detects module types from applied plugin IDs (first match wins):
 | JVM Library     | `org.jetbrains.kotlin.jvm`                 | Amber  |
 | Unknown         | - (fallback)                               | Gray   |
 
----
 
 ## Project Structure
 
@@ -189,7 +178,6 @@ aalekh/
 └── build-logic/           ← Convention plugins for the build itself
 ```
 
----
 
 ## Roadmap
 
@@ -200,7 +188,6 @@ aalekh/
 | **Later**  | Metrics tracking + historical trend reports           | 📋 Planned     |
 | **Future** | Source-level analysis via KSP2 + stable API guarantee | 📋 Planned     |
 
----
 
 ## Configuration Cache
 
@@ -208,13 +195,11 @@ Aalekh is fully compatible with Gradle's configuration cache, which is enabled b
 are plain `@Input` primitives - no live `Project`, `Configuration`, or `Dependency` objects are captured in task
 actions.
 
----
 
 ## Contributing
 
 Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
 
----
 
 ## License
 
@@ -228,7 +213,6 @@ You may obtain a copy of the License at
     https://www.apache.org/licenses/LICENSE-2.0
 ```
 
----
 
 <p align="center">
   Made with ♥ for the Kotlin community
