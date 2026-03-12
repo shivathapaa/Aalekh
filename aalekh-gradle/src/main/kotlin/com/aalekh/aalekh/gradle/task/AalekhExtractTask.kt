@@ -1,10 +1,10 @@
 package com.aalekh.aalekh.gradle.task
 
 import com.aalekh.aalekh.gradle.extractor.ModuleTypeDetector
+import com.aalekh.aalekh.model.AalekhBuildConfig
 import com.aalekh.aalekh.model.DependencyEdge
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.ModuleNode
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
@@ -107,7 +107,7 @@ public abstract class AalekhExtractTask : DefaultTask() {
                 "gradleVersion" to gradleVersion.get(),
                 "extractedAt" to Instant.now().toString(),
                 "moduleCount" to nodes.size.toString(),
-                "aalekhVersion" to "0.1.0",
+                "aalekhVersion" to AalekhBuildConfig.VERSION,
             ),
         )
 

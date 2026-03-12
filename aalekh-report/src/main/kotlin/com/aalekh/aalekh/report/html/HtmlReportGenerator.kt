@@ -2,9 +2,9 @@ package com.aalekh.aalekh.report.html
 
 import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
 import com.aalekh.aalekh.analysis.graph.GraphSummary
+import com.aalekh.aalekh.model.AalekhBuildConfig
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.Violation
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.time.Instant
 
@@ -56,11 +56,17 @@ public object HtmlReportGenerator {
         }
 
         return template
-            .replace("<script>\nfunction parseScriptJson", "$dataScriptTags<script>\nfunction parseScriptJson")
-            .replace("<script>\n    function parseScriptJson", "$dataScriptTags<script>\n    function parseScriptJson")
+            .replace(
+                "<script>\nfunction parseScriptJson",
+                "$dataScriptTags<script>\nfunction parseScriptJson"
+            )
+            .replace(
+                "<script>\n    function parseScriptJson",
+                "$dataScriptTags<script>\n    function parseScriptJson"
+            )
             .replace(NAME_PLACEHOLDER, escapeHtml(projectName))
             .replace(TIME_PLACEHOLDER, Instant.now().toString())
-//            .replace(VERSION_PLACEHOLDER, CURRENT) // will update later
+            .replace(VERSION_PLACEHOLDER, AalekhBuildConfig.VERSION)
     }
 
     private fun buildSummaryJson(
@@ -70,7 +76,11 @@ public object HtmlReportGenerator {
     ): String {
         val byType = summary.modulesByType.entries.joinToString(",") { (k, v) -> "\"$k\":$v" }
         val violationsJson = violations.joinToString(",") { v ->
-            """{"ruleId":"${escapeJson(v.ruleId)}","severity":"${v.severity.name}","message":"${escapeJson(v.message)}","source":"${
+            """{"ruleId":"${escapeJson(v.ruleId)}","severity":"${v.severity.name}","message":"${
+                escapeJson(
+                    v.message
+                )
+            }","source":"${
                 escapeJson(
                     v.source
                 )
@@ -87,7 +97,8 @@ public object HtmlReportGenerator {
 
         // Compute main-only cycles (test edges excluded from cycle detection)
         val mainCycles = GraphAnalyzer.findMainOnlyCycles(graph)
-        val mainCycleNodesJson = mainCycles.flatten().toSet().joinToString(",") { "\"${escapeJson(it)}\"" }
+        val mainCycleNodesJson =
+            mainCycles.flatten().toSet().joinToString(",") { "\"${escapeJson(it)}\"" }
         val mainCycleEdgesJson = mainCycles.flatMap { cycle ->
             cycle.indices.map { i ->
                 val a = cycle[i];

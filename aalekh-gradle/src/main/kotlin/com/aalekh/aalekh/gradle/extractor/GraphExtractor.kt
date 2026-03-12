@@ -1,6 +1,7 @@
 package com.aalekh.aalekh.gradle.extractor
 
 import com.aalekh.aalekh.gradle.service.AalekhBuildService
+import com.aalekh.aalekh.model.AalekhBuildConfig
 import com.aalekh.aalekh.model.DependencyEdge
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.ModuleNode
@@ -161,7 +162,7 @@ public object GraphExtractor {
         put("gradleVersion", rootProject.gradle.gradleVersion)
         put("extractedAt", Instant.now().toString())
         put("moduleCount", rootProject.subprojects.size.toString())
-        put("aalekhVersion", "0.1.0")
+        put("aalekhVersion", AalekhBuildConfig.VERSION)
 
         // AGP version - read without a hard dependency on AGP on the classpath
         runCatching {
