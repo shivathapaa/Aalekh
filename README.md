@@ -2,17 +2,24 @@
 
 **Architecture Visualization & Linting for Gradle Multi-Module Projects**
 
-Aalekh is a Gradle plugin that extracts, visualizes, and enforces architectural rules across any Gradle multi-module project - Kotlin Multiplatform, Android, JVM, or any mix of the three. It gives teams three capabilities that no existing tool provides together: an **interactive module graph**, a **Kotlin DSL for architecture rule enforcement**, and **historical metrics tracking**.
+Aalekh is a Gradle plugin that extracts, visualizes, and enforces architectural rules across any Gradle multi-module
+project - Kotlin Multiplatform, Android, JVM, or any mix of the three. It gives teams three capabilities that no
+existing tool provides together: an **interactive module graph**, a **Kotlin DSL for architecture rule enforcement**,
+and **historical metrics tracking**.
 
----
+### Checkout sample reports
+
+- [Now in Android App](.github/assets/report_samples/nowinandroid.html)
+- [Now in Android App - with Cyclic dependency](.github/assets/report_samples/nowinandroid_withcyclic.html)
+- [Tallyo (KMP)](.github/assets/report_samples/tallyo.html)
 
 ## Why Aalekh?
 
-| Tool | Visualizes | Enforces rules | Tracks metrics | KMP-aware |
-|------|:---:|:---:|:---:|:---:|
-| **Aalekh** | **✓** | **✓** | **✓** | **✓** |
+| Tool       | Visualizes | Enforces rules | Tracks metrics | KMP-aware |
+|------------|:----------:|:--------------:|:--------------:|:---------:|
+| **Aalekh** |   **✓**    |     **✓**      |     **✓**      |   **✓**   |
 
-ArchUnit is for Java monoliths. Aalekh is for modern Kotlin multi-module projects. Where ArchUnit tests, Aalekh **visualizes, enforces, and tracks**.
+Aalekh **visualizes, enforces, and tracks**.
 
 ---
 
@@ -40,7 +47,8 @@ That's it. An interactive HTML report opens in your browser.
 
 ### Settings plugin (recommended)
 
-Apply in `settings.gradle.kts`. This is the preferred approach - the settings plugin loads in a classloader scope that is stable across configuration cache entries, preventing the "class not found in classloader" error on second runs.
+Apply in `settings.gradle.kts`. This is the preferred approach - the settings plugin loads in a classloader scope that
+is stable across configuration cache entries, preventing the "class not found in classloader" error on second runs.
 
 ```kotlin
 // settings.gradle.kts
@@ -60,17 +68,18 @@ plugins {
 }
 ```
 
-> **Note:** The project plugin (`io.github.shivathapaa.aalekh.project`) works correctly when Aalekh is consumed from the Gradle Plugin Portal. For `includeBuild` setups, use the settings plugin to avoid configuration cache issues.
+> **Note:** The project plugin (`io.github.shivathapaa.aalekh.project`) works correctly when Aalekh is consumed from the
+> Gradle Plugin Portal. For `includeBuild` setups, use the settings plugin to avoid configuration cache issues.
 
 ---
 
 ## Gradle Tasks
 
-| Task | Description |
-|---|---|
+| Task                      | Description                                                                                 |
+|---------------------------|---------------------------------------------------------------------------------------------|
 | `./gradlew aalekhExtract` | Extracts the module dependency graph and writes it as JSON to `build/tmp/aalekh/graph.json` |
-| `./gradlew aalekhReport` | Generates the interactive HTML report at `build/reports/aalekh/index.html` |
-| `./gradlew aalekhCheck` | Evaluates all architecture rules; fails the build on `ERROR`-severity violations |
+| `./gradlew aalekhReport`  | Generates the interactive HTML report at `build/reports/aalekh/index.html`                  |
+| `./gradlew aalekhCheck`   | Evaluates all architecture rules; fails the build on `ERROR`-severity violations            |
 
 Wire `aalekhCheck` into your CI verification lifecycle:
 
@@ -85,26 +94,35 @@ tasks.named("check") {
 
 ## The Report
 
-`./gradlew aalekhReport` produces a fully self-contained HTML file - no server, no CDN, no internet connection required. It opens automatically in your default browser after the task completes.
+`./gradlew aalekhReport` produces a fully self-contained HTML file - no server, no CDN, no internet connection required.
+It opens automatically in your default browser after the task completes.
 
 ### Five panels
 
-**⬡ Graph** - Interactive force-directed visualization. Drag to orbit, scroll to zoom, click any node to inspect it. Nodes are coloured by module type; cycle nodes pulse with a red ring; god modules glow orange. Filter edges by type (Impl, API, Test, CompileOnly, KMP source sets, Main Cycle, Test Cycle).
+**⬡ Graph** - Interactive force-directed visualization. Drag to orbit, scroll to zoom, click any node to inspect it.
+Nodes are coloured by module type; cycle nodes pulse with a red ring; god modules glow orange. Filter edges by type (
+Impl, API, Test, CompileOnly, KMP source sets, Main Cycle, Test Cycle).
 
-**⊞ Explorer** - Hierarchical tree view mirroring your Gradle project structure. Expand/collapse groups, jump directly to cycle nodes, and see per-module dependency tables split by main vs test scope.
+**⊞ Explorer** - Hierarchical tree view mirroring your Gradle project structure. Expand/collapse groups, jump directly
+to cycle nodes, and see per-module dependency tables split by main vs test scope.
 
-**⊟ Matrix** - Adjacency matrix showing all inter-module dependencies at a glance. Hover a cell for details; click a row/column label to inspect the module and sync with the graph.
+**⊟ Matrix** - Adjacency matrix showing all inter-module dependencies at a glance. Hover a cell for details; click a
+row/column label to inspect the module and sync with the graph.
 
-**◎ Metrics** - KPI dashboard with fan-in, fan-out, instability index, critical build path, god module count, and cycle counts. Main cycles and test-only cycles are reported separately. Per-module sortable table with inline bar charts.
+**◎ Metrics** - KPI dashboard with fan-in, fan-out, instability index, critical build path, god module count, and cycle
+counts. Main cycles and test-only cycles are reported separately. Per-module sortable table with inline bar charts.
 
-**⚑ Violations** - Structured violation cards for every `aalekhCheck` failure. Each card includes the rule ID, severity, the exact dependency to remove, and a plain-language explanation of why the rule exists.
+**⚑ Violations** - Structured violation cards for every `aalekhCheck` failure. Each card includes the rule ID, severity,
+the exact dependency to remove, and a plain-language explanation of why the rule exists.
 
 ### Cycle detection
 
 Aalekh distinguishes between two kinds of cycles:
 
-- **Main cycles** (`⚠ red`) - circular dependencies in production code only. These are genuine architectural errors that prevent independent builds and refactoring. `aalekhCheck` fails on these.
-- **Test cycles** (`♻ pink`) - cycles that exist only through `testImplementation` / `androidTestImplementation`. These are common, usually acceptable, and do **not** cause a build failure.
+- **Main cycles** (`⚠ red`) - circular dependencies in production code only. These are genuine architectural errors that
+  prevent independent builds and refactoring. `aalekhCheck` fails on these.
+- **Test cycles** (`♻ pink`) - cycles that exist only through `testImplementation` / `androidTestImplementation`. These
+  are common, usually acceptable, and do **not** cause a build failure.
 
 ---
 
@@ -135,7 +153,8 @@ aalekh {
 
 ## Architecture Rules *(coming soon)*
 
-The rule engine core is implemented. A Kotlin DSL for declaring layer boundaries and custom rules is coming in the next release - letting you fail the build when modules cross architectural boundaries.
+The rule engine core is implemented. A Kotlin DSL for declaring layer boundaries and custom rules is coming in the next
+release - letting you fail the build when modules cross architectural boundaries.
 
 ---
 
@@ -143,14 +162,14 @@ The rule engine core is implemented. A Kotlin DSL for declaring layer boundaries
 
 Aalekh detects module types from applied plugin IDs (first match wins):
 
-| Module Type | Plugin ID | Color |
-|---|---|---|
-| KMP | `org.jetbrains.kotlin.multiplatform` | Purple |
-| KMP Android Lib | `com.android.kotlin.multiplatform.library` | Teal |
-| Android App | `com.android.application` | Blue |
-| Android Library | `com.android.library` | Green |
-| JVM Library | `org.jetbrains.kotlin.jvm` | Amber |
-| Unknown | - (fallback) | Gray |
+| Module Type     | Plugin ID                                  | Color  |
+|-----------------|--------------------------------------------|--------|
+| KMP             | `org.jetbrains.kotlin.multiplatform`       | Purple |
+| KMP Android Lib | `com.android.kotlin.multiplatform.library` | Teal   |
+| Android App     | `com.android.application`                  | Blue   |
+| Android Library | `com.android.library`                      | Green  |
+| JVM Library     | `org.jetbrains.kotlin.jvm`                 | Amber  |
+| Unknown         | - (fallback)                               | Gray   |
 
 ---
 
@@ -174,18 +193,20 @@ aalekh/
 
 ## Roadmap
 
-| Phase | Theme | Status |
-|---|---|---|
-| **Alpha** | Graph extraction + 3D interactive HTML report | ✅ Released |
-| **Next** | Rule engine DSL + build failure enforcement | 🔨 In progress |
-| **Later** | Metrics tracking + historical trend reports | 📋 Planned |
-| **Future** | Source-level analysis via KSP2 + stable API guarantee | 📋 Planned |
+| Phase      | Theme                                                 | Status         |
+|------------|-------------------------------------------------------|----------------|
+| **Alpha**  | Graph extraction + 3D interactive HTML report         | ✅ Released     |
+| **Next**   | Rule engine DSL + build failure enforcement           | 🔨 In progress |
+| **Later**  | Metrics tracking + historical trend reports           | 📋 Planned     |
+| **Future** | Source-level analysis via KSP2 + stable API guarantee | 📋 Planned     |
 
 ---
 
 ## Configuration Cache
 
-Aalekh is fully compatible with Gradle's configuration cache, which is enabled by default in Gradle 9.x. All task inputs are plain `@Input` primitives - no live `Project`, `Configuration`, or `Dependency` objects are captured in task actions.
+Aalekh is fully compatible with Gradle's configuration cache, which is enabled by default in Gradle 9.x. All task inputs
+are plain `@Input` primitives - no live `Project`, `Configuration`, or `Dependency` objects are captured in task
+actions.
 
 ---
 
