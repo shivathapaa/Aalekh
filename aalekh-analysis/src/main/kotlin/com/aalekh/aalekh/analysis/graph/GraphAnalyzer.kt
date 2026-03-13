@@ -15,6 +15,8 @@ public object GraphAnalyzer {
      * Returns modules in topological order (dependencies before dependents).
      * Throws [IllegalStateException] if the graph contains cycles.
      * Uses Kahn's algorithm (BFS-based) for deterministic ordering.
+     *
+     * Only **main** (non-test) edges are considered - consistent with [fanIn]/[fanOut].
      */
     public fun topologicalOrder(graph: ModuleDependencyGraph): List<ModuleNode> {
         val inDegree = graph.modules.associate { it.path to graph.fanIn(it.path) }.toMutableMap()
@@ -24,12 +26,14 @@ public object GraphAnalyzer {
         while (queue.isNotEmpty()) {
             val node = queue.removeFirst()
             result += node
-            graph.edgesFrom(node.path).forEach { edge ->
-                inDegree[edge.to] = (inDegree[edge.to] ?: 0) - 1
-                if (inDegree[edge.to] == 0) {
-                    graph.moduleByPath(edge.to)?.let { queue += it }
+            graph.edgesFrom(node.path)
+                .filter { !it.isTest }
+                .forEach { edge ->
+                    inDegree[edge.to] = (inDegree[edge.to] ?: 0) - 1
+                    if (inDegree[edge.to] == 0) {
+                        graph.moduleByPath(edge.to)?.let { queue += it }
+                    }
                 }
-            }
         }
 
         check(result.size == graph.modules.size) {
@@ -42,6 +46,9 @@ public object GraphAnalyzer {
     /**
      * Returns the longest dependency chain (critical path) in the project.
      * Useful for understanding which modules most constrain build parallelism.
+     *
+     * Only **main** (non-test) edges are followed - test edges do not affect
+     * production build order.
      */
     public fun criticalPath(graph: ModuleDependencyGraph): List<String> {
         val dist = mutableMapOf<String, Int>()
@@ -60,13 +67,15 @@ public object GraphAnalyzer {
         }
 
         ordered.forEach { node ->
-            graph.edgesFrom(node.path).forEach { edge ->
-                val newDist = (dist[node.path] ?: 0) + 1
-                if (newDist > (dist[edge.to] ?: 0)) {
-                    dist[edge.to] = newDist
-                    prev[edge.to] = node.path
+            graph.edgesFrom(node.path)
+                .filter { !it.isTest }
+                .forEach { edge ->
+                    val newDist = (dist[node.path] ?: 0) + 1
+                    if (newDist > (dist[edge.to] ?: 0)) {
+                        dist[edge.to] = newDist
+                        prev[edge.to] = node.path
+                    }
                 }
-            }
         }
 
         // Reconstruct path from the node with maximum depth
