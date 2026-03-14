@@ -21,6 +21,14 @@ teams three capabilities that no existing tool provides together: an **interacti
   - [View locally](assets/report_samples/tallyo.html)
   - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/tallyo.html)
 
+### Sample Report Demo
+
+<p align="center">
+  <a href="assets/report_samples/nowinandroid.html">
+    <img src="assets/images/nowinandroid_sample.gif" alt="Now in Android App Demo" width="600"/>
+  </a>
+</p>
+
 ## Why Aalekh?
 
 | Tool       | Visualizes | Enforces rules | Tracks metrics | KMP-aware |
