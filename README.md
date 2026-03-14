@@ -9,9 +9,9 @@ teams three capabilities that no existing tool provides together: an **interacti
 
 ### Sample Reports
 
-- [Now in Android App](.github/assets/report_samples/nowinandroid.html)
-- [Now in Android App - with cyclic dependency](.github/assets/report_samples/nowinandroid_withcyclic.html)
-- [Tallyo (KMP)](.github/assets/report_samples/tallyo.html)
+- [Now in Android App](assets/report_samples/nowinandroid.html)
+- [Now in Android App - with cyclic dependency](assets/report_samples/nowinandroid_withcyclic.html)
+- [Tallyo (KMP)](assets/report_samples/tallyo.html)
 
 ## Why Aalekh?
 
