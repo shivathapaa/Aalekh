@@ -4,6 +4,7 @@ plugins {
 }
 
 val pluginVersion: String by extra(libs.versions.plugin.version.get())
+val pluginArtId: String by extra("io.github.shivathapaa")
 
 /**
  * Runs all checks across all subprojects.

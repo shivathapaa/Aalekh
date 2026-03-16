@@ -11,6 +11,10 @@ dependencies {
 }
 
 val pluginVersion: String by rootProject.extra
+val pluginArtId: String by rootProject.extra
+
+group = pluginArtId
+version = pluginVersion
 
 tasks.named<ProcessResources>("processResources") {
     val version = libs.versions.plugin.version.get()

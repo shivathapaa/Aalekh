@@ -4,6 +4,12 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+val pluginVersion: String by rootProject.extra
+val pluginArtId: String by rootProject.extra
+
+group = pluginArtId
+version = pluginVersion
+
 dependencies {
     implementation(project(":aalekh-model"))
     implementation(project(":aalekh-analysis"))
