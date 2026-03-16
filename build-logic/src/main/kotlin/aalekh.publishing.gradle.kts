@@ -1,5 +1,6 @@
 plugins {
     id("com.gradle.plugin-publish")
+    id("aalekh.maven-publish")
 }
 
 val pluginVersion: String by rootProject.extra

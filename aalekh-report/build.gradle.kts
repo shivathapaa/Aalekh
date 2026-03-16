@@ -1,5 +1,6 @@
 plugins {
     id("aalekh.kotlin-library")
+    id("aalekh.maven-publish")
     alias(libs.plugins.kotlin.serialization)
 }
 

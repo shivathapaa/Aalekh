@@ -1,5 +1,6 @@
 plugins {
     id("aalekh.kotlin-library")
+    id("aalekh.maven-publish")
 }
 
 val pluginVersion: String by rootProject.extra
