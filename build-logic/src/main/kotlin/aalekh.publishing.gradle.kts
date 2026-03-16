@@ -1,6 +1,5 @@
 plugins {
     id("com.gradle.plugin-publish")
-    id("aalekh.maven-publish")
 }
 
 val pluginVersion: String by rootProject.extra
@@ -31,7 +30,8 @@ gradlePlugin {
             id = "io.github.shivathapaa.aalekh.project"
             implementationClass = "com.aalekh.aalekh.gradle.AalekhPlugin"
             displayName = "Aalekh - Architecture Visualization & Linting (project plugin)"
-            description = "Project-plugin variant of Aalekh. Prefer the settings plugin for includeBuild setups."
+            description =
+                "Project-plugin variant of Aalekh. Prefer the settings plugin for includeBuild setups."
             tags = listOf(
                 "kotlin", "android", "kmp", "kotlin-multiplatform",
                 "architecture", "visualization", "dependency-graph", "linting"

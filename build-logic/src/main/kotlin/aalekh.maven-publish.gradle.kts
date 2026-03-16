@@ -1,76 +1,22 @@
 plugins {
-    `maven-publish`
-    signing
+    id("com.vanniktech.maven.publish")
 }
 
 val pluginVersion: String by rootProject.extra
-val pluginArtId: String by rootProject.extra
 
-group = pluginArtId
-version = pluginVersion
+mavenPublishing {
+    coordinates(
+        groupId = "io.github.shivathapaa",
+        artifactId = project.name,
+        version = pluginVersion
+    )
 
-pluginManager.withPlugin("java") {
-    extensions.configure<JavaPluginExtension> {
-        withSourcesJar()
-        withJavadocJar()
-    }
-}
+    publishToMavenCentral()
+    signAllPublications()
 
-afterEvaluate {
-    publishing {
-        publications {
-            // aalekh-gradle already has "pluginMaven" from com.gradle.plugin-publish
-            // all other submodules need "maven" created
-            if (publications.findByName("pluginMaven") == null) {
-                create<MavenPublication>("maven") {
-                    from(components["java"])
-                    applyPom(project)
-                }
-            } else {
-                named<MavenPublication>("pluginMaven") {
-                    applyPom(project)
-                }
-            }
-        }
-
-        repositories {
-            maven {
-                name = "MavenCentral"
-                url = uri(
-                    if (pluginVersion.endsWith("SNAPSHOT"))
-                        "https://s01.oss.sonatype.org/content/repositories/snapshots/"
-                    else
-                        "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
-                )
-                credentials {
-                    username = System.getenv("MAVEN_CENTRAL_USERNAME")
-                    password = System.getenv("MAVEN_CENTRAL_PASSWORD")
-                }
-            }
-        }
-    }
-
-    val signingKey: String? = System.getenv("GPG_KEY_CONTENTS")
-    if (!signingKey.isNullOrBlank()) {
-        signing {
-            useInMemoryPgpKeys(
-                System.getenv("SIGNING_KEY_ID"),
-                signingKey,
-                System.getenv("SIGNING_PASSWORD")
-            )
-            sign(publishing.publications)  // signs all publications in this subproject
-        }
-    } else {
-        tasks.withType<Sign>().configureEach {
-            enabled = false
-        }
-    }
-}
-
-fun MavenPublication.applyPom(project: Project) {
     pom {
         name.set(project.name)
-        description.set("Aalekh - Architecture Visualization & Linting for KMP & Android")
+        description.set("Aalekh - Architecture Visualization & Linting for KMP, Android, & other Gradle projects")
         inceptionYear.set("2026")
         url.set("https://github.com/shivathapaa/aalekh")
         licenses {

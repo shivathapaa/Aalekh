@@ -1,11 +1,12 @@
 [versions]
-plugin-version = "0.0.1-beta01"
+plugin-version = "0.0.1-beta02"
 kotlin = "2.3.10"
 kotlinx-serialization = "1.10.0"
 gradle-plugin-publish = "2.1.0"
 junit5 = "5.13.4"
 kotest = "6.1.6"
 detekt = "1.23.8"
+vanniktech-publish = "0.36.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -19,6 +20,7 @@ kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref 
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
 kotest-property = { module = "io.kotest:kotest-property", version.ref = "kotest" }
 
+vanniktech-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "vanniktech-publish" }
 kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 gradle-plugin-publish = { module = "com.gradle.publish:plugin-publish-plugin", version.ref = "gradle-plugin-publish" }
 detekt-gradlePlugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
@@ -38,5 +40,6 @@ testing-unit-runtime = [
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+vanniktech-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktech-publish" }
 gradle-plugin-publish = { id = "com.gradle.plugin-publish", version.ref = "gradle-plugin-publish" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

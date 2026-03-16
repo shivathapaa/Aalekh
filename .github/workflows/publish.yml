@@ -59,17 +59,16 @@ jobs:
       - name: Publish to Maven Central
         run: >
           ./gradlew
-          :aalekh-model:publishAllPublicationsToMavenCentralRepository
-          :aalekh-analysis:publishAllPublicationsToMavenCentralRepository
-          :aalekh-report:publishAllPublicationsToMavenCentralRepository
-          :aalekh-gradle:publishPluginMavenPublicationToMavenCentralRepository
+          :aalekh-model:publishAndReleaseToMavenCentral
+          :aalekh-analysis:publishAndReleaseToMavenCentral
+          :aalekh-report:publishAndReleaseToMavenCentral
           --no-configuration-cache
         env:
-          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
-          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
-          GPG_KEY_CONTENTS: ${{ secrets.GPG_KEY_CONTENTS }}
-          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_KEY_CONTENTS }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
 
   publish-plugin-portal:
     name: Publish to Gradle Plugin Portal
