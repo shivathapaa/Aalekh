@@ -44,7 +44,7 @@ beyond the browser.
 
 ```kotlin
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.0.1-alpha01"
+    id("io.github.shivathapaa.aalekh") version "0.0.1-beta02"
 }
 ```
 
@@ -68,7 +68,7 @@ in classloader" error on second runs.
 ```kotlin
 // settings.gradle.kts
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.0.1-alpha01"
+    id("io.github.shivathapaa.aalekh") version "0.0.1-beta02"
 }
 ```
 
@@ -79,7 +79,7 @@ If you prefer applying in the root project's `build.gradle.kts`:
 ```kotlin
 // build.gradle.kts (root project only)
 plugins {
-    id("io.github.shivathapaa.aalekh.project") version "0.0.1-alpha01"
+    id("io.github.shivathapaa.aalekh.project") version "0.0.1-beta02"
 }
 ```
 
