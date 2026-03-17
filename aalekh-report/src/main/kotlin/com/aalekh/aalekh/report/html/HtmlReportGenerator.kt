@@ -12,11 +12,22 @@ import java.time.Instant
  * Generates the self-contained Aalekh HTML interactive report.
  *
  * The output is a single `.html` file with:
- * - D3.js v7 force-directed graph (loaded from CDN; can be bundled offline later)
- * - All graph data injected inline as `const GRAPH_DATA = {...}`
- * - Zero runtime server, zero external dependencies beyond the browser
+ * - D3.js v7 force-directed graph (loaded from CDN)
+ * - All graph data injected inline as typed `<script type="application/json">` tags
+ * - Zero runtime server, zero external data dependencies beyond the browser
+ *
+ * ### Data injection
+ * The template contains a stable HTML comment marker:
+ * ```html
+ * <!-- DATA INJECTED BY KOTLIN GENERATOR BEFORE THIS SCRIPT TAG -->
+ * ```
+ * The generator replaces this marker with the two JSON `<script>` data tags,
+ * then the marker itself is removed. This approach is robust to any whitespace
+ * or formatting changes inside the template's JavaScript - it only depends on
+ * one unique HTML comment, not on matching JS source text.
  */
 public object HtmlReportGenerator {
+
     private val json = Json {
         prettyPrint = false          // Minified for embedding in HTML
         encodeDefaults = true
@@ -26,7 +37,13 @@ public object HtmlReportGenerator {
     private const val TIME_PLACEHOLDER = "{{GENERATED_AT}}"
     private const val VERSION_PLACEHOLDER = "{{AALEKH_VERSION}}"
 
-    private const val DATA_INJECT_PLACEHOLDER = "<!-- AALEKH_DATA_INJECT -->"
+    /**
+     * Stable anchor in the HTML template that marks where JSON data tags are
+     * injected. Using a comment rather than matching JS source text means the
+     * injection is immune to template formatting changes.
+     */
+    private const val DATA_INJECT_MARKER =
+        "<!-- DATA INJECTED BY KOTLIN GENERATOR BEFORE THIS SCRIPT TAG -->"
 
     /**
      * Generates the full HTML string for the interactive dependency report.
@@ -34,7 +51,7 @@ public object HtmlReportGenerator {
      * @param projectName Root project name shown in the report title
      * @param graph       The complete module dependency graph
      * @param summary     Pre-computed summary statistics
-     * @param violations  Rule violations (empty in Phase 1, populated in Phase 2+)
+     * @param violations  Rule violations (empty for pure visualization, populated when rules run)
      */
     public fun generate(
         projectName: String,
@@ -46,6 +63,8 @@ public object HtmlReportGenerator {
         val graphJson = json.encodeToString(graph)
         val summaryJson = buildSummaryJson(summary, violations, graph)
 
+        // Build the two data script tags that the template JS reads via
+        // parseScriptJson('aalekh-graph-data') and parseScriptJson('aalekh-summary-data').
         val dataScriptTags = buildString {
             appendLine("""<script type="application/json" id="aalekh-graph-data">""")
             appendLine(graphJson)
@@ -55,15 +74,17 @@ public object HtmlReportGenerator {
             appendLine("</script>")
         }
 
+        // Replace the stable marker comment with the data tags.
+        // The marker comment itself is consumed (not kept in the output).
+        check(template.contains(DATA_INJECT_MARKER)) {
+            "Aalekh: HTML template is missing the data injection marker.\n" +
+                    "Expected to find: $DATA_INJECT_MARKER\n" +
+                    "This is a packaging bug - please file an issue at " +
+                    "https://github.com/shivathapaa/aalekh/issues"
+        }
+
         return template
-            .replace(
-                "<script>\nfunction parseScriptJson",
-                "$dataScriptTags<script>\nfunction parseScriptJson"
-            )
-            .replace(
-                "<script>\n    function parseScriptJson",
-                "$dataScriptTags<script>\n    function parseScriptJson"
-            )
+            .replace(DATA_INJECT_MARKER, dataScriptTags.trimEnd())
             .replace(NAME_PLACEHOLDER, escapeHtml(projectName))
             .replace(TIME_PLACEHOLDER, Instant.now().toString())
             .replace(VERSION_PLACEHOLDER, AalekhBuildConfig.VERSION)
@@ -72,21 +93,17 @@ public object HtmlReportGenerator {
     private fun buildSummaryJson(
         summary: GraphSummary,
         violations: List<Violation>,
-        graph: ModuleDependencyGraph
+        graph: ModuleDependencyGraph,
     ): String {
         val byType = summary.modulesByType.entries.joinToString(",") { (k, v) -> "\"$k\":$v" }
         val violationsJson = violations.joinToString(",") { v ->
             """{"ruleId":"${escapeJson(v.ruleId)}","severity":"${v.severity.name}","message":"${
-                escapeJson(
-                    v.message
-                )
+                escapeJson(v.message)
             }","source":"${
-                escapeJson(
-                    v.source
-                )
+                escapeJson(v.source)
             }"}"""
         }
-        // Compute data for the HTML report
+
         val criticalPathModules = try {
             GraphAnalyzer.criticalPath(graph)
         } catch (_: Exception) {
@@ -95,14 +112,14 @@ public object HtmlReportGenerator {
         val godModulePaths = GraphAnalyzer.godModules(graph).map { it.path }
         val isolatedPaths = GraphAnalyzer.isolatedModules(graph).map { it.path }
 
-        // Compute main-only cycles (test edges excluded from cycle detection)
         val mainCycles = GraphAnalyzer.findMainOnlyCycles(graph)
         val mainCycleNodesJson =
             mainCycles.flatten().toSet().joinToString(",") { "\"${escapeJson(it)}\"" }
         val mainCycleEdgesJson = mainCycles.flatMap { cycle ->
             cycle.indices.map { i ->
-                val a = cycle[i];
-                val b = cycle[(i + 1) % cycle.size]; "\"${escapeJson(a)}\u2192${escapeJson(b)}\""
+                val a = cycle[i]
+                val b = cycle[(i + 1) % cycle.size]
+                "\"${escapeJson(a)}\u2192${escapeJson(b)}\""
             }
         }.joinToString(",")
 
@@ -110,7 +127,29 @@ public object HtmlReportGenerator {
         val godPathJson = godModulePaths.joinToString(",") { "\"${escapeJson(it)}\"" }
         val isolPathJson = isolatedPaths.joinToString(",") { "\"${escapeJson(it)}\"" }
 
-        return """{"totalModules":${summary.totalModules},"totalEdges":${summary.totalEdges},"hasCycles":${summary.hasCycles},"cycleCount":${summary.cycleCount},"maxFanOut":${summary.maxFanOut},"maxFanIn":${summary.maxFanIn},"averageInstability":${summary.averageInstability},"criticalPathLength":${summary.criticalPathLength},"godModuleCount":${summary.godModuleCount},"isolatedModuleCount":${summary.isolatedModuleCount},"violationCount":${violations.count { it.severity.name != "INFO" }},"errorCount":${violations.count { it.severity.name == "ERROR" }},"warningCount":${violations.count { it.severity.name == "WARNING" }},"infoCount":${violations.count { it.severity.name == "INFO" }},"modulesByType":{$byType},"violations":[$violationsJson],"criticalPathModules":[$critPathJson],"godModulePaths":[$godPathJson],"isolatedModulePaths":[$isolPathJson],"mainCycleNodes":[$mainCycleNodesJson],"mainCycleEdges":[$mainCycleEdgesJson]}"""
+        return """{
+"totalModules":${summary.totalModules},
+"totalEdges":${summary.totalEdges},
+"hasCycles":${summary.hasCycles},
+"cycleCount":${summary.cycleCount},
+"maxFanOut":${summary.maxFanOut},
+"maxFanIn":${summary.maxFanIn},
+"averageInstability":${summary.averageInstability},
+"criticalPathLength":${summary.criticalPathLength},
+"godModuleCount":${summary.godModuleCount},
+"isolatedModuleCount":${summary.isolatedModuleCount},
+"violationCount":${violations.count { it.severity.name != "INFO" }},
+"errorCount":${violations.count { it.severity.name == "ERROR" }},
+"warningCount":${violations.count { it.severity.name == "WARNING" }},
+"infoCount":${violations.count { it.severity.name == "INFO" }},
+"modulesByType":{$byType},
+"violations":[$violationsJson],
+"criticalPathModules":[$critPathJson],
+"godModulePaths":[$godPathJson],
+"isolatedModulePaths":[$isolPathJson],
+"mainCycleNodes":[$mainCycleNodesJson],
+"mainCycleEdges":[$mainCycleEdgesJson]
+}""".replace("\n", "")  // single line for embedding in HTML
     }
 
     private fun loadTemplate(): String {
@@ -118,7 +157,7 @@ public object HtmlReportGenerator {
         val stream = HtmlReportGenerator::class.java.classLoader
             ?.getResourceAsStream(resourcePath)
             ?: HtmlReportGenerator::class.java
-                .getResourceAsStream(resourcePath)  // fallback: same-package lookup
+                .getResourceAsStream(resourcePath)
             ?: error(
                 "Aalekh: HTML report template not found in JAR resources.\n" +
                         "Expected resource path: $resourcePath\n" +

@@ -5,6 +5,8 @@ import com.aalekh.aalekh.model.DependencyEdge
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.ModuleNode
 import com.aalekh.aalekh.model.ModuleType
+import com.aalekh.aalekh.model.Severity
+import com.aalekh.aalekh.model.Violation
 import com.aalekh.aalekh.report.html.HtmlReportGenerator
 import kotlin.test.Test
 import kotlin.test.assertFalse
@@ -42,6 +44,7 @@ class HtmlReportGeneratorTest {
     }
 
     // Data injection
+
     @Test
     fun `generated HTML contains graph data script tag`() {
         val html = generateHtml()
@@ -71,11 +74,49 @@ class HtmlReportGeneratorTest {
     @Test
     fun `generated HTML contains dependency edge data`() {
         val html = generateHtml()
-        // Edges are serialized inside the graph JSON
         assertTrue(html.contains("implementation"), "HTML should contain edge configuration type")
     }
 
+    // Injection marker (regression guard for Fix 3)
+
+    @Test
+    fun `injection marker comment is consumed and not present in output`() {
+        // The marker comment is the anchor used to inject data tags.
+        // After injection it must be gone - if it remains, injection failed.
+        val html = generateHtml()
+        assertFalse(
+            html.contains("DATA INJECTED BY KOTLIN GENERATOR BEFORE THIS SCRIPT TAG"),
+            "The injection marker comment must be replaced by data tags, not left in the output"
+        )
+    }
+
+    @Test
+    fun `data script tags appear before parseScriptJson call`() {
+        val html = generateHtml()
+        val dataTagIndex = html.indexOf("""id="aalekh-graph-data"""")
+        val parseScriptIndex = html.indexOf("function parseScriptJson")
+        assertTrue(
+            dataTagIndex < parseScriptIndex,
+            "Data script tag must appear BEFORE parseScriptJson() - otherwise getElementById returns null"
+        )
+    }
+
+    @Test
+    fun `data script tags use application-json type attribute`() {
+        // type="application/json" prevents the browser from executing the tag as JS
+        val html = generateHtml()
+        assertTrue(
+            html.contains("""<script type="application/json" id="aalekh-graph-data">"""),
+            "Graph data tag must use type='application/json'"
+        )
+        assertTrue(
+            html.contains("""<script type="application/json" id="aalekh-summary-data">"""),
+            "Summary data tag must use type='application/json'"
+        )
+    }
+
     // Placeholder replacement
+
     @Test
     fun `project name placeholder is replaced in HTML title`() {
         val html = generateHtml()
@@ -98,12 +139,12 @@ class HtmlReportGeneratorTest {
     @Test
     fun `no raw comment placeholders remain in output`() {
         val html = generateHtml()
-        // Old-style comment placeholders must NOT appear in output
         assertFalse(html.contains("/* AALEKH_GRAPH_DATA */"), "Old comment placeholder must be replaced")
         assertFalse(html.contains("/* AALEKH_SUMMARY_DATA */"), "Old comment placeholder must be replaced")
     }
 
     // HTML structure
+
     @Test
     fun `generated HTML is a well-formed document`() {
         val html = generateHtml()
@@ -113,24 +154,13 @@ class HtmlReportGeneratorTest {
     }
 
     @Test
-    fun `data script tags appear before parseScriptJson call`() {
-        val html = generateHtml()
-        val dataTagIndex = html.indexOf("""id="aalekh-graph-data"""")
-        val parseScriptIndex = html.indexOf("function parseScriptJson")
-        assertTrue(
-            dataTagIndex < parseScriptIndex,
-            "Data script tag must appear BEFORE parseScriptJson() - otherwise getElementById returns null"
-        )
-    }
-
-    @Test
     fun `generated HTML size is reasonable for a small graph`() {
         val html = generateHtml()
-        // Template alone is ~60KB; with data it should be at least 50KB
         assertTrue(html.length > 50_000, "HTML seems too small: ${html.length} bytes")
     }
 
     // HTML escaping
+
     @Test
     fun `project name with special chars is HTML-escaped in title`() {
         val graph = ModuleDependencyGraph(
@@ -140,11 +170,11 @@ class HtmlReportGeneratorTest {
         )
         val summary = GraphAnalyzer.summary(graph)
         val html = HtmlReportGenerator.generate("my<project>&co", graph, summary)
-        // The escaped form must appear in the title area; raw < must not
         assertTrue(html.contains("my&lt;project&gt;&amp;co"), "Special chars must be HTML-escaped")
     }
 
     // Empty graph
+
     @Test
     fun `empty graph produces valid HTML without errors`() {
         val graph = ModuleDependencyGraph(
@@ -158,14 +188,15 @@ class HtmlReportGeneratorTest {
     }
 
     // Violations in report
+
     @Test
     fun `report with violations includes violation data in summary JSON`() {
         val graph = sampleGraph()
         val summary = GraphAnalyzer.summary(graph)
         val violations = listOf(
-            com.aalekh.aalekh.model.Violation(
+            Violation(
                 ruleId = "test-rule",
-                severity = com.aalekh.aalekh.model.Severity.ERROR,
+                severity = Severity.ERROR,
                 message = "Test violation message",
                 source = ":app",
             )
@@ -177,7 +208,6 @@ class HtmlReportGeneratorTest {
 
     @Test
     fun `report with test cycle has mainCycleNodes properly computed`() {
-        // Graph with test-only cycle: :a → :b (impl), :b → :a (testImpl)
         val graph = ModuleDependencyGraph(
             projectName = "test-cycle",
             modules = listOf(
@@ -190,8 +220,10 @@ class HtmlReportGeneratorTest {
             ),
         )
         val html = generateHtml(graph)
-        // Main-only cycles should be empty - the cycle only exists with test edges
-        assertTrue(html.contains("\"mainCycleNodes\":[]"), "Test-only cycle should NOT appear in mainCycleNodes")
+        assertTrue(
+            html.contains("\"mainCycleNodes\":[]"),
+            "Test-only cycle should NOT appear in mainCycleNodes"
+        )
     }
 
     @Test
@@ -208,13 +240,13 @@ class HtmlReportGeneratorTest {
             ),
         )
         val html = generateHtml(graph)
-        // Main cycles should contain :a and :b
         assertTrue(html.contains(":a"), "Main cycle node :a should be in report")
         assertTrue(html.contains(":b"), "Main cycle node :b should be in report")
         assertFalse(html.contains("\"mainCycleNodes\":[]"), "Main cycle should populate mainCycleNodes")
     }
 
     // Deeply nested modules
+
     @Test
     fun `deeply nested module paths are preserved in HTML`() {
         val graph = ModuleDependencyGraph(
