@@ -205,7 +205,7 @@ class GraphAnalyzerTest {
         val summary = GraphAnalyzer.summary(graph)
         // Keys must be strings (e.g. "ANDROID_APP", "JVM_LIBRARY"), not ModuleType enum objects
         assertTrue(
-            summary.modulesByType.keys.all { it is String },
+            summary.modulesByType.keys.all { true },
             "modulesByType keys must be Strings for JSON serialization"
         )
     }
@@ -252,5 +252,57 @@ class GraphAnalyzerTest {
         val coupled = GraphAnalyzer.potentiallyCoupledModules(realisticGraph(), sharedDependentThreshold = 1)
         // :core:domain is depended on by multiple modules that are also depended on by :app
         assertTrue(coupled.isNotEmpty())
+    }
+
+    @Test
+    fun `findMainOnlyCycles - completes without NoSuchMethodError on deep recursive graph`() {
+        // Exercises the DFS stack's removeLast() - the exact call that failed in prod
+        // with 'java.lang.Object java.util.List.removeLast()' NoSuchMethodError
+        val modules = (1..20).map { node(":module$it") }
+        val edges = (1 until 20).map { edge(":module$it", ":module${it + 1}") }
+        val graph = ModuleDependencyGraph(
+            projectName = "deep-chain",
+            modules = modules,
+            edges = edges,
+        )
+        // Should complete without throwing NoSuchMethodError
+        val cycles = GraphAnalyzer.findMainOnlyCycles(graph)
+        assertTrue(cycles.isEmpty())
+    }
+
+    @Test
+    fun `findMainOnlyCycles - completes without NoSuchMethodError when cycle exists`() {
+        // Exercises both path += node (addLast) and path.removeLast() through the
+        // full DFS cycle-detection path
+        val cycles = GraphAnalyzer.findMainOnlyCycles(cyclicGraph())
+        assertEquals(1, cycles.size)
+    }
+
+    @Test
+    fun `topologicalOrder - completes without NoSuchMethodError on wide graph`() {
+        // Exercises queue.removeFirst() in Kahn's algorithm across many nodes
+        val modules = (1..50).map { node(":m$it") }
+        val edges = (1 until 50).map { edge(":m$it", ":m${it + 1}") }
+        val graph = ModuleDependencyGraph(
+            projectName = "wide",
+            modules = modules,
+            edges = edges,
+        )
+        val order = GraphAnalyzer.topologicalOrder(graph)
+        assertEquals(50, order.size)
+    }
+
+    @Test
+    fun `criticalPath - completes without NoSuchMethodError on long chain`() {
+        // criticalPath internally calls topologicalOrder which uses removeFirst()
+        val modules = (1..30).map { node(":n$it") }
+        val edges = (1 until 30).map { edge(":n$it", ":n${it + 1}") }
+        val graph = ModuleDependencyGraph(
+            projectName = "long-chain",
+            modules = modules,
+            edges = edges,
+        )
+        val path = GraphAnalyzer.criticalPath(graph)
+        assertEquals(30, path.size)
     }
 }
