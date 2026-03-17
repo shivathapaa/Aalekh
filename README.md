@@ -10,16 +10,16 @@ teams three capabilities that no existing tool provides together: an **interacti
 ### Sample Reports
 
 - Now in Android App
-  - [View locally](assets/report_samples/nowinandroid.html)
-  - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid.html)
+    - [View locally](assets/report_samples/nowinandroid.html)
+    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid.html)
 
 - Now in Android App - with cyclic dependency
-  - [View locally](assets/report_samples/nowinandroid_withcyclic.html)
-  - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_withcyclic.html)
+    - [View locally](assets/report_samples/nowinandroid_withcyclic.html)
+    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_withcyclic.html)
 
 - Tallyo (KMP)
-  - [View locally](assets/report_samples/tallyo.html)
-  - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/tallyo.html)
+    - [View locally](assets/report_samples/tallyo.html)
+    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/tallyo.html)
 
 ### Sample Report Demo
 
@@ -44,7 +44,7 @@ beyond the browser.
 
 ```kotlin
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.0.1-beta02"
+    id("io.github.shivathapaa.aalekh") version "<latest-version>"
 }
 ```
 
@@ -68,7 +68,7 @@ in classloader" error on second runs.
 ```kotlin
 // settings.gradle.kts
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.0.1-beta02"
+    id("io.github.shivathapaa.aalekh") version "<latest-version>"
 }
 ```
 
@@ -79,7 +79,7 @@ If you prefer applying in the root project's `build.gradle.kts`:
 ```kotlin
 // build.gradle.kts (root project only)
 plugins {
-    id("io.github.shivathapaa.aalekh.project") version "0.0.1-beta02"
+    id("io.github.shivathapaa.aalekh.project") version "<latest-version>"
 }
 ```
 
