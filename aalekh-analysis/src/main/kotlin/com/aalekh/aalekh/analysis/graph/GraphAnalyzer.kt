@@ -203,7 +203,7 @@ public object GraphAnalyzer {
             graph.edgesFrom(node)
                 .filter { it.to != node && !it.isTest }
                 .forEach { dfs(it.to) }
-            path.removeLast(); onPath -= node
+            path.removeAt(path.size - 1); onPath -= node
         }
 
         graph.modules.forEach { if (it.path !in visited) dfs(it.path) }

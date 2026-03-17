@@ -133,7 +133,7 @@ public data class ModuleDependencyGraph(
             onPath += node
             path += node
             edgesFrom(node).forEach { dfs(it.to) }
-            path.removeLast()
+            path.removeAt(path.size - 1)
             onPath -= node
         }
 
