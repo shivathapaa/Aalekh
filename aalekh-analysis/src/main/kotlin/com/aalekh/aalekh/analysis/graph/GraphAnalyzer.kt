@@ -2,6 +2,7 @@ package com.aalekh.aalekh.analysis.graph
 
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.ModuleNode
+import kotlinx.serialization.Serializable
 
 /**
  * Stateless graph analysis algorithms that operate on a [ModuleDependencyGraph].
@@ -203,7 +204,8 @@ public object GraphAnalyzer {
             graph.edgesFrom(node)
                 .filter { it.to != node && !it.isTest }
                 .forEach { dfs(it.to) }
-            path.removeAt(path.size - 1); onPath -= node
+            path.removeAt(path.size - 1)
+            onPath -= node
         }
 
         graph.modules.forEach { if (it.path !in visited) dfs(it.path) }
@@ -211,11 +213,8 @@ public object GraphAnalyzer {
     }
 }
 
-/**
- * A snapshot of graph statistics.
- * Shown in the HTML report header and written to the JSON output.
- */
-public data class GraphSummary(
+@Serializable
+data class GraphSummary(
     val totalModules: Int,
     val totalEdges: Int,
     val modulesByType: Map<String, Int>,  // String keys for clean JSON output
