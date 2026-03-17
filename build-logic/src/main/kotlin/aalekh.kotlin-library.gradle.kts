@@ -9,8 +9,12 @@ java {
     targetCompatibility = JavaVersion.VERSION_11
 }
 
+
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    compilerOptions.jvmTarget.set(JvmTarget.JVM_11)
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_11)
+        freeCompilerArgs.add("-Xjdk-release=11")
+    }
 }
 
 private val Project.libs
