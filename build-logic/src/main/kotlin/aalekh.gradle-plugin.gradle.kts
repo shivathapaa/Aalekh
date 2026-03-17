@@ -21,6 +21,15 @@ val functionalTest by tasks.registering(Test::class) {
     classpath = functionalTestSourceSet.runtimeClasspath
     useJUnitPlatform()
     outputs.upToDateWhen { false }
+
+    maxParallelForks = 1
+
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = false
+        showExceptions = true
+        showCauses = true
+    }
 }
 
 gradlePlugin.testSourceSets.add(functionalTestSourceSet)
