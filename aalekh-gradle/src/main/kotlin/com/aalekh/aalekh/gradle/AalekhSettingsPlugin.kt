@@ -9,37 +9,45 @@ import org.gradle.api.initialization.Settings
 import org.gradle.api.provider.Provider
 
 /**
- * Settings-scoped Aalekh plugin
+ * Settings-scoped Aalekh plugin - the **primary entry point**.
  *
- * With `includeBuild`, Gradle's configuration cache stores task class references
- * using the classloader scope where the plugin was loaded. Project plugins are
- * loaded in the `root-project(export)` scope which is NOT preserved across CC
- * entries when the plugin comes from a composite build.
+ * Applied in `settings.gradle.kts`, this plugin is loaded in the `settings`
+ * classloader scope which is stable across configuration cache (CC) entries.
+ * This is the correct scope for a plugin used with `includeBuild` - project
+ * plugins loaded in the `root-project(export)` scope are NOT preserved across
+ * CC entries when the plugin comes from a composite build.
  *
- * Settings plugins are loaded in the `settings` classloader scope, which IS
- * stable across CC entries. This makes the CC second-run work correctly.
- *
- * ### Consumer usage (settings.gradle.kts)
+ * ### Consumer usage
  * ```kotlin
+ * // settings.gradle.kts
  * plugins {
- *     id("io.github.shivathapaa.aalekh") version "0.1.0"
+ *     id("io.github.shivathapaa.aalekh") version "0.1.1"
  * }
  * ```
  *
- * The extension is configured on the root project, not on settings:
+ * Configure the extension on the **root project**, not on settings:
  * ```kotlin
  * // build.gradle.kts (root project)
  * aalekh {
  *     openBrowserAfterReport.set(false)
+ *     includeTestDependencies.set(false)   // exclude test deps from graph
+ *     includeCompileOnlyDependencies.set(true) // include compileOnly
  * }
  * ```
+ *
+ * ### Note - settings plugin vs project plugin
+ * `AalekhPlugin` (the project plugin) is kept for backwards compatibility but
+ * is deprecated. `AalekhSettingsPlugin` is the canonical implementation.
+ * All logic lives here; `AalekhPlugin` delegates to the same task types.
  */
 public class AalekhSettingsPlugin : Plugin<Settings> {
+
     override fun apply(settings: Settings) {
-        // Wait for the root project to be available, then register everything on it.
-        // gradle.rootProject { } is the correct hook - it fires after settings are
-        // processed but before any project is configured.
+        // gradle.rootProject { } fires after settings are processed but before
+        // any project is configured - the correct hook for registering tasks
+        // that need to observe all subprojects.
         settings.gradle.rootProject { rootProject ->
+
             val extension = rootProject.extensions.create(
                 AalekhExtension.NAME,
                 AalekhExtension::class.java,
@@ -54,17 +62,21 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
             ) { task ->
                 task.projectName.set(rootProject.name)
                 task.gradleVersion.set(rootProject.gradle.gradleVersion)
+
                 // Capture dependency + plugin data as plain Strings inside providers.
-                // provider { } lambdas run at configuration time but only after all
-                // subprojects are configured (they are evaluated lazily when the task
-                // input is first read). No live Project/Configuration objects survive
-                // into the task - fully CC-safe.
+                // provider { } lambdas evaluate lazily when the task input is first
+                // fingerprinted - after all subprojects are configured.
+                // No live Project/Configuration objects survive into the task: CC-safe.
                 task.subprojectData.set(rootProject.provider {
                     buildSubprojectData(rootProject)
                 })
                 task.subprojectPlugins.set(rootProject.provider {
                     buildPluginData(rootProject)
                 })
+
+                task.includeTestDependencies.set(extension.includeTestDependencies)
+                task.includeCompileOnlyDependencies.set(extension.includeCompileOnlyDependencies)
+
                 task.outputFile.set(graphJsonFile)
             }
 
@@ -99,8 +111,24 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
         }
     }
 
-    private fun buildSubprojectData(rootProject: org.gradle.api.Project): Map<String, List<String>> {
-        val productionConfigs = setOf("implementation", "api", "compileOnly", "runtimeOnly")
+    // Collects ALL configurations unconditionally. Filtering by
+    // includeTestDependencies / includeCompileOnlyDependencies happens
+    // inside AalekhExtractTask, not here. This separation means:
+    //   1. The task input is stable (changing a flag doesn't change the raw
+    //      data passed to the task, only how the task processes it).
+    //   2. The CC cache is correctly invalidated via the task's @Input flags,
+    //      not via the provider lambda re-running.
+    //
+    // Note: compileOnly IS included in the raw collection here even though
+    // the default extension flag excludes it from the final graph. The task
+    // strips it if includeCompileOnlyDependencies = false.
+
+    private fun buildSubprojectData(
+        rootProject: org.gradle.api.Project,
+    ): Map<String, List<String>> {
+        val productionConfigs = setOf(
+            "implementation", "api", "compileOnly", "runtimeOnly",
+        )
         val testConfigs = setOf(
             "testImplementation", "testRuntimeOnly", "testApi", "testCompileOnly",
             "androidTestImplementation", "androidTestRuntimeOnly",
@@ -124,11 +152,20 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
         }
     }
 
-    private fun buildPluginData(rootProject: org.gradle.api.Project): Map<String, List<String>> =
+    private fun buildPluginData(
+        rootProject: org.gradle.api.Project,
+    ): Map<String, List<String>> =
         rootProject.subprojects.associate { subproject ->
             subproject.path to subproject.plugins.map { it.javaClass.name }
         }
 
+    /**
+     * Returns true if [name] looks like a KMP source-set-scoped configuration,
+     * e.g. `commonMainImplementation`, `iosMainApi`.
+     *
+     * These are not in the standard config list but are architecturally
+     * significant for KMP projects.
+     */
     private fun isKmpConfig(name: String): Boolean {
         val kmpSuffixes = listOf("Implementation", "Api", "CompileOnly", "RuntimeOnly")
         val standardConfigs = setOf(

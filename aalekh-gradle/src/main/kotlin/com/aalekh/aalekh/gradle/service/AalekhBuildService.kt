@@ -1,15 +1,8 @@
 package com.aalekh.aalekh.gradle.service
 
-import com.aalekh.aalekh.gradle.AalekhPlugin
-import com.aalekh.aalekh.gradle.extractor.GraphExtractor
-import com.aalekh.aalekh.gradle.task.AalekhCheckTask
-import com.aalekh.aalekh.gradle.task.AalekhReportTask
 import com.aalekh.aalekh.model.ModuleDependencyGraph
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import org.gradle.api.Project
 import org.gradle.api.provider.Property
-import org.gradle.api.provider.Provider
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
 
@@ -18,15 +11,18 @@ import org.gradle.api.services.BuildServiceParameters
  *
  * ### Why a BuildService?
  * In Gradle 9.x, configuration cache is ON by default. Tasks cannot capture
- * live [Project] references - they are not serializable and will
+ * live [org.gradle.api.Project] references — they are not serializable and will
  * break the cache. A BuildService IS cache-compatible: only its [Parameters]
- * are stored between cache entries, and tasks receive it as a typed [Provider]
- * reference, not a direct object.
+ * are stored between cache entries, and tasks receive it as a typed
+ * [org.gradle.api.provider.Provider] reference, not a direct object.
  *
  * ### Data flow
- * 1. [AalekhPlugin] registers this service at settings time
- * 2. [GraphExtractor] populates it via [setGraph] during `projectsEvaluated`
- * 3. [AalekhReportTask] and [AalekhCheckTask] read [getGraphJson] during execution
+ * 1. [com.aalekh.aalekh.gradle.AalekhSettingsPlugin] registers this service
+ * 2. [com.aalekh.aalekh.gradle.extractor.GraphExtractor] populates it via
+ *    [setGraph] during `projectsEvaluated`
+ * 3. [com.aalekh.aalekh.gradle.task.AalekhReportTask] and
+ *    [com.aalekh.aalekh.gradle.task.AalekhCheckTask] read [getGraphJson]
+ *    during execution
  *
  * The graph is stored as a serialized JSON string (not a live object) to
  * survive configuration cache serialization. The [ModuleDependencyGraph]
@@ -44,7 +40,7 @@ public abstract class AalekhBuildService : BuildService<AalekhBuildService.Param
 
     private val serializationJson = Json { encodeDefaults = true }
 
-    /** Called by [GraphExtractor] after all projects are evaluated.*/
+    /** Called by [com.aalekh.aalekh.gradle.extractor.GraphExtractor] after all projects are evaluated. */
     public fun setGraph(graph: ModuleDependencyGraph) {
         parameters.graphJson.set(serializationJson.encodeToString(graph))
     }

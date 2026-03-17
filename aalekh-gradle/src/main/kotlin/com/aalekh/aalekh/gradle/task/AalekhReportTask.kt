@@ -8,16 +8,37 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
-import org.gradle.api.tasks.*
+import org.gradle.api.tasks.CacheableTask
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
+import org.gradle.work.DisableCachingByDefault
 
 /**
  * Generates the Aalekh HTML dependency report.
  *
  * Usage:  `./gradlew aalekhReport`
  * Output: `<projectRoot>/build/reports/aalekh/index.html`
+ *
+ * ### Why @DisableCachingByDefault?
+ * The report is a viewer artifact meant to reflect the *current* state of the
+ * project when opened. Caching a stale HTML file and having it appear in the
+ * browser without re-running the task would be misleading. More concretely,
+ * this task also opens the browser - a side effect that should happen every
+ * time the task runs, not just on cache misses.
+ *
+ * The upstream [AalekhExtractTask] is cacheable, so the expensive part
+ * (graph extraction) is still cached. Only the cheap HTML generation runs
+ * every time.
  */
+@DisableCachingByDefault(because = "HTML reports should always reflect the current state; the task also has the side effect of opening a browser window")
 public abstract class AalekhReportTask : DefaultTask() {
-    /** Intermediate graph JSON written by the plugin after projectsEvaluated. */
+
+    /** Intermediate graph JSON written by [AalekhExtractTask]. */
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     public abstract val graphJsonFile: RegularFileProperty
@@ -40,7 +61,11 @@ public abstract class AalekhReportTask : DefaultTask() {
     @TaskAction
     public fun generate() {
         val graph = readGraph()
-        val report = ReportCoordinator(graph, RuleEngine.withBuiltinRules().evaluate(graph), projectName.get())
+        val report = ReportCoordinator(
+            graph,
+            RuleEngine.withBuiltinRules().evaluate(graph),
+            projectName.get()
+        )
         val outputPath = outputFile.get().asFile
 
         outputPath.parentFile.mkdirs()
@@ -105,8 +130,15 @@ public abstract class AalekhReportTask : DefaultTask() {
  *
  * Outputs:
  * - `<outputDir>/aalekh-results.xml`  - JUnit XML (consumed by all CI systems)
- * - `<outputDir>/aalekh-results.json` - Machine-readable JSON
+ * - `<outputDir>/aalekh-results.json` - Machine-readable JSON envelope
+ *
+ * ### Why @CacheableTask?
+ * `aalekhCheck` is deterministic: given the same graph JSON and the same rules,
+ * it always produces the same violation list. Caching it means CI doesn't
+ * re-evaluate rules when the graph hasn't changed - e.g. a commit that only
+ * touches documentation will hit the cache and skip the rule engine entirely.
  */
+@CacheableTask
 public abstract class AalekhCheckTask : DefaultTask() {
 
     @get:InputFile

@@ -9,24 +9,37 @@ import org.gradle.api.file.RegularFile
 import org.gradle.api.provider.Provider
 
 /**
- * Project-scoped Aalekh plugin - legacy / fallback entry point.
+ * Project-scoped Aalekh plugin - **deprecated, use the settings plugin instead**.
  *
- * With `includeBuild`, use the settings plugin (`AalekhSettingsPlugin`) applied
- * in `settings.gradle.kts`. It is loaded in the `settings` classloader scope
- * which is stable across configuration cache entries.
+ * This plugin is kept for backwards compatibility with users who applied Aalekh
+ * via `build.gradle.kts` before the settings plugin was introduced. It produces
+ * a deprecation warning on first use and registers the same tasks as
+ * [AalekhSettingsPlugin].
  *
- * This project plugin still works correctly when Aalekh is consumed from
- * the Gradle Plugin Portal (not via `includeBuild`), because in that case
- * the plugin JAR is on the root classloader from the start.
+ * ## Why deprecated?
+ * Project plugins applied via `includeBuild` are loaded in the
+ * `root-project(export)` classloader scope, which is NOT preserved across
+ * configuration cache entries. This causes a CC miss on every second run.
+ * The settings plugin is loaded in the `settings` scope, which IS stable.
  *
- * ## Usage (build.gradle.kts of root project)
+ * ## Migration (takes ~30 seconds)
  * ```kotlin
+ * // settings.gradle.kts - REPLACE the build.gradle.kts plugin block with this:
  * plugins {
- *     id("io.github.shivathapaa.aalekh.project") version "0.1.0"
+ *     id("io.github.shivathapaa.aalekh") version "0.1.1"
  * }
  * ```
+ * Then remove the plugin from `build.gradle.kts`. The `aalekh { }` extension
+ * block in `build.gradle.kts` stays exactly as-is.
  */
+@Deprecated(
+    message = "Use the settings plugin instead: " +
+            "id(\"io.github.shivathapaa.aalekh\") in settings.gradle.kts. " +
+            "The project plugin will be removed in a future release.",
+    replaceWith = ReplaceWith("AalekhSettingsPlugin"),
+)
 public class AalekhPlugin : Plugin<Project> {
+
     override fun apply(project: Project) {
         require(project == project.rootProject) {
             """
@@ -34,9 +47,16 @@ public class AalekhPlugin : Plugin<Project> {
             It was applied to '${project.path}'.
 
             Recommended: use the settings plugin in settings.gradle.kts instead:
-                plugins { id("io.github.shivathapaa.aalekh") version "0.1.0" }
+                plugins { id("io.github.shivathapaa.aalekh") version "0.1.1" }
             """.trimIndent()
         }
+
+        project.logger.warn(
+            "\n⚠ Aalekh: the project plugin (io.github.shivathapaa.aalekh.project) is deprecated.\n" +
+                    "  Migrate to the settings plugin for configuration cache stability:\n" +
+                    "  In settings.gradle.kts: plugins { id(\"io.github.shivathapaa.aalekh\") version \"0.1.1\" }\n" +
+                    "  Then remove Aalekh from build.gradle.kts. The aalekh { } block stays as-is.\n"
+        )
 
         val extension = project.extensions.create(
             AalekhExtension.NAME,
@@ -53,6 +73,8 @@ public class AalekhPlugin : Plugin<Project> {
             task.gradleVersion.set(project.gradle.gradleVersion)
             task.subprojectData.set(project.provider { buildSubprojectData(project) })
             task.subprojectPlugins.set(project.provider { buildPluginData(project) })
+            task.includeTestDependencies.set(extension.includeTestDependencies)
+            task.includeCompileOnlyDependencies.set(extension.includeCompileOnlyDependencies)
             task.outputFile.set(graphJsonFile)
         }
 
