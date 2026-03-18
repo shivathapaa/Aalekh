@@ -72,20 +72,21 @@ plugins {
 }
 ```
 
-### Project plugin (alternative)
+### Project plugin (deprecated)
 
-If you prefer applying in the root project's `build.gradle.kts`:
+> **⚠ Deprecated as of v0.1.0.** The project plugin will be removed in a future release. Please
+> migrate to the settings plugin above.
+
+If you are still on the project plugin, you will see a migration warning at build time. To migrate:
+remove the plugin from `build.gradle.kts` and add it to `settings.gradle.kts` instead. The
+`aalekh { }` configuration block in `build.gradle.kts` stays exactly as-is.
 
 ```kotlin
-// build.gradle.kts (root project only)
+// build.gradle.kts (root project only) - deprecated, migrate to settings plugin
 plugins {
     id("io.github.shivathapaa.aalekh.project") version "<latest-version>"
 }
 ```
-
-> **Note:** The project plugin works correctly when Aalekh is consumed from the Gradle Plugin
-> Portal. For `includeBuild`
-> setups, use the settings plugin to avoid configuration cache issues.
 
 ## Gradle Tasks
 
@@ -117,7 +118,7 @@ tasks.named("check") {
 
 Generates `build/reports/aalekh/index.html` - a fully self-contained HTML file with no server, no
 CDN, and no internet connection required. The report opens automatically in your default browser
-after the task completes (disable with`openBrowserAfterReport.set(false)` for CI).
+after the task completes (disable with `openBrowserAfterReport.set(false)` for CI).
 
 The intermediate graph JSON is written to `build/tmp/aalekh/graph.json` and is cleaned by
 `./gradlew clean`.
@@ -131,9 +132,9 @@ The intermediate graph JSON is written to `build/tmp/aalekh/graph.json` and is c
 Evaluates all registered architecture rules against the extracted dependency graph. On completion it
 writes:
 
-- `build/reports/aalekh/aalekh-results.xml` - JUnit XML
-- `build/reports/aalekh/aalekh-results.json` - machine-readable JSON for dashboards and custom
-  tooling
+- `build/reports/aalekh/aalekh-results.xml` - JUnit XML (consumed by all CI systems natively)
+- `build/reports/aalekh/aalekh-results.json` - full machine-readable report: graph, summary stats,
+  violations, version, and timestamp
 
 If any `ERROR`-severity violation is found, the task fails with a summary message pointing to the
 XML report:
@@ -154,7 +155,7 @@ violations are silently collected and visible in the HTML report only.
 
 Extracts and serializes the full module dependency graph to `build/tmp/aalekh/graph.json`. Useful
 for integrating Aalekh data into custom tooling or piping into other scripts. Both `aalekhReport`
-and `aalekhCheck`depend on this task implicitly - you rarely need to run it directly.
+and `aalekhCheck` depend on this task implicitly - you rarely need to run it directly.
 
 ## The Report
 
@@ -209,8 +210,7 @@ Aalekh distinguishes between two kinds of cycles:
 
 ## Configuration
 
-All configuration lives in the `aalekh { }` block, which can be placed in either
-`settings.gradle.kts` (settings plugin) or the root `build.gradle.kts` (project plugin).
+All configuration lives in the `aalekh { }` block in the root `build.gradle.kts`.
 
 ```kotlin
 aalekh {
@@ -227,7 +227,7 @@ aalekh {
     // cycle detection regardless of this setting.
     includeTestDependencies.set(true)
 
-    // Include compileOnly / runtimeOnly edges in the graph.
+    // Include compileOnly edges in the graph.
     // Default: false.
     includeCompileOnlyDependencies.set(false)
 }
@@ -240,7 +240,7 @@ aalekh {
 | `outputDir`                      | `String`  | `"reports/aalekh"` | Output directory relative to `build/`. Final path: `build/<outputDir>/`      |
 | `openBrowserAfterReport`         | `Boolean` | `true`             | Auto-open the HTML report in the default browser after `aalekhReport` runs   |
 | `includeTestDependencies`        | `Boolean` | `true`             | Include `testImplementation`, `androidTestImplementation`, etc. in the graph |
-| `includeCompileOnlyDependencies` | `Boolean` | `false`            | Include `compileOnly` and `runtimeOnly` edges in the graph                   |
+| `includeCompileOnlyDependencies` | `Boolean` | `false`            | Include `compileOnly` edges in the graph                                     |
 
 ## Architecture Rules
 
@@ -261,20 +261,35 @@ active and fails the build on any production dependency cycle.
 | `WARNING` | Printed to stdout. Build continues.                           |
 | `INFO`    | Silently collected. Visible in the HTML report and JSON only. |
 
-### Custom rules *(coming soon)*
+### Layer enforcement and custom rules *(next release)*
 
-A Kotlin DSL for declaring layer boundaries and custom rules is coming in the next release - letting
-you fail the build when modules cross architectural boundaries:
+A Kotlin DSL for declaring layer boundaries and custom rules is coming in the next release:
 
 ```kotlin
-// Coming in next release
+// Coming in v0.2.0
 aalekh {
-    rules {
+    layers {
         layer("domain") {
-            modules { path.contains(":domain") }
-            mustNotDependOn { type == ModuleType.ANDROID_LIBRARY }
+            modules(":core:domain", ":feature:*:domain")
         }
-        maxFanOut(limit = 8, severity = Severity.WARNING)
+        layer("data") {
+            modules(":core:data", ":feature:*:data")
+            canOnlyDependOn("domain")
+        }
+        layer("presentation") {
+            modules(":feature:*:ui", ":app")
+            canOnlyDependOn("domain", "data")
+        }
+    }
+
+    featureIsolation {
+        featurePattern = ":feature:**"
+    }
+
+    rules {
+        rule("layer-dependency") {
+            severity = Severity.WARNING  // start as warning during migration
+        }
     }
 }
 ```
@@ -325,10 +340,10 @@ aalekh/
 ├── aalekh-report/         ← Report generators. No Gradle API.
 │                             HtmlReportGenerator - self-contained HTML with D3.js
 │                             JUnitXmlWriter      - CI-compatible XML
-│                             JsonReporter        - machine-readable JSON
+│                             JsonReporter        - full JSON report envelope
 │
 ├── aalekh-gradle/         ← Gradle plugin entry point and tasks.
-│                             AalekhPlugin / AalekhSettingsPlugin
+│                             AalekhSettingsPlugin (primary), AalekhPlugin (deprecated)
 │                             AalekhExtractTask, AalekhReportTask, AalekhCheckTask
 │                             AalekhExtension (DSL)
 │                             GraphExtractor, ModuleTypeDetector
@@ -374,8 +389,6 @@ between the configuration phase (graph extraction) and the execution phase (repo
 
 ### Recommended CI configuration
 
-Disable browser auto-open and keep test dependencies in graph for full visibility:
-
 ```kotlin
 aalekh {
     openBrowserAfterReport.set(false)
@@ -385,12 +398,12 @@ aalekh {
 
 ## Roadmap
 
-| Phase      | Theme                                                 | Status         |
-|------------|-------------------------------------------------------|----------------|
-| **Alpha**  | Graph extraction + interactive HTML report            | ✅ Released     |
-| **Next**   | Rule engine DSL + layer boundary enforcement          | 🔨 In progress |
-| **Later**  | Metrics tracking + historical trend reports           | 📋 Planned     |
-| **Future** | Source-level analysis via KSP2 + stable API guarantee | 📋 Planned     |
+| Version    | Theme                                             | Status         |
+|------------|---------------------------------------------------|----------------|
+| **v0.1.0** | Graph extraction + interactive HTML report        | ✅ Released     |
+| **Next**   | Layer rule DSL + feature isolation + SARIF output | 🔨 In progress |
+| **Later**  | Metrics tracking + historical trend reports       | 📋 Planned     |
+| **Future** | Source-level analysis via KSP2 + stable API       | 📋 Planned     |
 
 ## Contributing
 
