@@ -373,12 +373,16 @@
             grid-area: main;
             position: relative;
             overflow: hidden;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
         }
 
         .panel {
             display: none;
             width: 100%;
-            height: 100%;
+            flex: 1;
+            min-height: 0;
         }
 
         .panel.active {
@@ -394,6 +398,7 @@
         #panel-graph.active {
             display: block;
             position: relative;
+            height: 100%;
         }
 
         #graph-svg {
@@ -795,7 +800,7 @@
 
         /* METRICS PANEL */
         #panel-metrics.active {
-            overflow: hidden;
+            overflow-y: auto;
         }
 
         .metrics-scroll {
@@ -803,9 +808,11 @@
             min-height: 0;
             overflow-y: auto;
             padding: 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 28px;
+            display: block;
+        }
+
+        .metrics-scroll > * + * {
+            margin-top: 28px;
         }
 
         .sec-head {
@@ -1004,7 +1011,7 @@
 
         /* VIOLATIONS PANEL */
         #panel-violations.active {
-            overflow: hidden;
+            overflow-y: auto;
         }
 
         .vio-scroll {
@@ -1012,9 +1019,11 @@
             min-height: 0;
             overflow-y: auto;
             padding: 24px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
+            display: block;
+        }
+
+        .vio-scroll > * + * {
+            margin-top: 12px;
         }
 
         .vio-summary-row {
@@ -1276,6 +1285,7 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            min-height: 0;
         }
 
         .side-hdr {
@@ -1643,8 +1653,7 @@
     <div class="hdr-right">
         <div id="search-wrap">
             <span class="ico">⌕</span>
-            <input id="search" type="text" placeholder="search modules… ( / )" autocomplete="off"
-                   spellcheck="false"/>
+            <input id="search" type="text" placeholder="search modules… ( / )" autocomplete="off" spellcheck="false"/>
         </div>
         <button class="icon-btn" id="btn-fit" title="Fit graph (F)">⊡</button>
         <button class="icon-btn" id="btn-relayout" title="Re-layout (R)">↺</button>
@@ -1658,8 +1667,7 @@
     <div class="tab" data-p="matrix">⊟ Matrix</div>
     <div class="tab" data-p="metrics">◎ Metrics</div>
     <div class="nav-divider"></div>
-    <div class="tab" data-p="violations">⚑ Violations <span class="tab-n"
-                                                            id="tn-violations">0</span></div>
+    <div class="tab" data-p="violations">⚑ Violations <span class="tab-n" id="tn-violations">0</span></div>
 </nav>
 
 <!-- MAIN CONTENT -->
@@ -1686,9 +1694,7 @@
                 <div class="tree-toolbar">
                     <button class="tree-toolbar-btn" id="tree-expand-all">Expand All</button>
                     <button class="tree-toolbar-btn" id="tree-collapse-all">Collapse All</button>
-                    <button class="tree-toolbar-btn" id="tree-show-cycles"
-                            title="Jump to cycle nodes">⚠ Cycles
-                    </button>
+                    <button class="tree-toolbar-btn" id="tree-show-cycles" title="Jump to cycle nodes">⚠ Cycles</button>
                 </div>
                 <div id="tree-root"></div>
             </div>
@@ -1738,8 +1744,7 @@
     <div id="side-scroll">
         <div id="side-prompt">
             <div class="side-prompt-ico">◫</div>
-            <div class="side-prompt-txt">Click any node in the graph,<br/>any row in the
-                matrix,<br/>or any item in the
+            <div class="side-prompt-txt">Click any node in the graph,<br/>any row in the matrix,<br/>or any item in the
                 Explorer<br/>to inspect it here
             </div>
         </div>
