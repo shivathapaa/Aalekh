@@ -18,21 +18,24 @@
 
 **Architecture Visualization & Linting for Gradle Multi-Module Projects**
 
-Aalekh is a Gradle plugin that extracts, visualizes, and enforces architectural rules across any Gradle multi-module project - Kotlin Multiplatform, Android, JVM, or any Gradle project. It gives teams three capabilities that no existing tool provides together: an **interactive module graph**, a **Kotlin DSL for architecture rule enforcement**, and **historical metrics tracking**.
+Aalekh is a Gradle plugin that extracts, visualizes, and enforces architectural rules across any
+Gradle multi-module project - Kotlin Multiplatform, Android, JVM, or any Gradle project. It gives
+teams three capabilities that no existing tool provides together: an **interactive module graph**, a
+**Kotlin DSL for architecture rule enforcement**, and **historical metrics tracking**.
 
 ### Sample Reports
 
 - Now in Android App
-  - [View locally](assets/report_samples/nowinandroid.html)
-  - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid.html)
+    - [View locally](assets/report_samples/nowinandroid.html)
+    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid.html)
 
 - Now in Android App - with cyclic dependency
-  - [View locally](assets/report_samples/nowinandroid_withcyclic.html)
-  - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_withcyclic.html)
+    - [View locally](assets/report_samples/nowinandroid_withcyclic.html)
+    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_withcyclic.html)
 
 - Tallyo (KMP)
-  - [View locally](assets/report_samples/tallyo.html)
-  - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/tallyo.html)
+    - [View locally](assets/report_samples/tallyo.html)
+    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/tallyo.html)
 
 ### Sample Report Demo
 
@@ -48,7 +51,8 @@ Aalekh is a Gradle plugin that extracts, visualizes, and enforces architectural 
 |------------|:----------:|:--------------:|:--------------:|:---------:|
 | **Aalekh** |   **✓**    |     **✓**      |     **✓**      |   **✓**   |
 
-Aalekh **visualizes, enforces, and tracks** - in a single plugin, with zero external dependencies beyond the browser.
+Aalekh **visualizes, enforces, and tracks** - in a single plugin, with zero external dependencies
+beyond the browser.
 
 ## Quick Start
 
@@ -72,7 +76,8 @@ An interactive HTML report opens automatically in your default browser. No confi
 
 ### Settings plugin (recommended)
 
-Apply in `settings.gradle.kts`. The settings plugin loads in a classloader scope that is stable across configuration cache entries, preventing cache misses on second runs.
+Apply in `settings.gradle.kts`. The settings plugin loads in a classloader scope that is stable
+across configuration cache entries, preventing cache misses on second runs.
 
 ```kotlin
 // settings.gradle.kts
@@ -86,7 +91,7 @@ plugins {
 > **⚠ Deprecated as of v0.2.0.** The project plugin will be removed in a future release. Please
 > migrate to the settings plugin above.
 
-If you are still on the project plugin, you will see a migration warning at build time. To migrate: 
+If you are still on the project plugin, you will see a migration warning at build time. To migrate:
 remove the plugin from `build.gradle.kts` and add it to `settings.gradle.kts` instead. The
 `aalekh { }` configuration block in `build.gradle.kts` stays exactly as-is.
 
@@ -101,11 +106,11 @@ plugins {
 
 Aalekh registers three tasks on the root project, all in the `aalekh` task group.
 
-| Task                      | Description                                                                                  |
-|---------------------------|----------------------------------------------------------------------------------------------|
-| `./gradlew aalekhExtract` | Extracts the module dependency graph and writes it as JSON to `build/tmp/aalekh/graph.json`  |
-| `./gradlew aalekhReport`  | Generates the interactive HTML report at `build/reports/aalekh/index.html`                   |
-| `./gradlew aalekhCheck`   | Evaluates all architecture rules; fails the build on `ERROR`-severity violations             |
+| Task                      | Description                                                                                 |
+|---------------------------|---------------------------------------------------------------------------------------------|
+| `./gradlew aalekhExtract` | Extracts the module dependency graph and writes it as JSON to `build/tmp/aalekh/graph.json` |
+| `./gradlew aalekhReport`  | Generates the interactive HTML report at `build/reports/aalekh/index.html`                  |
+| `./gradlew aalekhCheck`   | Evaluates all architecture rules; fails the build on `ERROR`-severity violations            |
 
 `aalekhCheck` is automatically wired into the standard `check` lifecycle task, so it runs as part
 of `./gradlew check` without any extra configuration.
@@ -191,6 +196,19 @@ sortable table with inline bar charts.
 **⚑ Violations** - Structured violation cards for every `aalekhCheck` failure. Each card shows the
 rule ID, severity badge, the exact dependency edge to remove, a plain-language explanation of why
 the rule exists, and a "View in Graph" button that navigates directly to the offending module.
+Violation messages include the build file path and line number where the offending dependency
+is declared.
+
+When no violations exist and no layer rules are configured, the panel analyses your module paths
+and suggests a ready-to-paste `layers { }` DSL block based on detected `domain`, `data`, and
+`ui`/`presentation` patterns.
+
+### Metrics CSV export
+
+Set `exportMetrics.set(true)` to write `aalekh-metrics.csv` alongside the HTML report on every
+`aalekhReport` run. The CSV contains one timestamped row per module with fan-in, fan-out,
+instability, transitive dep count, health score, and boolean flags for god module, critical path,
+and cycle participation. Import into Datadog, Grafana, or a spreadsheet for external trending.
 
 ### Sidebar - Module Inspector
 
@@ -245,16 +263,18 @@ aalekh {
 | `openBrowserAfterReport`         | `Boolean` | `true`             | Auto-open the HTML report after `aalekhReport` runs                          |
 | `includeTestDependencies`        | `Boolean` | `true`             | Include `testImplementation`, `androidTestImplementation`, etc. in the graph |
 | `includeCompileOnlyDependencies` | `Boolean` | `false`            | Include `compileOnly` edges in the graph                                     |
+| `exportMetrics`                  | `Boolean` | `false`            | Write `aalekh-metrics.csv` alongside the HTML report                         |
 
 ## Architecture Rules
 
 ### Built-in rules
 
-| Rule ID                    | Severity | Description                                                          |
-|----------------------------|----------|----------------------------------------------------------------------|
-| `no-cyclic-dependencies`   | `ERROR`  | The module dependency graph must be a DAG (no production cycles)     |
-| `layer-dependency`         | `ERROR`  | Modules must only depend on modules in their declared allowed layers |
-| `no-feature-to-feature`    | `ERROR`  | Feature modules must not depend on each other                        |
+| Rule ID                       | Severity  | Description                                                          |
+|-------------------------------|-----------|----------------------------------------------------------------------|
+| `no-cyclic-dependencies`      | `ERROR`   | The module dependency graph must be a DAG (no production cycles)     |
+| `layer-dependency`            | `ERROR`   | Modules must only depend on modules in their declared allowed layers |
+| `no-feature-to-feature`       | `ERROR`   | Feature modules must not depend on each other                        |
+| `max-transitive-dependencies` | `WARNING` | Modules must not exceed the configured transitive dependency limit   |
 
 ### Violation severity levels
 
@@ -325,6 +345,39 @@ aalekh {
 }
 ```
 
+### Transitive dependency limit
+
+Fail or warn when a module pulls in too many hidden transitive dependencies:
+
+```kotlin
+aalekh {
+    rules {
+        noTransitiveDependenciesExceeding(30)
+    }
+}
+```
+
+The default severity is `WARNING`. Override with
+`rule("max-transitive-dependencies") { severity = Severity.ERROR }`.
+
+### Cycle regression prevention
+
+Once a project is cycle-free, lock that state in so new cycles can never be introduced silently:
+
+```kotlin
+aalekh {
+    rules {
+        rule("no-cyclic-dependencies") {
+            preventRegression = true
+        }
+    }
+}
+```
+
+When enabled, `aalekhCheck` reads the cycle count from the previous run's `aalekh-results.json`.
+If the count increased, the build fails immediately - even if cycles already existed. No baseline
+file, no manual setup. The previous run's output is the baseline.
+
 ### SARIF output for GitHub PR annotations
 
 `aalekhCheck` writes `aalekh-results.sarif` on every run. Add these two steps to your GitHub
@@ -364,7 +417,7 @@ class NoAndroidInDomainRule : ArchRule {
                     ruleId = id,
                     severity = defaultSeverity,
                     message = "${edge.from} depends on Android module ${edge.to}. " +
-                              "Move Android-specific code to the data or presentation layer.",
+                            "Move Android-specific code to the data or presentation layer.",
                     source = "${edge.from} → ${edge.to}",
                     moduleHint = edge.from,
                     plainLanguageExplanation = plainLanguageExplanation,
@@ -375,7 +428,8 @@ class NoAndroidInDomainRule : ArchRule {
 
 ## Module Types
 
-Aalekh infers the module type from applied plugin IDs. Detection runs in priority order - first match wins.
+Aalekh infers the module type from applied plugin IDs. Detection runs in priority order - first
+match wins.
 
 | Module Type           | Plugin ID                                            | Color  |
 |-----------------------|------------------------------------------------------|--------|
@@ -388,15 +442,16 @@ Aalekh infers the module type from applied plugin IDs. Detection runs in priorit
 
 ## Graph Metrics
 
-| Metric               | Description                                                                  |
-|----------------------|------------------------------------------------------------------------------|
-| **Fan-out**          | Number of modules this module directly depends on (production only)          |
-| **Fan-in**           | Number of modules that directly depend on this one (production only)         |
-| **Instability**      | `fanOut / (fanIn + fanOut)`. Range 0.0 (stable) to 1.0 (unstable)           |
-| **Transitive deps**  | Total number of modules reachable by following dependencies from this module |
-| **Critical path**    | Longest dependency chain in the graph - constrains build parallelism         |
-| **God modules**      | Modules with both high fan-in AND high fan-out - architectural hotspots      |
-| **Isolated modules** | Modules with zero fan-in and zero fan-out - candidates for removal           |
+| Metric               | Description                                                                                                                                                                               |
+|----------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Fan-out**          | Number of modules this module directly depends on (production only)                                                                                                                       |
+| **Fan-in**           | Number of modules that directly depend on this one (production only)                                                                                                                      |
+| **Instability**      | `fanOut / (fanIn + fanOut)`. Range 0.0 (stable) to 1.0 (unstable)                                                                                                                         |
+| **Transitive deps**  | Total number of modules reachable by following dependencies from this module                                                                                                              |
+| **Critical path**    | Longest dependency chain in the graph - constrains build parallelism                                                                                                                      |
+| **God modules**      | Modules with both high fan-in AND high fan-out - architectural hotspots                                                                                                                   |
+| **Isolated modules** | Modules with zero fan-in and zero fan-out - candidates for removal                                                                                                                        |
+| **Health score**     | 0–100 composite score. Weighted from instability (30%), god module (25%), cycle participation (25%), transitive dep count (20%). Shown in the metrics table and module inspector sidebar. |
 
 ## Project Structure
 
@@ -412,8 +467,9 @@ aalekh/
 │                             RuleEngine         - evaluates ArchRule implementations,
 │                                                  severity overrides, suppressions
 │                             GlobMatcher        - * and ** pattern matching for module paths
+│                             HealthScoreCalculator - weighted 0–100 per-module score
 │                             LayerDependencyRule, NoFeatureToFeatureDependencyRule
-│                             NoCyclicDependenciesRule
+│                             MaxTransitiveDependenciesRule, NoCyclicDependenciesRule
 │                             MetricsEngine      - per-module and project-wide metrics
 │
 ├── aalekh-report/         ← Report generators. No Gradle API.
@@ -421,6 +477,7 @@ aalekh/
 │                             JUnitXmlWriter      - CI-compatible XML
 │                             JsonReporter        - full JSON report envelope
 │                             SarifReporter       - SARIF 2.1 for GitHub code scanning
+│                             CsvMetricsExporter  - per-module metrics CSV for external tools
 │
 ├── aalekh-gradle/         ← Gradle plugin entry point and tasks.
 │                             AalekhSettingsPlugin (primary), AalekhPlugin (deprecated)
@@ -483,14 +540,25 @@ aalekh {
 }
 ```
 
+## Compatibility
+
+| Aalekh | Gradle | Kotlin | AGP  | JDK        |
+|--------|--------|--------|------|------------|
+| 0.3.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
+| 0.2.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
+| 0.1.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
+
+Aalekh requires the **settings plugin** (`settings.gradle.kts`) on Gradle 9.x because
+configuration cache is enabled by default and the project plugin cannot safely capture
+inter-project state. Kotlin DSL (`*.kts`) is required - Groovy DSL is not supported.
+
 ## Roadmap
 
-| Version    | Theme                                             | Status      |
-|------------|---------------------------------------------------|-------------|
-| **v0.1.0** | Graph extraction + interactive HTML report        | ✅ Released  |
-| **v0.2.0** | Layer rules + feature isolation + SARIF output    | ✅ Released  |
-| **v0.3.0** | Metrics baseline + historical trend reports       | 📋 Planned  |
-| **v1.0.0** | Source-level analysis via KSP2 + stable API       | 📋 Planned  |
+| Version    | Theme                                          | Status     |
+|------------|------------------------------------------------|------------|
+| **v0.1.0** | Graph extraction + interactive HTML report     | ✅ Released |
+| **v0.2.0** | Layer rules + feature isolation + SARIF output | ✅ Released |
+| **v0.3.0** | Health scores + transitive rule + CSV export   | ✅ Released |
 
 ## Contributing
 
@@ -530,5 +598,5 @@ You may obtain a copy of the License at
   Made with ♥ for the Kotlin community
   <br/>
   <a href="https://github.com/shivathapaa/aalekh/issues">Report a bug</a> ·
-  <a href="https://github.com/shivathapaa/aalekh/discussions">Request a feature</a>
+  <a href="https://github.com/shivathapaa/aalekh/issues">Request a feature</a>
 </p>
