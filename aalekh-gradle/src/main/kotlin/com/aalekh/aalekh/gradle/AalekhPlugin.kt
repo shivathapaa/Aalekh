@@ -84,6 +84,7 @@ public class AalekhPlugin : Plugin<Project> {
             task.graphJsonFile.set(graphJsonFile)
             task.projectName.set(project.name)
             task.openBrowser.set(extension.openBrowserAfterReport)
+            task.exportMetrics.set(extension.exportMetrics)
             task.outputFile.set(
                 project.layout.buildDirectory
                     .dir(extension.outputDir)

@@ -64,6 +64,16 @@ public abstract class AalekhExtension @Inject constructor(private val objects: O
         objects.property(Boolean::class.java)
             .convention(false)
 
+    /**
+     * When true, `aalekhReport` writes `aalekh-metrics.csv` alongside `index.html`.
+     * The CSV contains one row per module with timestamp, fan-in/out, instability,
+     * transitive dep count, and health score. Default: `false`.
+     *
+     * Useful for importing into external tools (Datadog, Grafana, spreadsheets).
+     */
+    public val exportMetrics: Property<Boolean> = objects.property(Boolean::class.java)
+        .convention(false)
+
     // Rule DSL
 
     /**
