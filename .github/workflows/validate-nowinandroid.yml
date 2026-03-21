@@ -1,9 +1,8 @@
-name: Real-world validation
+name: Validation using NowInAndroid
 
 on:
   schedule:
     # Every Monday at 07:00 UTC - catches Gradle/Kotlin/AGP compatibility regressions
-    # before users report them.
     - cron: '0 7 * * 1'
   workflow_dispatch:
     inputs:
@@ -42,7 +41,7 @@ jobs:
 
       - name: Build Aalekh plugin from source
         working-directory: aalekh
-        run: ./gradlew publishToMavenLocal --no-configuration-cache
+        run: ./gradlew publishToMavenLocal --no-configuration-cache -Dsigning.skip=true
 
       - name: Check out ${{ matrix.project.name }}
         uses: actions/checkout@v4
