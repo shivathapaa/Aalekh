@@ -1,6 +1,6 @@
 [versions]
-plugin-version = "0.1.0"
-kotlin = "2.3.10"
+plugin-version = "0.2.0"
+kotlin = "2.3.20"
 kotlinx-serialization = "1.10.0"
 gradle-plugin-publish = "2.1.0"
 junit5 = "5.13.4"
