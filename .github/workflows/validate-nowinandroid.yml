@@ -1,0 +1,194 @@
+name: Real-world validation
+
+on:
+  schedule:
+    # Every Monday at 07:00 UTC - catches Gradle/Kotlin/AGP compatibility regressions
+    # before users report them.
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+    inputs:
+      aalekh_version:
+        description: 'Aalekh version to test'
+        required: false
+
+jobs:
+  validate:
+    name: Validate against ${{ matrix.project.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - name: NowInAndroid
+            repo: android/nowinandroid
+            ref: main
+            min_modules: 20
+          - name: Tivi
+            repo: chrisbanes/tivi
+            ref: main
+            min_modules: 10
+
+    steps:
+      - name: Check out Aalekh
+        uses: actions/checkout@v4
+        with:
+          path: aalekh
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 21
+
+      - name: Build Aalekh plugin from source
+        working-directory: aalekh
+        run: ./gradlew publishToMavenLocal --no-configuration-cache
+
+      - name: Check out ${{ matrix.project.name }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.project.repo }}
+          ref: ${{ matrix.project.ref }}
+          path: target-project
+
+      - name: Read Aalekh version
+        id: version
+        working-directory: aalekh
+        run: |
+          VERSION=$(grep 'plugin-version' gradle/libs.versions.toml | sed 's/.*= *"\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Apply Aalekh settings plugin to target project
+        working-directory: target-project
+        run: |
+          # Prepend plugin declaration to settings.gradle.kts
+          # Uses mavenLocal() so we pick up the locally-built plugin
+          SETTINGS_FILE=$(find . -maxdepth 1 -name "settings.gradle.kts" | head -1)
+          if [ -z "$SETTINGS_FILE" ]; then
+            SETTINGS_FILE=$(find . -maxdepth 1 -name "settings.gradle" | head -1)
+          fi
+
+          # Inject pluginManagement block to resolve from mavenLocal
+          PREPEND='pluginManagement {
+            repositories {
+              mavenLocal()
+              gradlePluginPortal()
+              google()
+              mavenCentral()
+            }
+          }
+          '
+          echo "$PREPEND" | cat - "$SETTINGS_FILE" > /tmp/settings_patched
+          mv /tmp/settings_patched "$SETTINGS_FILE"
+
+          # Append Aalekh plugin declaration
+          echo '' >> "$SETTINGS_FILE"
+          echo 'plugins { id("io.github.shivathapaa.aalekh") version "${{ steps.version.outputs.version }}" }' >> "$SETTINGS_FILE"
+
+          # Append minimal aalekh config to root build file
+          ROOT_BUILD=$(find . -maxdepth 1 -name "build.gradle.kts" | head -1)
+          if [ -n "$ROOT_BUILD" ]; then
+            echo '' >> "$ROOT_BUILD"
+            echo 'aalekh { openBrowserAfterReport.set(false) }' >> "$ROOT_BUILD"
+          fi
+
+      - name: Run aalekhExtract
+        working-directory: target-project
+        run: |
+          ./gradlew aalekhExtract --no-configuration-cache --stacktrace 2>&1 | tee extract.log
+          if grep -q "BUILD FAILED" extract.log; then
+            echo "::error::aalekhExtract failed on ${{ matrix.project.name }}"
+            exit 1
+          fi
+
+      - name: Verify graph.json is valid and non-trivial
+        working-directory: target-project
+        run: |
+          GRAPH_FILE=$(find build -name "graph.json" | head -1)
+          if [ -z "$GRAPH_FILE" ]; then
+            echo "::error::graph.json was not produced"
+            exit 1
+          fi
+
+          MODULE_COUNT=$(python3 -c "
+          import json, sys
+          data = json.load(open('$GRAPH_FILE'))
+          count = len(data.get('modules', []))
+          print(count)
+          if count < ${{ matrix.project.min_modules }}:
+            sys.exit(1)
+          ")
+          echo "Extracted $MODULE_COUNT modules from ${{ matrix.project.name }}"
+
+      - name: Run aalekhReport
+        working-directory: target-project
+        run: |
+          ./gradlew aalekhReport --no-configuration-cache --stacktrace 2>&1 | tee report.log
+          if grep -q "BUILD FAILED" report.log; then
+            echo "::error::aalekhReport failed on ${{ matrix.project.name }}"
+            exit 1
+          fi
+
+      - name: Verify HTML report is self-contained and non-trivial
+        working-directory: target-project
+        run: |
+          HTML_FILE=$(find build/reports/aalekh -name "index.html" | head -1)
+          if [ -z "$HTML_FILE" ]; then
+            echo "::error::index.html was not produced"
+            exit 1
+          fi
+
+          SIZE=$(wc -c < "$HTML_FILE")
+          echo "Report size: $SIZE bytes"
+          if [ "$SIZE" -lt 50000 ]; then
+            echo "::error::Report is suspiciously small ($SIZE bytes) - may be missing embedded data"
+            exit 1
+          fi
+
+          # Verify graph data was injected - not just the template placeholder
+          if grep -q "DATA INJECTED BY KOTLIN GENERATOR" "$HTML_FILE"; then
+            echo "::error::HTML template placeholder was not replaced with real data"
+            exit 1
+          fi
+
+      - name: Run aalekhCheck
+        working-directory: target-project
+        # aalekhCheck may fail due to violations - that is expected and acceptable.
+        # What must NOT happen is a plugin crash (exception in task action).
+        run: |
+          ./gradlew aalekhCheck --no-configuration-cache --stacktrace 2>&1 | tee check.log || true
+          if grep -q "Exception\|FAILED.*exception\|Caused by:" check.log; then
+            if ! grep -q "Aalekh:.*violation" check.log; then
+              echo "::error::aalekhCheck crashed with an unhandled exception"
+              exit 1
+            fi
+          fi
+          echo "aalekhCheck completed (violations are expected on real projects)"
+
+      - name: Upload reports as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aalekh-report-${{ matrix.project.name }}
+          path: target-project/build/reports/aalekh/
+          retention-days: 7
+
+  notify-on-failure:
+    name: Notify on failure
+    runs-on: ubuntu-latest
+    needs: validate
+    if: failure()
+    steps:
+      - name: Create GitHub issue on failure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = `Real-world validation failed - ${new Date().toISOString().split('T')[0]}`;
+            const body = `The weekly real-world validation workflow failed.\n\nRun: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n\nThis usually means a Gradle/Kotlin/AGP compatibility regression was introduced. Check the failing job logs above.`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['bug', 'compatibility'],
+            });
