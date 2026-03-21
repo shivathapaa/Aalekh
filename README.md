@@ -1,5 +1,9 @@
 # Aalekh
 
+<p align="center">
+  <img src="assets/images/aalekh_banner.png" alt="Aalekh banner" width="100%"/>
+</p>
+
 **Architecture Visualization & Linting for Gradle Multi-Module Projects**
 
 Aalekh is a Gradle plugin that extracts, visualizes, and enforces architectural rules across any
