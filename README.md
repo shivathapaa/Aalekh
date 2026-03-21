@@ -4,26 +4,32 @@
   <img src="assets/images/aalekh_banner.png" alt="Aalekh banner" width="100%"/>
 </p>
 
+<p align="center">
+  <a href="https://plugins.gradle.org/plugin/io.github.shivathapaa.aalekh"><img src="https://img.shields.io/gradle-plugin-portal/v/io.github.shivathapaa.aalekh?label=Gradle%20Plugin%20Portal&color=02303A&logo=gradle" alt="Gradle Plugin Portal"/></a>
+  <a href="https://central.sonatype.com/artifact/io.github.shivathapaa/aalekh-model"><img src="https://img.shields.io/maven-central/v/io.github.shivathapaa/aalekh-model?label=Maven%20Central&color=blue" alt="Maven Central"/></a>
+  <a href="https://kotlinlang.org"><img src="https://img.shields.io/badge/Kotlin-2.3+-7F52FF.svg?logo=kotlin&logoColor=white" alt="Kotlin"/></a>
+  <a href="https://gradle.org"><img src="https://img.shields.io/badge/Gradle-9.x-02303A.svg?logo=gradle&logoColor=white" alt="Gradle"/></a>
+  <a href="https://docs.gradle.org/current/userguide/configuration_cache.html"><img src="https://img.shields.io/badge/Configuration%20Cache-compatible-brightgreen" alt="Configuration Cache"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/></a>
+</p>
+
 **Architecture Visualization & Linting for Gradle Multi-Module Projects**
 
-Aalekh is a Gradle plugin that extracts, visualizes, and enforces architectural rules across any
-Gradle multi-module project - Kotlin Multiplatform, Android, JVM, or any Gradle projects. It gives
-teams three capabilities that no existing tool provides together: an **interactive module graph**, a
-**Kotlin DSL for architecture rule enforcement**, and **historical metrics tracking**.
+Aalekh is a Gradle plugin that extracts, visualizes, and enforces architectural rules across any Gradle multi-module project - Kotlin Multiplatform, Android, JVM, or any Gradle project. It gives teams three capabilities that no existing tool provides together: an **interactive module graph**, a **Kotlin DSL for architecture rule enforcement**, and **historical metrics tracking**.
 
 ### Sample Reports
 
 - Now in Android App
-    - [View locally](assets/report_samples/nowinandroid.html)
-    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid.html)
+  - [View locally](assets/report_samples/nowinandroid.html)
+  - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid.html)
 
 - Now in Android App - with cyclic dependency
-    - [View locally](assets/report_samples/nowinandroid_withcyclic.html)
-    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_withcyclic.html)
+  - [View locally](assets/report_samples/nowinandroid_withcyclic.html)
+  - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_withcyclic.html)
 
 - Tallyo (KMP)
-    - [View locally](assets/report_samples/tallyo.html)
-    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/tallyo.html)
+  - [View locally](assets/report_samples/tallyo.html)
+  - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/tallyo.html)
 
 ### Sample Report Demo
 
@@ -39,8 +45,7 @@ teams three capabilities that no existing tool provides together: an **interacti
 |------------|:----------:|:--------------:|:--------------:|:---------:|
 | **Aalekh** |   **✓**    |     **✓**      |     **✓**      |   **✓**   |
 
-Aalekh **visualizes, enforces, and tracks** - in a single plugin, with zero external dependencies
-beyond the browser.
+Aalekh **visualizes, enforces, and tracks** - in a single plugin, with zero external dependencies beyond the browser.
 
 ## Quick Start
 
@@ -58,16 +63,13 @@ plugins {
 ./gradlew aalekhReport
 ```
 
-An interactive HTML report opens automatically in your default browser. That's it - no configuration
-required.
+An interactive HTML report opens automatically in your default browser. No configuration required.
 
 ## Installation
 
 ### Settings plugin (recommended)
 
-Apply in `settings.gradle.kts`. This is the preferred approach - the settings plugin loads in a
-classloader scope that is stable across configuration cache entries, preventing the "class not found
-in classloader" error on second runs.
+Apply in `settings.gradle.kts`. The settings plugin loads in a classloader scope that is stable across configuration cache entries, preventing cache misses on second runs.
 
 ```kotlin
 // settings.gradle.kts
@@ -78,10 +80,10 @@ plugins {
 
 ### Project plugin (deprecated)
 
-> **⚠ Deprecated as of v0.1.0.** The project plugin will be removed in a future release. Please
+> **⚠ Deprecated as of v0.2.0.** The project plugin will be removed in a future release. Please
 > migrate to the settings plugin above.
 
-If you are still on the project plugin, you will see a migration warning at build time. To migrate:
+If you are still on the project plugin, you will see a migration warning at build time. To migrate: 
 remove the plugin from `build.gradle.kts` and add it to `settings.gradle.kts` instead. The
 `aalekh { }` configuration block in `build.gradle.kts` stays exactly as-is.
 
@@ -96,14 +98,14 @@ plugins {
 
 Aalekh registers three tasks on the root project, all in the `aalekh` task group.
 
-| Task                      | Description                                                                                 |
-|---------------------------|---------------------------------------------------------------------------------------------|
-| `./gradlew aalekhExtract` | Extracts the module dependency graph and writes it as JSON to `build/tmp/aalekh/graph.json` |
-| `./gradlew aalekhReport`  | Generates the interactive HTML report at `build/reports/aalekh/index.html`                  |
-| `./gradlew aalekhCheck`   | Evaluates all architecture rules; fails the build on `ERROR`-severity violations            |
+| Task                      | Description                                                                                  |
+|---------------------------|----------------------------------------------------------------------------------------------|
+| `./gradlew aalekhExtract` | Extracts the module dependency graph and writes it as JSON to `build/tmp/aalekh/graph.json`  |
+| `./gradlew aalekhReport`  | Generates the interactive HTML report at `build/reports/aalekh/index.html`                   |
+| `./gradlew aalekhCheck`   | Evaluates all architecture rules; fails the build on `ERROR`-severity violations             |
 
-`aalekhCheck` is automatically wired into the standard `check` lifecycle task, so it runs as part of
-`./gradlew check` without any extra configuration.
+`aalekhCheck` is automatically wired into the standard `check` lifecycle task, so it runs as part
+of `./gradlew check` without any extra configuration.
 
 To wire it into CI explicitly:
 
@@ -136,12 +138,11 @@ The intermediate graph JSON is written to `build/tmp/aalekh/graph.json` and is c
 Evaluates all registered architecture rules against the extracted dependency graph. On completion it
 writes:
 
-- `build/reports/aalekh/aalekh-results.xml` - JUnit XML (consumed by all CI systems natively)
-- `build/reports/aalekh/aalekh-results.json` - full machine-readable report: graph, summary stats,
-  violations, version, and timestamp
+- `build/reports/aalekh/aalekh-results.xml` - JUnit XML (consumed natively by all CI systems)
+- `build/reports/aalekh/aalekh-results.json` - full machine-readable report: graph, summary, violations, version, and timestamp
+- `build/reports/aalekh/aalekh-results.sarif` - SARIF 2.1 for GitHub code scanning PR annotations
 
-If any `ERROR`-severity violation is found, the task fails with a summary message pointing to the
-XML report:
+If any `ERROR`-severity violation is found, the task fails with a summary message:
 
 ```
 Aalekh: 2 architecture violation(s) found.
@@ -157,9 +158,9 @@ violations are silently collected and visible in the HTML report only.
 ./gradlew aalekhExtract
 ```
 
-Extracts and serializes the full module dependency graph to `build/tmp/aalekh/graph.json`. Useful
-for integrating Aalekh data into custom tooling or piping into other scripts. Both `aalekhReport`
-and `aalekhCheck` depend on this task implicitly - you rarely need to run it directly.
+Extracts and serializes the full module dependency graph to `build/tmp/aalekh/graph.json`. Both
+`aalekhReport` and `aalekhCheck` depend on this task implicitly - you rarely need to run it
+directly.
 
 ## The Report
 
@@ -185,8 +186,8 @@ module count, and cycle counts. Main cycles and test-only cycles are reported se
 sortable table with inline bar charts.
 
 **⚑ Violations** - Structured violation cards for every `aalekhCheck` failure. Each card shows the
-rule ID, severity badge, the exact dependency edge to remove, and a plain-language explanation of
-why the rule exists.
+rule ID, severity badge, the exact dependency edge to remove, a plain-language explanation of why
+the rule exists, and a "View in Graph" button that navigates directly to the offending module.
 
 ### Sidebar - Module Inspector
 
@@ -197,15 +198,13 @@ Click any node in the graph to open the module inspector in the right sidebar. I
 - Fan-in, fan-out, and transitive dependency count
 - Instability index bar (green = stable, yellow = mixed, red = unstable)
 - KMP source sets (if applicable)
-- Organisational tags inferred from the path
-- Direct dependencies (clickable chips that navigate to the target node)
-- Direct dependents (clickable chips that navigate to the source node)
+- Direct dependencies and dependents (clickable, navigate to the target node)
 
 ### Cycle detection
 
 Aalekh distinguishes between two kinds of cycles:
 
-- **Main cycles** (`⚠ red`) - circular dependencies in production code only. These are genuine
+- **Main cycles** (`⚠ red`) - circular dependencies in production code. These are genuine
   architectural errors that prevent independent builds and refactoring. `aalekhCheck` fails on these
   by default.
 - **Test cycles** (`♻ pink`) - cycles that exist only through `testImplementation` or
@@ -219,7 +218,6 @@ All configuration lives in the `aalekh { }` block in the root `build.gradle.kts`
 ```kotlin
 aalekh {
     // Output directory relative to build/. Default: "reports/aalekh"
-    // Full resolved path: <projectRoot>/build/reports/aalekh/index.html
     outputDir.set("reports/aalekh")
 
     // Open the report in the default browser after aalekhReport completes.
@@ -227,8 +225,7 @@ aalekh {
     openBrowserAfterReport.set(true)
 
     // Include testImplementation / androidTestImplementation edges in the graph.
-    // Default: true. Test edges are shown separately and excluded from main
-    // cycle detection regardless of this setting.
+    // Default: true.
     includeTestDependencies.set(true)
 
     // Include compileOnly edges in the graph.
@@ -241,21 +238,20 @@ aalekh {
 
 | Option                           | Type      | Default            | Description                                                                  |
 |----------------------------------|-----------|--------------------|------------------------------------------------------------------------------|
-| `outputDir`                      | `String`  | `"reports/aalekh"` | Output directory relative to `build/`. Final path: `build/<outputDir>/`      |
-| `openBrowserAfterReport`         | `Boolean` | `true`             | Auto-open the HTML report in the default browser after `aalekhReport` runs   |
+| `outputDir`                      | `String`  | `"reports/aalekh"` | Output directory relative to `build/`                                        |
+| `openBrowserAfterReport`         | `Boolean` | `true`             | Auto-open the HTML report after `aalekhReport` runs                          |
 | `includeTestDependencies`        | `Boolean` | `true`             | Include `testImplementation`, `androidTestImplementation`, etc. in the graph |
 | `includeCompileOnlyDependencies` | `Boolean` | `false`            | Include `compileOnly` edges in the graph                                     |
 
 ## Architecture Rules
 
-The rule engine is implemented and running. The built-in rule `no-cyclic-dependencies` is always
-active and fails the build on any production dependency cycle.
-
 ### Built-in rules
 
-| Rule ID                  | Severity | Description                                                      |
-|--------------------------|----------|------------------------------------------------------------------|
-| `no-cyclic-dependencies` | `ERROR`  | The module dependency graph must be a DAG (no production cycles) |
+| Rule ID                    | Severity | Description                                                          |
+|----------------------------|----------|----------------------------------------------------------------------|
+| `no-cyclic-dependencies`   | `ERROR`  | The module dependency graph must be a DAG (no production cycles)     |
+| `layer-dependency`         | `ERROR`  | Modules must only depend on modules in their declared allowed layers |
+| `no-feature-to-feature`    | `ERROR`  | Feature modules must not depend on each other                        |
 
 ### Violation severity levels
 
@@ -265,12 +261,12 @@ active and fails the build on any production dependency cycle.
 | `WARNING` | Printed to stdout. Build continues.                           |
 | `INFO`    | Silently collected. Visible in the HTML report and JSON only. |
 
-### Layer enforcement and custom rules *(next release)*
+### Layer enforcement
 
-A Kotlin DSL for declaring layer boundaries and custom rules is coming in the next release:
+Declare layers and enforce the direction of dependencies between them. Module patterns support
+`*` (one path segment) and `**` (any number of segments).
 
 ```kotlin
-// Coming in v0.2.0
 aalekh {
     layers {
         layer("domain") {
@@ -285,23 +281,98 @@ aalekh {
             canOnlyDependOn("domain", "data")
         }
     }
+}
+```
 
+When a violation is found, the message names the exact build file and dependency to remove:
+
+```
+Aalekh [layer-dependency] :feature:login:data (layer 'data') depends on
+:feature:login:ui (layer 'presentation'). Layer 'data' may only depend on:
+domain. Edit feature/login/data/build.gradle.kts and remove:
+implementation(project(":feature:login:ui"))
+```
+
+### Feature isolation
+
+Prevent feature modules from depending on each other. Specific pairs can be explicitly allowed.
+
+```kotlin
+aalekh {
     featureIsolation {
         featurePattern = ":feature:**"
+        allow(from = ":feature:shared", to = ":feature:*")
     }
+}
+```
 
+### Gradual adoption
+
+Teams migrating an existing codebase can adopt rules gradually - start with warnings, fix
+violations, then promote to errors:
+
+```kotlin
+aalekh {
     rules {
         rule("layer-dependency") {
-            severity = Severity.WARNING  // start as warning during migration
+            severity = Severity.WARNING   // see violations without blocking CI
+            suppressFor(":legacy:**")     // exempt a known legacy subtree entirely
         }
     }
 }
 ```
 
+### SARIF output for GitHub PR annotations
+
+`aalekhCheck` writes `aalekh-results.sarif` on every run. Add these two steps to your GitHub
+Actions workflow and violations appear as inline annotations directly on the pull request diff:
+
+```yaml
+- name: Run architecture check
+  run: ./gradlew aalekhCheck
+
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  if: always()
+  with:
+    sarif_file: build/reports/aalekh/aalekh-results.sarif
+```
+
+No token, no custom reporter, no extra setup.
+
+### Custom rules
+
+Implement `ArchRule` to create project-specific rules:
+
+```kotlin
+class NoAndroidInDomainRule : ArchRule {
+    override val id = "no-android-in-domain"
+    override val description = "Domain modules must not depend on Android libraries"
+    override val defaultSeverity = Severity.ERROR
+    override val plainLanguageExplanation =
+        "The domain layer must stay platform-agnostic so it can be shared via KMP."
+
+    override fun evaluate(graph: ModuleDependencyGraph): List<Violation> =
+        graph.edges
+            .filter { it.from.contains(":domain") }
+            .filter { graph.moduleByPath(it.to)?.type == ModuleType.ANDROID_LIBRARY }
+            .map { edge ->
+                Violation(
+                    ruleId = id,
+                    severity = defaultSeverity,
+                    message = "${edge.from} depends on Android module ${edge.to}. " +
+                              "Move Android-specific code to the data or presentation layer.",
+                    source = "${edge.from} → ${edge.to}",
+                    moduleHint = edge.from,
+                    plainLanguageExplanation = plainLanguageExplanation,
+                )
+            }
+}
+```
+
 ## Module Types
 
-Aalekh infers the module type from applied plugin IDs. Detection runs in priority order - first
-match wins - because a KMP module often also applies the Android library plugin.
+Aalekh infers the module type from applied plugin IDs. Detection runs in priority order - first match wins.
 
 | Module Type           | Plugin ID                                            | Color  |
 |-----------------------|------------------------------------------------------|--------|
@@ -314,14 +385,11 @@ match wins - because a KMP module often also applies the Android library plugin.
 
 ## Graph Metrics
 
-The following metrics are computed per module and shown in the **Metrics** panel and the module
-inspector sidebar:
-
 | Metric               | Description                                                                  |
 |----------------------|------------------------------------------------------------------------------|
 | **Fan-out**          | Number of modules this module directly depends on (production only)          |
 | **Fan-in**           | Number of modules that directly depend on this one (production only)         |
-| **Instability**      | `fanOut / (fanIn + fanOut)`. Range 0.0 (stable) to 1.0 (unstable)            |
+| **Instability**      | `fanOut / (fanIn + fanOut)`. Range 0.0 (stable) to 1.0 (unstable)           |
 | **Transitive deps**  | Total number of modules reachable by following dependencies from this module |
 | **Critical path**    | Longest dependency chain in the graph - constrains build parallelism         |
 | **God modules**      | Modules with both high fan-in AND high fan-out - architectural hotspots      |
@@ -336,20 +404,26 @@ aalekh/
 │                             Violation, Severity, ModuleType
 │
 ├── aalekh-analysis/       ← Pure Kotlin. No Gradle API.
-│                             GraphAnalyzer  - topological sort, critical path,
-│                                              god/leaf/root/isolated module detection
-│                             RuleEngine     - evaluates ArchRule implementations
-│                             MetricsEngine  - per-module and project-wide metrics
+│                             GraphAnalyzer      - topological sort, critical path,
+│                                                  god/leaf/root/isolated module detection
+│                             RuleEngine         - evaluates ArchRule implementations,
+│                                                  severity overrides, suppressions
+│                             GlobMatcher        - * and ** pattern matching for module paths
+│                             LayerDependencyRule, NoFeatureToFeatureDependencyRule
+│                             NoCyclicDependenciesRule
+│                             MetricsEngine      - per-module and project-wide metrics
 │
 ├── aalekh-report/         ← Report generators. No Gradle API.
 │                             HtmlReportGenerator - self-contained HTML with D3.js
 │                             JUnitXmlWriter      - CI-compatible XML
 │                             JsonReporter        - full JSON report envelope
+│                             SarifReporter       - SARIF 2.1 for GitHub code scanning
 │
 ├── aalekh-gradle/         ← Gradle plugin entry point and tasks.
 │                             AalekhSettingsPlugin (primary), AalekhPlugin (deprecated)
 │                             AalekhExtractTask, AalekhReportTask, AalekhCheckTask
 │                             AalekhExtension (DSL)
+│                             dsl/  LayerConfig, FeatureIsolationConfig, RulesConfig
 │                             GraphExtractor, ModuleTypeDetector
 │
 └── build-logic/           ← Convention plugins for the Aalekh build itself.
@@ -377,6 +451,12 @@ between the configuration phase (graph extraction) and the execution phase (repo
 - name: Run architecture check
   run: ./gradlew aalekhCheck
 
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  if: always()
+  with:
+    sarif_file: build/reports/aalekh/aalekh-results.sarif
+
 - name: Upload Aalekh report
   uses: actions/upload-artifact@v4
   if: always()
@@ -402,12 +482,12 @@ aalekh {
 
 ## Roadmap
 
-| Version    | Theme                                             | Status         |
-|------------|---------------------------------------------------|----------------|
-| **v0.1.0** | Graph extraction + interactive HTML report        | ✅ Released     |
-| **Next**   | Layer rule DSL + feature isolation + SARIF output | 🔨 In progress |
-| **Later**  | Metrics tracking + historical trend reports       | 📋 Planned     |
-| **Future** | Source-level analysis via KSP2 + stable API       | 📋 Planned     |
+| Version    | Theme                                             | Status      |
+|------------|---------------------------------------------------|-------------|
+| **v0.1.0** | Graph extraction + interactive HTML report        | ✅ Released  |
+| **v0.2.0** | Layer rules + feature isolation + SARIF output    | ✅ Released  |
+| **v0.3.0** | Metrics baseline + historical trend reports       | 📋 Planned  |
+| **v1.0.0** | Source-level analysis via KSP2 + stable API       | 📋 Planned  |
 
 ## Contributing
 
