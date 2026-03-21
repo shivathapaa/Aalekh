@@ -1,77 +1,99 @@
 # Contributing to Aalekh
 
-Thank you for considering contributing to Aalekh! Contributions of all kinds are welcome - bug fixes, new features, documentation improvements, and more. By contributing, you help make this project better for everyone.
+Thank you for your interest in contributing. This guide covers everything you need to
+build, test, and submit changes.
 
-## Code of Conduct
+## Module structure
 
-This project adheres to a Code of Conduct. By participating, you are expected to uphold this code. Be kind to everyone!
+```
+aalekh-model/       Data classes. No Gradle API. No analysis logic.
+aalekh-analysis/    Pure Kotlin analysis. No Gradle API. Testable in milliseconds.
+aalekh-report/      Report generators. No Gradle API.
+aalekh-gradle/      Gradle plugin. The only module that may use the Gradle API.
+build-logic/        Convention plugins for building Aalekh itself. Not published.
+```
 
-## Getting Started
+The layering rule is strict: `aalekh-model` ← `aalekh-analysis` ← `aalekh-report` ← `aalekh-gradle`.
+The Gradle API never appears below `aalekh-gradle`. If you find yourself importing a Gradle type
+in `aalekh-analysis` or `aalekh-report`, the design is wrong.
 
-1. Fork the repository: click the **Fork** button at the top of this repository.
-2. Clone your fork:
-   ```bash
-   git clone https://github.com/shivathapaa/aalekh.git
-   ```
-3. Create a branch:
-   ```bash
-   git checkout -b feature/your-feature-name
-   # or
-   git checkout -b bugfix/your-bug-fix-name
-   ```
-4. Make your changes following the guidelines below.
-5. Ensure all commits are signed using GPG. Unsigned commits will not be accepted. Learn how to [sign commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
-6. Commit your changes:
-   ```bash
-   git commit -m "Describe your changes"
-   ```
-7. Push your branch:
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-8. Submit a pull request: go to the repository on GitHub and open a pull request.
+## Building locally
 
-## How to Contribute
+Requires JDK 17 or JDK 21. Gradle 9.x is bundled via the wrapper.
 
-### Reporting Bugs
+```bash
+git clone https://github.com/shivathapaa/aalekh.git
+cd aalekh
+./gradlew build
+```
 
-If you find a bug, please:
+## Running tests
 
-1. Search existing issues to see if it has already been reported.
-2. Open a new issue (using the bug report template) and include:
-    - A clear and descriptive title.
-    - A detailed description of the bug.
-    - Steps to reproduce it.
-    - Your Gradle version, AGP version (if applicable), and Kotlin version.
-    - Any relevant screenshots, stack traces, or code snippets.
+```bash
+# All unit tests
+./gradlew test
 
-### Suggesting Features
+# Functional tests (spins up real Gradle builds - slower)
+./gradlew :aalekh-gradle:functionalTest
 
-To suggest a feature:
+# Everything
+./gradlew checkAll
+```
 
-1. Check existing feature requests to see if it has already been suggested.
-2. Open a new issue with the title `Feature Request: [Your Feature]` and provide:
-    - A detailed description of the feature.
-    - The *why* - what problem does it solve or what workflow does it improve?
-    - Any examples or use cases.
+Unit tests run in milliseconds because `aalekh-analysis` and `aalekh-model` have no Gradle
+dependency. Only the functional tests in `aalekh-gradle` are slow.
 
-### Submitting Pull Requests
+## Submitting a built-in rule
 
-> Please avoid opening pull requests for minor typos that don't affect code logic. Feel free to [open an issue](https://github.com/shivathapaa/aalekh/issues/new/choose) for those instead.
+Built-in rules live in `aalekh-analysis/src/main/kotlin/.../analysis/rules/`.
 
-When you're ready to submit a pull request:
+A rule must:
+1. Implement `ArchRule`
+2. Have a stable `id` string (kebab-case, never changes after first release)
+3. Populate `moduleHint` on every `Violation` so "View in Graph" works
+4. Populate `plainLanguageExplanation` - one or two sentences explaining *why* the rule
+   exists, written for a developer who has never heard of it
+5. Exclude test dependencies (`it.isTest`) unless the rule explicitly targets test code
+6. Have a test file covering: no violations on a clean graph, violation on a violating graph,
+   violation message content, violation `ruleId` stability, `moduleHint` is set
 
-1. Ensure your code follows the [Kotlin coding conventions](https://kotlinlang.org/docs/coding-conventions.html).
-2. Include tests for any new features or bug fixes.
-3. Ensure all existing tests pass: `./gradlew checkAll`.
-4. Add KDoc to any new public API.
-5. Update documentation as needed.
-6. Open a pull request with a clear description of what you've done and why.
+Register the rule in `RuleEngine.fromConfig()` in `ArchRule.kt` and expose it via a method
+on `RulesConfig` if it requires configuration.
 
-## New to Git?
+## Code style
 
-Resources: https://lab.github.com and https://try.github.io/
+- KDoc on all `public` classes and functions
+- Comments only where the logic is non-obvious
+- Self-explanatory names over comments
+- `internal` visibility for everything not part of the public API
 
-## License
+## Commit messages
 
-By contributing, you agree that your contributions will be licensed under the [Apache License 2.0](LICENSE).
+Use conventional commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`.
+
+```
+feat: add NoAndroidInDomainRule built-in rule
+fix: NoCyclicDependenciesRule removeLast() crash on JDK < 21
+docs: add KDoc to ModuleDependencyGraph public API
+```
+
+## Pull request checklist
+
+- [ ] `./gradlew checkAll` passes locally
+- [ ] New rule has a test file (see "Submitting a built-in rule" above)
+- [ ] New public API has KDoc
+- [ ] CHANGELOG.md has an entry under `[Unreleased]`
+- [ ] No new Gradle API imports outside `aalekh-gradle`
+
+## Good first issues
+
+Look for issues labelled `good-first-issue`. Typical examples:
+
+- **Beginner**: add a new graph export format (Mermaid, DOT), add a node colour scheme option
+- **Intermediate**: add a new built-in rule (e.g. `noDeprecatedModules`, `maxModuleDepth`)
+- **Advanced**: configuration cache edge case, composite build support
+
+## Getting help
+
+Open a [GitHub Issue](https://github.com/shivathapaa/aalekh/issues) for questions, bug reports, or feature requests.
+Open an issue only for confirmed bugs or concrete feature requests.
