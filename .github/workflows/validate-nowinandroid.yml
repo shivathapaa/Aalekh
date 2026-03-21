@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       aalekh_version:
-        description: 'Aalekh version to test'
+        description: 'Aalekh version to test (leave blank to build from source)'
         required: false
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
 
       - name: Build Aalekh plugin from source
         working-directory: aalekh
-        run: ./gradlew publishToMavenLocal --no-configuration-cache -Dsigning.skip=true
+        run: ./gradlew publishToMavenLocal --no-configuration-cache
 
       - name: Check out ${{ matrix.project.name }}
         uses: actions/checkout@v4
@@ -59,30 +59,52 @@ jobs:
 
       - name: Apply Aalekh settings plugin to target project
         working-directory: target-project
+        env:
+          AALEKH_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          # Prepend plugin declaration to settings.gradle.kts
-          # Uses mavenLocal() so we pick up the locally-built plugin
-          SETTINGS_FILE=$(find . -maxdepth 1 -name "settings.gradle.kts" | head -1)
-          if [ -z "$SETTINGS_FILE" ]; then
-            SETTINGS_FILE=$(find . -maxdepth 1 -name "settings.gradle" | head -1)
-          fi
+          python3 << 'PYEOF'
+          import os, sys
 
-          # Inject pluginManagement block to resolve from mavenLocal
-          PREPEND='pluginManagement {
-            repositories {
-              mavenLocal()
-              gradlePluginPortal()
-              google()
-              mavenCentral()
-            }
-          }
-          '
-          echo "$PREPEND" | cat - "$SETTINGS_FILE" > /tmp/settings_patched
-          mv /tmp/settings_patched "$SETTINGS_FILE"
+          version = os.environ["AALEKH_VERSION"]
+
+          # Find settings file
+          for name in ["settings.gradle.kts", "settings.gradle"]:
+              if os.path.exists(name):
+                  settings_file = name
+                  break
+          else:
+              print("No settings file found", file=sys.stderr)
+              sys.exit(1)
+
+          content = open(settings_file).read()
+
+          if "pluginManagement" in content:
+              # Project already has pluginManagement - inject mavenLocal() inside it
+              content = content.replace(
+                  "pluginManagement {",
+                  "pluginManagement {\n    repositories { mavenLocal() }",
+                  1
+              )
+          else:
+              # No pluginManagement block - prepend one
+              block = (
+                  "pluginManagement {\n"
+                  "    repositories {\n"
+                  "        mavenLocal()\n"
+                  "        gradlePluginPortal()\n"
+                  "        google()\n"
+                  "        mavenCentral()\n"
+                  "    }\n"
+                  "}\n"
+              )
+              content = block + content
 
           # Append Aalekh plugin declaration
-          echo '' >> "$SETTINGS_FILE"
-          echo 'plugins { id("io.github.shivathapaa.aalekh") version "${{ steps.version.outputs.version }}" }' >> "$SETTINGS_FILE"
+          content += f'\nplugins {{ id("io.github.shivathapaa.aalekh") version "{version}" }}\n'
+
+          open(settings_file, "w").write(content)
+          print(f"Patched {settings_file}")
+          PYEOF
 
           # Append minimal aalekh config to root build file
           ROOT_BUILD=$(find . -maxdepth 1 -name "build.gradle.kts" | head -1)
