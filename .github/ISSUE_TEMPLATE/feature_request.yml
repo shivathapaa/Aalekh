@@ -1,0 +1,58 @@
+name: Feature request
+description: Propose a new feature or improvement.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests are most likely to be acted on when they describe a
+        concrete problem you are facing - not just a solution you have in mind.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: |
+        Describe the situation you are in. What are you trying to do that
+        Aalekh does not currently support? Be specific.
+      placeholder: |
+        When my team adds a dependency from a data module to a UI module,
+        the violation message only tells me the module path. I have to open
+        the build file manually to find the line to remove.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: |
+        How would you like Aalekh to behave? If you are proposing a new DSL,
+        show what it would look like.
+      placeholder: |
+        The violation message should include the line number:
+        "Edit feature/login/data/build.gradle.kts:14 and remove: ..."
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have considered
+      description: Have you worked around this with another tool or approach?
+
+  - type: dropdown
+    id: project-type
+    attributes:
+      label: Project type
+      description: What kind of project would benefit from this?
+      multiple: true
+      options:
+        - Android (single-platform)
+        - Kotlin Multiplatform (KMP)
+        - JVM / server-side
+        - Mixed (Android + KMP)
+
+  - type: input
+    id: module-count
+    attributes:
+      label: Approximate number of modules in your project
+      placeholder: "25"

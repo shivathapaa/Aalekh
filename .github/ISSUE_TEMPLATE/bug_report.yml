@@ -1,0 +1,100 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening a bug report, please check if an existing issue covers your problem.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug. What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps or a sample project that reproduces the issue.
+      placeholder: |
+        1. Apply Aalekh to a project with these modules: ...
+        2. Run `./gradlew aalekhCheck`
+        3. See error: ...
+    validations:
+      required: true
+
+  - type: input
+    id: aalekh-version
+    attributes:
+      label: Aalekh version
+      placeholder: "0.3.0"
+    validations:
+      required: true
+
+  - type: input
+    id: gradle-version
+    attributes:
+      label: Gradle version
+      description: Run `./gradlew --version`
+      placeholder: "9.4.0"
+    validations:
+      required: true
+
+  - type: input
+    id: agp-version
+    attributes:
+      label: AGP version (if applicable)
+      placeholder: "9.1.0"
+
+  - type: input
+    id: kotlin-version
+    attributes:
+      label: Kotlin version
+      placeholder: "2.3.20"
+
+  - type: input
+    id: jdk-version
+    attributes:
+      label: JDK version
+      description: Run `java -version`
+      placeholder: "21"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+    validations:
+      required: true
+
+  - type: textarea
+    id: project-structure
+    attributes:
+      label: Project module structure (if relevant)
+      description: |
+        Paste the relevant part of your `settings.gradle.kts` or describe
+        the number and type of modules involved.
+      render: kotlin
+
+  - type: textarea
+    id: aalekh-config
+    attributes:
+      label: Aalekh configuration
+      description: Your `aalekh { }` block from `build.gradle.kts`.
+      render: kotlin
+
+  - type: textarea
+    id: stack-trace
+    attributes:
+      label: Stack trace or error output
+      description: Run with `--stacktrace` and paste the full output.
+      render: text
