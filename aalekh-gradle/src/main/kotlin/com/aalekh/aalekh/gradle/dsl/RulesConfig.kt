@@ -6,17 +6,18 @@ import org.gradle.api.provider.ListProperty
 import javax.inject.Inject
 
 /**
- * Configures per-rule severity overrides and suppressions inside the `rules { }` block.
+ * Configures rules inside the `rules { }` block.
  *
  * ```kotlin
  * aalekh {
  *     rules {
  *         rule("layer-dependency") {
- *             severity = Severity.WARNING   // downgrade while migrating
- *             suppressFor(":legacy:**")     // exclude legacy modules entirely
+ *             severity = Severity.WARNING
+ *             suppressFor(":legacy:**")
  *         }
- *         rule("no-feature-to-feature") {
- *             severity = Severity.ERROR
+ *         noTransitiveDependenciesExceeding(30)
+ *         rule("no-cyclic-dependencies") {
+ *             preventRegression = true
  *         }
  *     }
  * }
@@ -24,40 +25,39 @@ import javax.inject.Inject
  */
 public abstract class RulesConfig @Inject constructor(objects: ObjectFactory) {
 
-    /** Serialized rule overrides: `"ruleId:SEVERITY"` or `"ruleId:suppress:pattern"`. */
     internal val entries: ListProperty<String> =
         objects.listProperty(String::class.java).convention(emptyList())
 
-    /**
-     * Configures a specific rule by its stable [id].
-     *
-     * Unknown rule IDs are silently ignored so adding overrides for a rule
-     * before it is enabled does not cause a build error.
-     */
     public fun rule(id: String, configure: RuleOverride.() -> Unit) {
         val override = RuleOverride(id)
         override.configure()
         override.serialize().forEach { entries.add(it) }
     }
+
+    /**
+     * Adds a rule that warns when a module pulls in more than [max] transitive dependencies.
+     * Default severity is WARNING. Override with `rule("max-transitive-dependencies") { severity = ERROR }`.
+     */
+    public fun noTransitiveDependenciesExceeding(max: Int) {
+        entries.add("max-transitive-dependencies:threshold:$max")
+    }
 }
 
-/**
- * Mutable builder for a single rule override. Not part of the public API —
- * consumers interact through the lambda in [RulesConfig.rule].
- */
 public class RuleOverride(private val id: String) {
 
-    /** Override the default severity for this rule in this project. */
     public var severity: Severity? = null
+
+    /**
+     * When true, any increase in cycle count since the last `aalekhCheck` output
+     * is treated as an ERROR. Requires `aalekh-results.json` from a previous run
+     * to be present; silently skips the regression check if no prior result exists.
+     *
+     * Only meaningful on the `no-cyclic-dependencies` rule.
+     */
+    public var preventRegression: Boolean = false
 
     private val suppressPatterns = mutableListOf<String>()
 
-    /**
-     * Suppresses violations from modules matching [pattern] for this rule.
-     * Supports `*` (one segment) and `**` (any segments) glob wildcards.
-     *
-     * Use this to exempt a known legacy subtree rather than disabling the rule entirely.
-     */
     public fun suppressFor(pattern: String) {
         suppressPatterns += pattern
     }
@@ -65,6 +65,7 @@ public class RuleOverride(private val id: String) {
     internal fun serialize(): List<String> {
         val result = mutableListOf<String>()
         severity?.let { result += "$id:severity:${it.name}" }
+        if (preventRegression) result += "$id:option:preventRegression"
         suppressPatterns.forEach { result += "$id:suppress:$it" }
         return result
     }

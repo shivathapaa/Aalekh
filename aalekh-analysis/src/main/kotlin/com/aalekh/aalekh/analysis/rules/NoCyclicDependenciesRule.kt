@@ -5,16 +5,25 @@ import com.aalekh.aalekh.model.Severity
 import com.aalekh.aalekh.model.Violation
 
 /**
- * Fails if the module graph contains any dependency cycle in main (non-test) code.
+ * Fails if the module graph contains any production dependency cycle.
  *
- * Test dependencies are excluded because test code legitimately creates apparent
- * cycles - e.g. module A's tests depending on module B is not a real cycle.
- * Test-only cycles are reported as INFO (visible in report, do not fail the build).
+ * Test dependencies (testImplementation, androidTestImplementation, etc.) are excluded —
+ * test code legitimately creates apparent cycles that aren't real architectural problems.
+ * Test-only cycles are reported as INFO and do not fail the build.
+ *
+ * @param previousCycleCount When non-null and [preventRegression] is true, the rule also
+ *   fails if the current cycle count exceeds this value, even if cycles already existed.
+ *   This lets teams lock in the current state and prevent things from getting worse.
+ * @param preventRegression When true, any increase in cycle count since the last recorded
+ *   result is treated as an ERROR regardless of whether cycles existed before.
  */
-internal class NoCyclicDependenciesRule : ArchRule {
+internal class NoCyclicDependenciesRule(
+    private val previousCycleCount: Int? = null,
+    private val preventRegression: Boolean = false,
+) : ArchRule {
+
     override val id = "no-cyclic-dependencies"
-    override val description =
-        "The module dependency graph must be acyclic (a DAG) in production code."
+    override val description = "The module dependency graph must be acyclic (a DAG) in production code."
     override val defaultSeverity = Severity.ERROR
     override val plainLanguageExplanation =
         "Circular dependencies in main code make modules impossible to understand " +
@@ -23,7 +32,6 @@ internal class NoCyclicDependenciesRule : ArchRule {
 
     override fun evaluate(graph: ModuleDependencyGraph): List<Violation> {
         val violations = mutableListOf<Violation>()
-
         val mainCycles = findCycles(graph, includeTest = false)
         val mainCycleNodeSets = mainCycles.map { it.toSet() }
 
@@ -39,7 +47,20 @@ internal class NoCyclicDependenciesRule : ArchRule {
             )
         }
 
-        // Cycles that only exist via test edges - common and acceptable.
+        if (preventRegression && previousCycleCount != null && mainCycles.size > previousCycleCount) {
+            val newCycles = mainCycles.size - previousCycleCount
+            violations += Violation(
+                ruleId = id,
+                severity = Severity.ERROR,
+                message = "$newCycles new cycle(s) introduced since last passing build " +
+                        "(was $previousCycleCount, now ${mainCycles.size}). " +
+                        "Revert the dependency change that introduced the new cycle.",
+                source = "cycle-regression",
+                moduleHint = mainCycles.lastOrNull()?.firstOrNull(),
+                plainLanguageExplanation = plainLanguageExplanation,
+            )
+        }
+
         val allCycles = findCycles(graph, includeTest = true)
         allCycles
             .filter { cycle -> mainCycleNodeSets.none { it == cycle.toSet() } }

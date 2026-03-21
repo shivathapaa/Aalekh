@@ -1237,6 +1237,18 @@
             background: rgba(59, 130, 246, .1);
         }
 
+        .hs-pill {
+            display: inline-block;
+            font-family: var(--font-mono), serif;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 10px;
+            border: 1px solid;
+            min-width: 28px;
+            text-align: center;
+        }
+
         .vio-empty {
             flex: 1;
             display: flex;
@@ -1653,7 +1665,8 @@
     <div class="hdr-right">
         <div id="search-wrap">
             <span class="ico">⌕</span>
-            <input id="search" type="text" placeholder="search modules… ( / )" autocomplete="off" spellcheck="false"/>
+            <input id="search" type="text" placeholder="search modules… ( / )" autocomplete="off"
+                   spellcheck="false"/>
         </div>
         <button class="icon-btn" id="btn-fit" title="Fit graph (F)">⊡</button>
         <button class="icon-btn" id="btn-relayout" title="Re-layout (R)">↺</button>
@@ -1667,7 +1680,8 @@
     <div class="tab" data-p="matrix">⊟ Matrix</div>
     <div class="tab" data-p="metrics">◎ Metrics</div>
     <div class="nav-divider"></div>
-    <div class="tab" data-p="violations">⚑ Violations <span class="tab-n" id="tn-violations">0</span></div>
+    <div class="tab" data-p="violations">⚑ Violations <span class="tab-n"
+                                                            id="tn-violations">0</span></div>
 </nav>
 
 <!-- MAIN CONTENT -->
@@ -1694,7 +1708,9 @@
                 <div class="tree-toolbar">
                     <button class="tree-toolbar-btn" id="tree-expand-all">Expand All</button>
                     <button class="tree-toolbar-btn" id="tree-collapse-all">Collapse All</button>
-                    <button class="tree-toolbar-btn" id="tree-show-cycles" title="Jump to cycle nodes">⚠ Cycles</button>
+                    <button class="tree-toolbar-btn" id="tree-show-cycles"
+                            title="Jump to cycle nodes">⚠ Cycles
+                    </button>
                 </div>
                 <div id="tree-root"></div>
             </div>
@@ -1744,7 +1760,8 @@
     <div id="side-scroll">
         <div id="side-prompt">
             <div class="side-prompt-ico">◫</div>
-            <div class="side-prompt-txt">Click any node in the graph,<br/>any row in the matrix,<br/>or any item in the
+            <div class="side-prompt-txt">Click any node in the graph,<br/>any row in the
+                matrix,<br/>or any item in the
                 Explorer<br/>to inspect it here
             </div>
         </div>
@@ -2668,6 +2685,17 @@
             + '</span>'
             + '</div>'
             + (risks ? '<div class="mdt-risk-row">' + risks + '</div>' : '')
+            + (m.healthScore != null ? (function () {
+                var hs = m.healthScore;
+                var hc = hs >= 70 ? 'var(--c-ok)' : hs >= 40 ? 'var(--c-warn)' : 'var(--c-cycle)';
+                return '<div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px">'
+                    + '<span style="font-family:var(--font-mono),serif;font-size:9px;font-weight:600;color:var(--text-4);letter-spacing:.5px">HEALTH SCORE</span>'
+                    + '<span class="hs-pill" style="background:' + hc + '1a;color:' + hc + ';border-color:' + hc + '40">' + hs + '</span>'
+                    + '<span style="font-family:var(--font-ui),serif;font-size:10px;color:var(--text-4)">'
+                    + (hs >= 70 ? 'Good' : hs >= 40 ? 'Needs attention' : 'Poor - review dependencies')
+                    + '</span>'
+                    + '</div>';
+              })() : '')
             + '<div class="mdt-kpis">'
             + '<div class="mdt-kpi"><div class="mdt-kv" style="color:var(--c-warn)">' + fo + '</div><div class="mdt-kl">Fan-out</div></div>'
             + '<div class="mdt-kpi"><div class="mdt-kv" style="color:var(--t-kmp)">' + fi + '</div><div class="mdt-kl">Fan-in</div></div>'
@@ -3266,6 +3294,7 @@
                 path: m.path, type: m.type,
                 fo: mFanOut[m.path] || 0, fi: mFanIn[m.path] || 0,
                 inst: mInstab[m.path] || 0, tc: mTransit[m.path] || 0,
+                hs: (m.healthScore != null) ? m.healthScore : -1,
                 isCyc: mainCycleNodesSet.has(m.path),
                 isGod: godPathSet.has(m.path),
                 isPath: critPathSet.has(m.path),
@@ -3295,6 +3324,12 @@
                 var riskIcos = (r.isCyc ? '<span style="color:var(--c-cycle)" title="Circular dependency">⚠</span> ' : '')
                     + (r.isGod ? '<span style="color:var(--c-god)" title="God module - high coupling">⊕</span> ' : '')
                     + (r.isPath ? '<span style="color:var(--c-path)" title="On critical build path">⟶</span> ' : '');
+                var hsCell = r.hs >= 0
+                    ? (function () {
+                        var hc = r.hs >= 70 ? 'var(--c-ok)' : r.hs >= 40 ? 'var(--c-warn)' : 'var(--c-cycle)';
+                        return '<td><span class="hs-pill" style="background:' + hc + '1a;color:' + hc + ';border-color:' + hc + '40">' + r.hs + '</span></td>';
+                      })()
+                    : '<td style="color:var(--text-4);font-size:10px">—</td>';
                 return '<tr class="' + (r.isCyc ? 'is-cycle ' : '') + (r.isGod ? 'is-god ' : '') + (r.isPath ? 'is-path' : '') + '" '
                     + 'onclick="if(_selPath===\'' + esc(r.path) + '\'){clearSelection();}else{selectModule(\'' + esc(r.path) + '\');}" title="' + esc(r.path) + '">'
                     + '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
@@ -3306,6 +3341,7 @@
                     + '<td><div class="bar-wrap"><div class="bar-track"><div class="bar-fill" style="width:' + (r.fi / maxFI * 100).toFixed(0) + '%;background:var(--t-kmp)"></div></div><span style="color:var(--t-kmp)">' + r.fi + '</span></div></td>'
                     + '<td><div class="bar-wrap"><div class="bar-track"><div class="bar-fill" style="width:' + (r.tc / maxTC * 100).toFixed(0) + '%;background:var(--c-api)"></div></div><span>' + r.tc + '</span></div></td>'
                     + '<td><div class="bar-wrap"><div class="bar-track"><div class="bar-fill" style="width:' + (r.inst * 100).toFixed(0) + '%;background:' + ic + '"></div></div><span style="color:' + ic + '">' + r.inst.toFixed(2) + '</span></div></td>'
+                    + hsCell
                     + '</tr>';
             }).join('');
         }
@@ -3322,6 +3358,7 @@
             + '<th data-sc="fi">Fan-in <span class="sa">↕</span></th>'
             + '<th data-sc="tc">Transitive <span class="sa">↕</span></th>'
             + '<th data-sc="inst">Instability <span class="sa">↕</span></th>'
+            + '<th data-sc="hs" title="Health score 0–100. Higher is healthier.">Health <span class="sa">↕</span></th>'
             + '</tr></thead>'
             + '<tbody id="mtbl-body"></tbody>'
             + '</table></div>'
@@ -3350,15 +3387,74 @@
         });
     })();
 
+    function buildLayerSuggestion() {
+        var paths = (graphData.modules || []).map(function (m) { return m.path; });
+        if (paths.length < 4) return '';
+
+        var hasLayerRules = violations.some(function (v) { return v.ruleId === 'layer-dependency'; });
+        if (hasLayerRules) return '';
+
+        var PATTERNS = [
+            { segment: 'domain',       name: 'domain',       canDepend: [] },
+            { segment: 'data',         name: 'data',         canDepend: ['domain'] },
+            { segment: 'ui',           name: 'presentation', canDepend: ['domain', 'data'] },
+            { segment: 'presentation', name: 'presentation', canDepend: ['domain', 'data'] },
+        ];
+
+        var detected = [];
+        PATTERNS.forEach(function (p) {
+            var matching = paths.filter(function (path) {
+                return path.split(':').indexOf(p.segment) >= 0;
+            });
+            if (matching.length >= 2 && !detected.some(function (d) { return d.name === p.name; })) {
+                var segments = matching.map(function (mp) { return mp.split(':').filter(Boolean); });
+                var prefix = segments[0][0] || '';
+                var allSamePrefix = segments.every(function (s) { return s[0] === prefix; });
+                var glob = allSamePrefix ? ':' + prefix + ':*:' + p.segment : ':*:' + p.segment;
+                detected.push({ name: p.name, glob: glob, canDepend: p.canDepend, count: matching.length });
+            }
+        });
+
+        if (detected.length < 2) return '';
+
+        var dslLines = ['aalekh {', '    layers {'];
+        detected.forEach(function (d) {
+            dslLines.push('        layer("' + d.name + '") {');
+            dslLines.push('            modules("' + d.glob + '")');
+            if (d.canDepend.length) {
+                dslLines.push('            canOnlyDependOn(' + d.canDepend.map(function (x) { return '"' + x + '"'; }).join(', ') + ')');
+            }
+            dslLines.push('        }');
+        });
+        dslLines.push('    }', '}');
+
+        var dslText = dslLines.join('\n');
+        var id = 'layer-suggestion-code';
+
+        return '<div style="margin-top:24px;padding:20px;background:var(--bg-panel);border:1px solid var(--border-1);border-radius:var(--r2)">'
+            + '<div style="font-family:var(--font-mono),serif;font-size:9px;font-weight:600;color:var(--c-api);letter-spacing:.6px;margin-bottom:8px">SUGGESTED LAYER CONFIGURATION</div>'
+            + '<div style="font-family:var(--font-ui),serif;font-size:12px;color:var(--text-2);margin-bottom:14px">'
+            + 'Aalekh detected ' + detected.length + ' layer pattern' + (detected.length !== 1 ? 's' : '') + ' in your module structure ('
+            + detected.map(function (d) { return d.count + ' ' + d.name; }).join(', ')
+            + '). Paste this into your root <code style="background:var(--bg-raised);padding:1px 5px;border-radius:3px">build.gradle.kts</code> to start enforcing layer boundaries:'
+            + '</div>'
+            + '<pre id="' + id + '" style="background:var(--bg-raised);border:1px solid var(--border-1);border-radius:var(--r);padding:14px 16px;font-family:var(--font-mono),serif;font-size:11.5px;color:var(--text-1);overflow-x:auto;margin:0 0 12px">' + esc(dslText) + '</pre>'
+            + '<button onclick="(function(btn){var el=document.getElementById(\'' + id + '\');var t=document.createElement(\'textarea\');t.value=el.textContent;document.body.appendChild(t);t.select();document.execCommand(\'copy\');document.body.removeChild(t);btn.textContent=\'Copied!\';setTimeout(function(){btn.textContent=\'Copy to clipboard\';},1500);})(this)"'
+            + ' style="font-family:var(--font-ui),serif;font-size:11px;padding:6px 14px;background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.3);border-radius:var(--r);color:var(--c-api);cursor:pointer">Copy to clipboard</button>'
+            + '</div>';
+    }
+
     /* VIOLATIONS PANEL */
     (function buildViolations() {
         var el = document.getElementById('vio-content');
         if (!violations.length) {
+            var suggestion = buildLayerSuggestion();
             el.innerHTML = '<div class="vio-empty">'
                 + '<div class="vio-empty-ico">✓</div>'
                 + '<div class="vio-empty-ttl">Architecture looks clean</div>'
-                + '<div class="vio-empty-body">No violations found. The built-in no-cyclic-dependencies rule passed.<br/>Add more rules in Phase 2 via the Kotlin DSL (aalekh.gradle.kts).</div>'
-                + '</div>';
+                + '<div class="vio-empty-body">No violations found. All configured rules passed.</div>'
+                + '</div>'
+                + suggestion;
             return;
         }
         var errs = violations.filter(function (v) {
@@ -3371,11 +3467,15 @@
             return v.severity === 'INFO';
         });
 
+        // Plain-language explanations are now provided by each rule via
+        // v.plainLanguageExplanation. The RULE_PLAIN map is kept as a fallback
+        // for violations produced by older versions of the plugin.
         var RULE_PLAIN = {
             'no-cyclic-dependencies': 'Circular dependencies in main (production) code make it impossible to understand and refactor independently. Break the cycle by extracting shared code into a new module.',
             'test-cyclic-dependency': 'This cycle only exists through test code (testImplementation). It is common and acceptable - test code in module A often depends on module B for testing. This does NOT fail the build.',
-            'layer-dependency': 'This module depends on a layer it should not know about. Layered architecture keeps concerns separate - e.g. UI should not directly import from data sources.',
-            'max-transitive-dependencies': 'This module pulls in too many transitive dependencies, which bloats build times and creates hidden coupling.',
+            'layer-dependency': 'This module depends on a layer it should not know about. Layered architecture keeps concerns separate - e.g. data modules should not import from UI modules.',
+            'no-feature-to-feature': 'Feature modules must not depend on each other. Feature-to-feature coupling is how projects accidentally become monoliths. Move shared logic to a :core or :shared module.',
+            'max-transitive-dependencies': 'This module pulls in too many transitive dependencies, which bloats build times and creates hidden coupling. Consider splitting the module or moving shared dependencies into a dedicated module.',
         };
 
         function vCardHtml(v) {
@@ -3385,6 +3485,8 @@
             var plain = v.plainLanguageExplanation || RULE_PLAIN[v.ruleId] || null;
             var cardCls = isErr ? 'v-err' : isInfo ? 'v-info' : 'v-warn';
             var icon = isErr ? '✕' : isInfo ? 'ℹ' : '⚠';
+            // moduleHint is the authoritative graph navigation target.
+            // source.split(' ')[0] was the old fallback and broke for "A → B" formatted sources.
             var navTarget = v.moduleHint || v.source.split('\u2192')[0].trim().split(' ')[0];
             return '<div class="vcard ' + cardCls + '">'
                 + '<div class="vcard-hd">'

@@ -7,14 +7,14 @@ import com.aalekh.aalekh.model.Violation
 /**
  * A single architecture rule evaluated against a [ModuleDependencyGraph].
  *
- * Implement this interface to create custom rules:
+ * Implement this interface to create project-specific rules:
  * ```kotlin
  * class NoAndroidInDomainRule : ArchRule {
  *     override val id = "no-android-in-domain"
  *     override val description = "Domain modules must not depend on Android libraries"
  *     override val defaultSeverity = Severity.ERROR
  *     override val plainLanguageExplanation =
- *         "The domain layer must remain platform-agnostic so it can be shared via KMP."
+ *         "The domain layer must stay platform-agnostic so it can be shared via KMP."
  *
  *     override fun evaluate(graph: ModuleDependencyGraph): List<Violation> =
  *         graph.edges
@@ -24,8 +24,7 @@ import com.aalekh.aalekh.model.Violation
  *                 Violation(
  *                     ruleId = id,
  *                     severity = defaultSeverity,
- *                     message = "${edge.from} depends on Android module ${edge.to}. " +
- *                               "Move Android-specific code to the data or presentation layer.",
+ *                     message = "${edge.from} depends on Android module ${edge.to}.",
  *                     source = "${edge.from} → ${edge.to}",
  *                     moduleHint = edge.from,
  *                     plainLanguageExplanation = plainLanguageExplanation,
@@ -35,47 +34,29 @@ import com.aalekh.aalekh.model.Violation
  * ```
  */
 public interface ArchRule {
-    /** Stable identifier used in reports, baselines, and DSL rule overrides. */
     public val id: String
-
-    /** One-line description of what this rule enforces. */
     public val description: String
-
-    /** Default severity. Can be overridden per-project via the `rules { }` DSL block. */
     public val defaultSeverity: Severity
-
-    /**
-     * Plain-language explanation shown in the violations panel below the technical message.
-     * Keep it to 1–2 sentences. Focus on *why* the rule exists, not *what* it detected.
-     */
     public val plainLanguageExplanation: String
-
-    /**
-     * Evaluates this rule against [graph]. Returns an empty list when no violations are found.
-     * Must be a pure function — no I/O, no mutation, no Gradle API calls.
-     */
     public fun evaluate(graph: ModuleDependencyGraph): List<Violation>
 }
 
 /**
- * Evaluates a set of [ArchRule]s against a graph and collects all violations.
+ * Evaluates a set of [ArchRule]s and applies severity overrides and suppressions.
  *
- * @param rules The rules to evaluate.
- * @param severityOverrides Per-rule severity overrides. Key is the rule [ArchRule.id],
- *   value is the overriding [Severity]. Overrides replace [ArchRule.defaultSeverity].
- * @param suppressions Per-rule module suppression patterns. Key is the rule id,
- *   value is a list of glob patterns. Violations whose [Violation.moduleHint] or
- *   [Violation.source] matches any pattern are dropped silently.
+ * @param rules The rules to run.
+ * @param severityOverrides Per-rule severity replacements. Overrides never affect INFO violations.
+ * @param suppressions Per-rule module glob patterns. Violations whose [Violation.moduleHint]
+ *   matches any pattern are dropped.
  */
 public class RuleEngine(
     private val rules: List<ArchRule>,
     private val severityOverrides: Map<String, Severity> = emptyMap(),
     private val suppressions: Map<String, List<String>> = emptyMap(),
 ) {
-    /** Runs all registered rules and returns every violation after applying overrides and suppressions. */
     public fun evaluate(graph: ModuleDependencyGraph): RuleEngineResult {
         val violations = rules.flatMap { rule ->
-            val rawViolations = runCatching { rule.evaluate(graph) }
+            val raw = runCatching { rule.evaluate(graph) }
                 .getOrElse { ex ->
                     listOf(
                         Violation(
@@ -91,7 +72,7 @@ public class RuleEngine(
             val effectiveSeverity = severityOverrides[rule.id]
             val suppressPatterns = suppressions[rule.id] ?: emptyList()
 
-            rawViolations
+            raw
                 .filterNot { v -> isSuppressed(v, suppressPatterns) }
                 .map { v ->
                     if (effectiveSeverity != null && v.severity != Severity.INFO) {
@@ -99,7 +80,6 @@ public class RuleEngine(
                     } else v
                 }
         }
-
         return RuleEngineResult(violations = violations, rulesEvaluated = rules.size)
     }
 
@@ -110,28 +90,55 @@ public class RuleEngine(
     }
 
     public companion object {
-        /** Builds a [RuleEngine] with all built-in rules and no overrides. */
+
         public fun withBuiltinRules(): RuleEngine = RuleEngine(
             rules = listOf(NoCyclicDependenciesRule())
         )
 
         /**
-         * Builds a fully configured [RuleEngine] from the serialized DSL inputs
-         * passed through task properties. Called by [AalekhCheckTask].
-         *
-         * @param layerEntries Serialized layer configs: `"name|pat1,pat2|allowed1,allowed2|hasRestriction"`.
-         * @param featurePattern Glob pattern for feature modules. Empty string disables the rule.
-         * @param featureAllowedPairs Serialized allow-pairs: `"from->to"`.
-         * @param ruleEntries Serialized rule overrides from [RulesConfig].
+         * Builds a fully configured [RuleEngine] from the serialized DSL inputs passed through
+         * task properties. The [previousCycleCount] is read from the previous run's results JSON
+         * by the task and passed here; it is null when no prior result exists.
          */
         public fun fromConfig(
             layerEntries: List<String>,
             featurePattern: String,
             featureAllowedPairs: List<String>,
             ruleEntries: List<String>,
+            previousCycleCount: Int? = null,
         ): RuleEngine {
             val rules = mutableListOf<ArchRule>()
-            rules += NoCyclicDependenciesRule()
+
+            val severityOverrides = mutableMapOf<String, Severity>()
+            val suppressions = mutableMapOf<String, MutableList<String>>()
+            var preventCycleRegression = false
+            var maxTransitive: Int? = null
+
+            for (entry in ruleEntries) {
+                val parts = entry.split(":")
+                if (parts.size < 3) continue
+                val ruleId = parts[0]
+                when (parts[1]) {
+                    "severity" -> severityOverrides[ruleId] =
+                        Severity.entries.firstOrNull { it.name == parts[2] } ?: continue
+
+                    "suppress" -> suppressions.getOrPut(ruleId) { mutableListOf() }
+                        .add(parts.drop(2).joinToString(":"))
+
+                    "option" -> if (ruleId == "no-cyclic-dependencies" && parts[2] == "preventRegression") {
+                        preventCycleRegression = true
+                    }
+
+                    "threshold" -> if (ruleId == "max-transitive-dependencies") {
+                        maxTransitive = parts[2].toIntOrNull()
+                    }
+                }
+            }
+
+            rules += NoCyclicDependenciesRule(
+                previousCycleCount = if (preventCycleRegression) previousCycleCount else null,
+                preventRegression = preventCycleRegression,
+            )
 
             if (layerEntries.isNotEmpty()) {
                 rules += LayerDependencyRule.fromSerializedLayers(layerEntries)
@@ -144,20 +151,8 @@ public class RuleEngine(
                 )
             }
 
-            val severityOverrides = mutableMapOf<String, Severity>()
-            val suppressions = mutableMapOf<String, MutableList<String>>()
-
-            for (entry in ruleEntries) {
-                val parts = entry.split(":")
-                if (parts.size < 3) continue
-                val ruleId = parts[0]
-                when (parts[1]) {
-                    "severity" -> severityOverrides[ruleId] =
-                        Severity.entries.firstOrNull { it.name == parts[2] } ?: continue
-
-                    "suppress" -> suppressions.getOrPut(ruleId) { mutableListOf() }
-                        .add(parts.drop(2).joinToString(":")) // re-join in case pattern had ":"
-                }
+            if (maxTransitive != null) {
+                rules += MaxTransitiveDependenciesRule(maxTransitive)
             }
 
             return RuleEngine(
@@ -167,12 +162,10 @@ public class RuleEngine(
             )
         }
 
-        /** Builds an empty [RuleEngine] — for testing or pure visualization. */
         public fun empty(): RuleEngine = RuleEngine(emptyList())
     }
 }
 
-/** The result of a full rule engine evaluation pass. */
 public data class RuleEngineResult(
     val violations: List<Violation>,
     val rulesEvaluated: Int,

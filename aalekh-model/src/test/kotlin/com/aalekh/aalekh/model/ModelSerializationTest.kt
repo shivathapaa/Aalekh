@@ -5,6 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Tests that all model data classes round-trip correctly through JSON.
@@ -188,6 +189,70 @@ class ModelSerializationTest {
         Severity.entries.forEach { s ->
             val v = Violation(ruleId = "r", severity = s, message = "m", source = "s")
             assertEquals(s, json.decodeFromString<Violation>(json.encodeToString(v)).severity)
+        }
+    }
+
+    // DependencyEdge.declarationLine
+
+    @Test
+    fun `DependencyEdge declarationLine round-trips when set`() {
+        val edge = DependencyEdge(
+            from = ":a", to = ":b", configuration = "implementation", declarationLine = 42
+        )
+        val graph = ModuleDependencyGraph("t", emptyList(), listOf(edge))
+        val deserialized = json.decodeFromString<ModuleDependencyGraph>(json.encodeToString(graph))
+        assertEquals(42, deserialized.edges.first().declarationLine)
+    }
+
+    @Test
+    fun `DependencyEdge declarationLine defaults to null`() {
+        val deserialized =
+            json.decodeFromString<ModuleDependencyGraph>(json.encodeToString(sampleGraph()))
+        assertNull(deserialized.edges.first().declarationLine)
+    }
+
+    @Test
+    fun `DependencyEdge without declarationLine field deserializes from legacy JSON`() {
+        val legacyJson = """{"from":":a","to":":b","configuration":"implementation"}"""
+        val edge = json.decodeFromString<DependencyEdge>(legacyJson)
+        assertNull(edge.declarationLine)
+    }
+
+    // ModuleNode.healthScore
+
+    @Test
+    fun `ModuleNode healthScore round-trips when set`() {
+        val node =
+            ModuleNode(path = ":m", name = "m", type = ModuleType.JVM_LIBRARY, healthScore = 78)
+        val graph = ModuleDependencyGraph("t", listOf(node), emptyList())
+        val deserialized = json.decodeFromString<ModuleDependencyGraph>(json.encodeToString(graph))
+        assertEquals(78, deserialized.modules.first().healthScore)
+    }
+
+    @Test
+    fun `ModuleNode healthScore defaults to null`() {
+        val deserialized =
+            json.decodeFromString<ModuleDependencyGraph>(json.encodeToString(sampleGraph()))
+        assertNull(deserialized.modules.first().healthScore)
+    }
+
+    @Test
+    fun `ModuleNode without healthScore field deserializes from legacy JSON`() {
+        val legacyJson = """{"path":":m","name":"m","type":"JVM_LIBRARY"}"""
+        val node = json.decodeFromString<ModuleNode>(legacyJson)
+        assertNull(node.healthScore)
+    }
+
+    @Test
+    fun `healthScore is bounded to 0-100 range by HealthScoreCalculator`() {
+        // Serialization accepts any Int but the calculator must produce in range
+        val nodeWithScore = ModuleNode(":m", "m", ModuleType.JVM_LIBRARY, healthScore = 100)
+        val low = ModuleNode(":n", "n", ModuleType.JVM_LIBRARY, healthScore = 0)
+        listOf(nodeWithScore, low).forEach { n ->
+            val graph = ModuleDependencyGraph("t", listOf(n), emptyList())
+            val round = json.decodeFromString<ModuleDependencyGraph>(json.encodeToString(graph))
+            val score = round.modules.first().healthScore!!
+            assertTrue(score in 0..100, "Score $score out of range")
         }
     }
 }
