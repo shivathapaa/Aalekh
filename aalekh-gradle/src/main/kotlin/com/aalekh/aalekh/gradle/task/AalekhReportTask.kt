@@ -7,6 +7,7 @@ import kotlinx.serialization.json.Json
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Input
@@ -21,24 +22,12 @@ import org.gradle.work.DisableCachingByDefault
 /**
  * Generates the Aalekh HTML dependency report.
  *
- * Usage:  `./gradlew aalekhReport`
+ * Run: `./gradlew aalekhReport`
  * Output: `<projectRoot>/build/reports/aalekh/index.html`
- *
- * ### Why @DisableCachingByDefault?
- * The report is a viewer artifact meant to reflect the *current* state of the
- * project when opened. Caching a stale HTML file and having it appear in the
- * browser without re-running the task would be misleading. More concretely,
- * this task also opens the browser - a side effect that should happen every
- * time the task runs, not just on cache misses.
- *
- * The upstream [AalekhExtractTask] is cacheable, so the expensive part
- * (graph extraction) is still cached. Only the cheap HTML generation runs
- * every time.
  */
-@DisableCachingByDefault(because = "HTML reports should always reflect the current state; the task also has the side effect of opening a browser window")
+@DisableCachingByDefault(because = "HTML reports should always reflect the current project state; the task also opens a browser window")
 public abstract class AalekhReportTask : DefaultTask() {
 
-    /** Intermediate graph JSON written by [AalekhExtractTask]. */
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
     public abstract val graphJsonFile: RegularFileProperty
@@ -78,17 +67,6 @@ public abstract class AalekhReportTask : DefaultTask() {
         }
     }
 
-    /**
-     * Opens the report in the default browser.
-     *
-     * The Gradle daemon is a headless JVM - java.awt.Desktop is never supported.
-     * We go straight to the OS-level command with the plain absolute path (not a
-     * file:// URI): macOS `open`, Linux `xdg-open`, Windows `explorer`.
-     *
-     * `ProcessBuilder` is used instead of `Runtime.exec` so we can:
-     * - Redirect stderr to the build log on failure
-     * - Avoid the deprecated `exec(String[])` overload warning in JDK 18+
-     */
     private fun openInBrowser(absolutePath: String) {
         val os = System.getProperty("os.name").lowercase()
         val command = when {
@@ -100,18 +78,11 @@ public abstract class AalekhReportTask : DefaultTask() {
                 return
             }
         }
-
         runCatching {
-            val process = ProcessBuilder(command)
-                .redirectErrorStream(true)
-                .start()
-
-            // Wait briefly - if the command fails immediately we can log it.
-            // Don't block indefinitely (browser startup is not our concern).
+            val process = ProcessBuilder(command).redirectErrorStream(true).start()
             val finished = process.waitFor(3, java.util.concurrent.TimeUnit.SECONDS)
             if (finished && process.exitValue() != 0) {
-                val output = process.inputStream.bufferedReader().readText().trim()
-                logger.warn("Aalekh: browser open returned non-zero exit. Command: $command. Output: $output")
+                logger.warn("Aalekh: browser open failed. Open manually: $absolutePath")
             }
         }.onFailure { ex ->
             logger.warn("Aalekh: could not open browser - ${ex.message}. Open manually: $absolutePath")
@@ -125,18 +96,13 @@ public abstract class AalekhReportTask : DefaultTask() {
 /**
  * Evaluates architecture rules and fails the build on violations.
  *
- * Usage: `./gradlew aalekhCheck`
- * Also runs automatically as part of `./gradlew check`.
+ * Run: `./gradlew aalekhCheck`
+ * Also runs as part of `./gradlew check`.
  *
  * Outputs:
- * - `<outputDir>/aalekh-results.xml`  - JUnit XML (consumed by all CI systems)
- * - `<outputDir>/aalekh-results.json` - Machine-readable JSON envelope
- *
- * ### Why @CacheableTask?
- * `aalekhCheck` is deterministic: given the same graph JSON and the same rules,
- * it always produces the same violation list. Caching it means CI doesn't
- * re-evaluate rules when the graph hasn't changed - e.g. a commit that only
- * touches documentation will hit the cache and skip the rule engine entirely.
+ * - `<outputDir>/aalekh-results.xml`  - JUnit XML for CI systems
+ * - `<outputDir>/aalekh-results.json` - Full machine-readable report
+ * - `<outputDir>/aalekh-results.sarif` - SARIF for GitHub code scanning annotations
  */
 @CacheableTask
 public abstract class AalekhCheckTask : DefaultTask() {
@@ -151,6 +117,38 @@ public abstract class AalekhCheckTask : DefaultTask() {
     @get:OutputDirectory
     public abstract val outputDir: DirectoryProperty
 
+    // Rule configuration inputs
+    // All rule config is passed as plain strings so the task remains CC-safe.
+    // RuleEngine.fromConfig() reconstructs the full engine from these at execution time.
+
+    /**
+     * Serialized layer declarations from the `layers { }` DSL block.
+     * Format per entry: `"layerName|pat1,pat2|allowedLayer1,allowedLayer2|hasRestriction"`.
+     */
+    @get:Input
+    public abstract val layerEntries: ListProperty<String>
+
+    /**
+     * Glob pattern for feature modules from `featureIsolation { featurePattern = "..." }`.
+     * Empty string means the feature isolation rule is inactive.
+     */
+    @get:Input
+    public abstract val featurePattern: Property<String>
+
+    /**
+     * Serialized allow-pairs from `featureIsolation { allow(...) }`.
+     * Format per entry: `"fromPattern->toPattern"`.
+     */
+    @get:Input
+    public abstract val featureAllowedPairs: ListProperty<String>
+
+    /**
+     * Serialized rule overrides from the `rules { }` DSL block.
+     * Format per entry: `"ruleId:severity:LEVEL"` or `"ruleId:suppress:pattern"`.
+     */
+    @get:Input
+    public abstract val ruleEntries: ListProperty<String>
+
     init {
         group = "aalekh"
         description = "Evaluates architecture rules. Fails the build on ERROR-level violations. " +
@@ -160,13 +158,20 @@ public abstract class AalekhCheckTask : DefaultTask() {
     @TaskAction
     public fun check() {
         val graph = readGraph()
-        val ruleResult = RuleEngine.withBuiltinRules().evaluate(graph)
+        val ruleEngine = RuleEngine.fromConfig(
+            layerEntries = layerEntries.get(),
+            featurePattern = featurePattern.getOrElse(""),
+            featureAllowedPairs = featureAllowedPairs.get(),
+            ruleEntries = ruleEntries.get(),
+        )
+        val ruleResult = ruleEngine.evaluate(graph)
         val report = ReportCoordinator(graph, ruleResult, projectName.get())
         val outDir = outputDir.get().asFile
 
         outDir.mkdirs()
         outDir.resolve("aalekh-results.xml").writeText(report.generateJUnitXml())
         outDir.resolve("aalekh-results.json").writeText(report.generateJson())
+        outDir.resolve("aalekh-results.sarif").writeText(report.generateSarif())
 
         if (ruleResult.violations.isEmpty()) {
             logger.lifecycle(

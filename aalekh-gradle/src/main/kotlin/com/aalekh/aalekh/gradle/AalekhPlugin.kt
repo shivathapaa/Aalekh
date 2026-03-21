@@ -75,6 +75,7 @@ public class AalekhPlugin : Plugin<Project> {
             task.subprojectPlugins.set(project.provider { buildPluginData(project) })
             task.includeTestDependencies.set(extension.includeTestDependencies)
             task.includeCompileOnlyDependencies.set(extension.includeCompileOnlyDependencies)
+            task.rootProjectDir.set(project.rootDir.absolutePath)
             task.outputFile.set(graphJsonFile)
         }
 
@@ -94,6 +95,19 @@ public class AalekhPlugin : Plugin<Project> {
             task.graphJsonFile.set(graphJsonFile)
             task.projectName.set(project.name)
             task.outputDir.set(project.layout.buildDirectory.dir(extension.outputDir))
+
+            task.layerEntries.set(project.provider {
+                extension.layerContainer.map { layer ->
+                    val patterns = layer.modulePatterns.get().joinToString(",")
+                    val allowed = layer.allowedDependencyLayers.get().joinToString(",")
+                    val restricted = layer.hasRestriction.get()
+                    "${layer.name}|$patterns|$allowed|$restricted"
+                }
+            })
+            task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
+            task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
+            task.ruleEntries.set(extension.rulesConfig.entries)
+
             task.dependsOn(extractTask)
         }
 

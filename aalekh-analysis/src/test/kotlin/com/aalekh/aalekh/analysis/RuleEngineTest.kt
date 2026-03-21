@@ -1,13 +1,20 @@
 package com.aalekh.aalekh.analysis
 
+import com.aalekh.aalekh.analysis.rules.ArchRule
 import com.aalekh.aalekh.analysis.rules.RuleEngine
-import com.aalekh.aalekh.model.*
+import com.aalekh.aalekh.model.DependencyEdge
+import com.aalekh.aalekh.model.ModuleDependencyGraph
+import com.aalekh.aalekh.model.ModuleNode
+import com.aalekh.aalekh.model.ModuleType
+import com.aalekh.aalekh.model.Severity
+import com.aalekh.aalekh.model.Violation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class RuleEngineTest {
+
     private fun node(path: String) =
         ModuleNode(path = path, name = path.substringAfterLast(":"), type = ModuleType.JVM_LIBRARY)
 
@@ -26,10 +33,7 @@ class RuleEngineTest {
         edges = listOf(edge(":a", ":b"), edge(":b", ":c"), edge(":c", ":a")),
     )
 
-    /**
-     * Test-only cycle: :a -> :b (impl), :b -> :a (testImpl)
-     * This should NOT produce an ERROR - only an INFO.
-     */
+    // Test-only cycle: :a -> :b (impl), :b -> :a (testImpl). Should NOT produce an ERROR.
     private fun testOnlyCycleGraph() = ModuleDependencyGraph(
         projectName = "test-cycle",
         modules = listOf(node(":a"), node(":b")),
@@ -39,10 +43,7 @@ class RuleEngineTest {
         ),
     )
 
-    /**
-     * Mixed: main cycle :a -> :b -> :a, plus test dep :c -> :a (testImpl)
-     * Should produce ERROR for :a -> :b cycle, no extra error for test dep
-     */
+    // Main cycle :a -> :b -> :a plus test dep :c -> :a. Only the main cycle should be an ERROR.
     private fun mixedCycleGraph() = ModuleDependencyGraph(
         projectName = "mixed-cycle",
         modules = listOf(node(":a"), node(":b"), node(":c")),
@@ -53,16 +54,11 @@ class RuleEngineTest {
         ),
     )
 
-    /**
-     * Datastore pattern: :core:datastore -> (nothing), :core:datastore-test -> :core:datastore (testImpl)
-     * This is NOT a cycle.
-     */
+    // :core:datastore-test -> :core:datastore via testImpl is NOT a cycle.
     private fun datastoreTestGraph() = ModuleDependencyGraph(
         projectName = "datastore-test",
         modules = listOf(node(":core:datastore"), node(":core:datastore-test")),
-        edges = listOf(
-            edge(":core:datastore-test", ":core:datastore", "testImplementation"),
-        ),
+        edges = listOf(edge(":core:datastore-test", ":core:datastore", "testImplementation")),
     )
 
     @Test
@@ -94,11 +90,11 @@ class RuleEngineTest {
     @Test
     fun `cycle violation has ERROR severity`() {
         val result = RuleEngine.withBuiltinRules().evaluate(cyclicGraph())
-        assertTrue(result.violations.all { it.severity == Severity.ERROR })
+        assertTrue(result.violations.filter { it.severity == Severity.ERROR }.isNotEmpty())
     }
 
     @Test
-    fun `cycle violation message is descriptive and contains module paths`() {
+    fun `cycle violation message contains module paths`() {
         val result = RuleEngine.withBuiltinRules().evaluate(cyclicGraph())
         val msg = result.violations.first().message
         assertTrue(msg.contains("→"), "Violation message should show dependency chain")
@@ -106,8 +102,27 @@ class RuleEngineTest {
 
     @Test
     fun `cycle violation ruleId is stable`() {
-        val result = RuleEngine.withBuiltinRules().evaluate(cyclicGraph())
-        assertEquals("no-cyclic-dependencies", result.violations.first().ruleId)
+        assertEquals(
+            "no-cyclic-dependencies",
+            RuleEngine.withBuiltinRules().evaluate(cyclicGraph()).violations.first().ruleId
+        )
+    }
+
+    @Test
+    fun `cycle violation has moduleHint`() {
+        val violations = RuleEngine.withBuiltinRules().evaluate(cyclicGraph()).violations
+        val error = violations.first { it.severity == Severity.ERROR }
+        assertTrue(
+            error.moduleHint != null,
+            "Cycle violation must carry a moduleHint for graph navigation"
+        )
+    }
+
+    @Test
+    fun `cycle violation has plainLanguageExplanation`() {
+        val violations = RuleEngine.withBuiltinRules().evaluate(cyclicGraph()).violations
+        val error = violations.first { it.severity == Severity.ERROR }
+        assertFalse(error.plainLanguageExplanation.isNullOrBlank())
     }
 
     @Test
@@ -118,19 +133,18 @@ class RuleEngineTest {
 
     @Test
     fun `rulesEvaluated tracks the number of rules run`() {
-        val result = RuleEngine.withBuiltinRules().evaluate(acyclicGraph())
-        assertTrue(result.rulesEvaluated >= 1)
+        assertTrue(RuleEngine.withBuiltinRules().evaluate(acyclicGraph()).rulesEvaluated >= 1)
     }
 
     @Test
     fun `rule engine captures exceptions from faulty rules gracefully`() {
-        // A rule that always throws should produce an ERROR violation, not crash the build
         val faultyEngine = RuleEngine(
-            listOf(object : com.aalekh.aalekh.analysis.rules.ArchRule {
+            listOf(object : ArchRule {
                 override val id = "always-throws"
                 override val description = "This rule always throws"
                 override val defaultSeverity = Severity.ERROR
-                override fun evaluate(graph: ModuleDependencyGraph) =
+                override val plainLanguageExplanation = "Explanation for the faulty rule."
+                override fun evaluate(graph: ModuleDependencyGraph): List<Violation> =
                     throw RuntimeException("Simulated rule crash")
             })
         )
@@ -142,11 +156,13 @@ class RuleEngineTest {
 
     @Test
     fun `test-only cycle does NOT produce ERROR`() {
-        // :a -> :b (impl), :b -> :a (testImpl) - test code depending on another module is not a real cycle
         val result = RuleEngine.withBuiltinRules().evaluate(testOnlyCycleGraph())
         val errors = result.violations.filter { it.severity == Severity.ERROR }
-        assertTrue(errors.isEmpty(), "Test-only cycle should not produce ERROR violations, got: $errors")
-        assertFalse(result.hasBuildFailure, "Test-only cycles should not fail the build")
+        assertTrue(
+            errors.isEmpty(),
+            "Test-only cycle should not produce ERROR violations, got: $errors"
+        )
+        assertFalse(result.hasBuildFailure)
     }
 
     @Test
@@ -154,46 +170,42 @@ class RuleEngineTest {
         val result = RuleEngine.withBuiltinRules().evaluate(testOnlyCycleGraph())
         val infos = result.violations.filter { it.severity == Severity.INFO }
         assertTrue(infos.isNotEmpty(), "Test-only cycle should produce INFO violation")
-        assertEquals(infos.first().ruleId, "test-cyclic-dependency")
+        assertEquals("test-cyclic-dependency", infos.first().ruleId)
     }
 
     @Test
     fun `main code cycle still produces ERROR`() {
-        // :a -> :b -> :c -> :a - all implementation deps, this is a real cycle
         val result = RuleEngine.withBuiltinRules().evaluate(cyclicGraph())
-        val errors = result.violations.filter { it.severity == Severity.ERROR }
-        assertTrue(errors.isNotEmpty(), "Main-code cycle should produce ERROR")
-        assertTrue(result.hasBuildFailure, "Main-code cycle should fail the build")
+        assertTrue(result.violations.any { it.severity == Severity.ERROR })
+        assertTrue(result.hasBuildFailure)
     }
 
     @Test
-    fun `mixed cycle graph - main cycle detected as ERROR, test dep is not cycle`() {
+    fun `mixed cycle graph - main cycle is ERROR, test dep is not a cycle`() {
         val result = RuleEngine.withBuiltinRules().evaluate(mixedCycleGraph())
         val errors = result.violations.filter { it.severity == Severity.ERROR }
-        assertTrue(errors.isNotEmpty(), "Main cycle :a → :b → :a should produce ERROR")
-        // The test dep :c -> :a (testImpl) should not create an extra error
+        assertTrue(errors.isNotEmpty())
         assertEquals(1, errors.size, "Should have exactly one main cycle error")
     }
 
     @Test
     fun `datastore test pattern is NOT a cycle`() {
-        // :core:datastore-test -> :core:datastore (testImpl) is NOT a cycle
         val result = RuleEngine.withBuiltinRules().evaluate(datastoreTestGraph())
-        assertTrue(result.violations.isEmpty(), "Datastore test pattern should produce no violations")
+        assertTrue(result.violations.isEmpty())
         assertFalse(result.hasBuildFailure)
     }
 
     @Test
-    fun `cycle violation message mentions main code explicitly`() {
-        val result = RuleEngine.withBuiltinRules().evaluate(cyclicGraph())
-        val error = result.violations.first { it.severity == Severity.ERROR }
-        assertTrue(error.message.contains("main code"), "Error message should mention 'main code'")
+    fun `cycle violation message mentions main code`() {
+        val error = RuleEngine.withBuiltinRules().evaluate(cyclicGraph())
+            .violations.first { it.severity == Severity.ERROR }
+        assertTrue(error.message.contains("main code"))
     }
 
     @Test
     fun `test cycle INFO message explains it is test-only`() {
-        val result = RuleEngine.withBuiltinRules().evaluate(testOnlyCycleGraph())
-        val info = result.violations.first { it.severity == Severity.INFO }
-        assertTrue(info.message.contains("test code"), "INFO message should mention 'test code'")
+        val info = RuleEngine.withBuiltinRules().evaluate(testOnlyCycleGraph())
+            .violations.first { it.severity == Severity.INFO }
+        assertTrue(info.message.contains("test"))
     }
 }

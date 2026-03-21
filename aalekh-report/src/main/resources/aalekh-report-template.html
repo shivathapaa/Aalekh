@@ -784,6 +784,7 @@
 
         .matrix-scroll {
             flex: 1;
+            min-height: 0;
             overflow: auto;
             padding: 24px;
         }
@@ -799,6 +800,7 @@
 
         .metrics-scroll {
             flex: 1;
+            min-height: 0;
             overflow-y: auto;
             padding: 24px;
             display: flex;
@@ -1007,6 +1009,7 @@
 
         .vio-scroll {
             flex: 1;
+            min-height: 0;
             overflow-y: auto;
             padding: 24px;
             display: flex;
@@ -1309,6 +1312,7 @@
 
         #side-scroll {
             flex: 1;
+            min-height: 0;
             overflow-y: auto;
         }
 
@@ -1639,7 +1643,8 @@
     <div class="hdr-right">
         <div id="search-wrap">
             <span class="ico">⌕</span>
-            <input id="search" type="text" placeholder="search modules… ( / )" autocomplete="off" spellcheck="false"/>
+            <input id="search" type="text" placeholder="search modules… ( / )" autocomplete="off"
+                   spellcheck="false"/>
         </div>
         <button class="icon-btn" id="btn-fit" title="Fit graph (F)">⊡</button>
         <button class="icon-btn" id="btn-relayout" title="Re-layout (R)">↺</button>
@@ -1653,7 +1658,8 @@
     <div class="tab" data-p="matrix">⊟ Matrix</div>
     <div class="tab" data-p="metrics">◎ Metrics</div>
     <div class="nav-divider"></div>
-    <div class="tab" data-p="violations">⚑ Violations <span class="tab-n" id="tn-violations">0</span></div>
+    <div class="tab" data-p="violations">⚑ Violations <span class="tab-n"
+                                                            id="tn-violations">0</span></div>
 </nav>
 
 <!-- MAIN CONTENT -->
@@ -1680,7 +1686,9 @@
                 <div class="tree-toolbar">
                     <button class="tree-toolbar-btn" id="tree-expand-all">Expand All</button>
                     <button class="tree-toolbar-btn" id="tree-collapse-all">Collapse All</button>
-                    <button class="tree-toolbar-btn" id="tree-show-cycles" title="Jump to cycle nodes">⚠ Cycles</button>
+                    <button class="tree-toolbar-btn" id="tree-show-cycles"
+                            title="Jump to cycle nodes">⚠ Cycles
+                    </button>
                 </div>
                 <div id="tree-root"></div>
             </div>
@@ -1730,7 +1738,8 @@
     <div id="side-scroll">
         <div id="side-prompt">
             <div class="side-prompt-ico">◫</div>
-            <div class="side-prompt-txt">Click any node in the graph,<br/>any row in the matrix,<br/>or any item in the
+            <div class="side-prompt-txt">Click any node in the graph,<br/>any row in the
+                matrix,<br/>or any item in the
                 Explorer<br/>to inspect it here
             </div>
         </div>
@@ -3357,7 +3366,6 @@
             return v.severity === 'INFO';
         });
 
-        // Plain-language explanations for known rule IDs
         var RULE_PLAIN = {
             'no-cyclic-dependencies': 'Circular dependencies in main (production) code make it impossible to understand and refactor independently. Break the cycle by extracting shared code into a new module.',
             'test-cyclic-dependency': 'This cycle only exists through test code (testImplementation). It is common and acceptable - test code in module A often depends on module B for testing. This does NOT fail the build.',
@@ -3368,9 +3376,11 @@
         function vCardHtml(v) {
             var isErr = v.severity === 'ERROR';
             var isInfo = v.severity === 'INFO';
-            var plain = RULE_PLAIN[v.ruleId] || null;
+            // Use the violation's own explanation first; fall back to the static map.
+            var plain = v.plainLanguageExplanation || RULE_PLAIN[v.ruleId] || null;
             var cardCls = isErr ? 'v-err' : isInfo ? 'v-info' : 'v-warn';
             var icon = isErr ? '✕' : isInfo ? 'ℹ' : '⚠';
+            var navTarget = v.moduleHint || v.source.split('\u2192')[0].trim().split(' ')[0];
             return '<div class="vcard ' + cardCls + '">'
                 + '<div class="vcard-hd">'
                 + '<div class="vcard-icon">' + icon + '</div>'
@@ -3387,7 +3397,7 @@
                     ? '<div class="vcard-source">'
                     + '<span class="vcard-src-lbl">Location:</span>'
                     + '<span style="color:var(--text-2)">' + esc(v.source) + '</span>'
-                    + '<button class="vcard-loc-btn" onclick="document.querySelector(\'[data-p=graph]\').click();setTimeout(function(){selectModule(\'' + esc(v.source.split(' ')[0]) + '\');},200)">View in Graph -></button>'
+                    + '<button class="vcard-loc-btn" onclick="document.querySelector(\'[data-p=graph]\').click();setTimeout(function(){selectModule(\'' + esc(navTarget) + '\');},200)">View in Graph -></button>'
                     + '</div>' : '')
                 + '</div>';
         }

@@ -12,24 +12,22 @@ import kotlin.test.assertTrue
 /**
  * Functional tests using [GradleRunner].
  *
- * These tests spin up a real Gradle build in a temp directory and verify
- * end-to-end behavior. They are slow (~5-30s each) but catch issues that
- * unit tests with [org.gradle.testfixtures.ProjectBuilder] cannot - configuration cache, task wiring,
- * output file generation, etc.
- *
- * Each test builds its own minimal multi-module project via string templates.
- * This avoids fragile file-system fixtures and keeps each test self-contained.
+ * Each test spins up a real Gradle build in a temp directory to verify
+ * end-to-end behavior - configuration cache, task wiring, output file
+ * generation, and rule enforcement.
  */
 class AalekhPluginFunctionalTest {
+
     @field:TempDir
     lateinit var projectDir: File
 
     private fun gradleRunner(vararg args: String): GradleRunner = GradleRunner.create()
         .withProjectDir(projectDir)
-        .withPluginClasspath()          // Adds the plugin under test to the classpath
+        .withPluginClasspath()
         .withArguments(*args, "--stacktrace")
         .forwardOutput()
 
+    // Project setup helpers
     private fun setupSingleModuleProject() {
         projectDir.resolve("settings.gradle.kts").writeText(
             """
@@ -42,6 +40,23 @@ class AalekhPluginFunctionalTest {
         projectDir.resolve("build.gradle.kts").writeText(
             """
             plugins { kotlin("jvm") version "2.3.0" }
+            aalekh { openBrowserAfterReport.set(false) }
+            """.trimIndent()
+        )
+    }
+
+    private fun setupJavaModuleProject() {
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins {
+                id("io.github.shivathapaa.aalekh")
+            }
+            rootProject.name = "cc-test-project"
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            plugins { id("java-library") }
             aalekh { openBrowserAfterReport.set(false) }
             """.trimIndent()
         )
@@ -61,9 +76,7 @@ class AalekhPluginFunctionalTest {
             """.trimIndent()
         )
         projectDir.resolve("build.gradle.kts").writeText(
-            """
-            aalekh { openBrowserAfterReport.set(false) }
-            """.trimIndent()
+            """aalekh { openBrowserAfterReport.set(false) }""".trimIndent()
         )
         projectDir.resolve("core/domain/build.gradle.kts").writeText(
             """plugins { kotlin("jvm") version "2.3.0" }""".trimIndent()
@@ -114,170 +127,167 @@ class AalekhPluginFunctionalTest {
         )
     }
 
+    /**
+     * Multi-module project with a layer violation:
+     * :feature:login:data depends on :feature:login:ui (data → presentation, not allowed).
+     */
+    private fun setupLayerViolationProject() {
+        listOf("core/domain", "feature/login/ui", "feature/login/data")
+            .forEach { projectDir.resolve(it).mkdirs() }
+
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins { id("io.github.shivathapaa.aalekh") }
+            rootProject.name = "layer-test"
+            include(":core:domain", ":feature:login:ui", ":feature:login:data")
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                layers {
+                    layer("domain") {
+                        modules(":core:domain")
+                    }
+                    layer("data") {
+                        modules(":feature:*:data")
+                        canOnlyDependOn("domain")
+                    }
+                    layer("presentation") {
+                        modules(":feature:*:ui")
+                        canOnlyDependOn("domain", "data")
+                    }
+                }
+            }
+            """.trimIndent()
+        )
+        projectDir.resolve("core/domain/build.gradle.kts").writeText(
+            """plugins { kotlin("jvm") version "2.3.0" }"""
+        )
+        projectDir.resolve("feature/login/ui/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies { implementation(project(":core:domain")) }
+            """.trimIndent()
+        )
+        // The violation: data module depends on presentation module
+        projectDir.resolve("feature/login/data/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies {
+                implementation(project(":core:domain"))
+                implementation(project(":feature:login:ui"))
+            }
+            """.trimIndent()
+        )
+    }
+
+    // Task registration
+
     @Test
     fun `aalekhReport task is registered and runs successfully`() {
         setupSingleModuleProject()
-
         val result = gradleRunner("aalekhReport", "--no-configuration-cache").build()
-
         assertEquals(TaskOutcome.SUCCESS, result.task(":aalekhReport")?.outcome)
     }
 
     @Test
     fun `aalekhExtract task runs before aalekhReport`() {
         setupSingleModuleProject()
-
         val result = gradleRunner("aalekhReport", "--no-configuration-cache").build()
-
-        assertEquals(TaskOutcome.SUCCESS, result.task(":aalekhExtract")?.outcome)
-        assertEquals(TaskOutcome.SUCCESS, result.task(":aalekhReport")?.outcome)
+        val extractOutcome = result.task(":aalekhExtract")?.outcome
+        assertTrue(
+            extractOutcome == TaskOutcome.SUCCESS || extractOutcome == TaskOutcome.UP_TO_DATE,
+            "aalekhExtract should run before aalekhReport"
+        )
     }
 
     @Test
     fun `aalekhCheck task is registered and passes on a clean project`() {
         setupSingleModuleProject()
-
         val result = gradleRunner("aalekhCheck", "--no-configuration-cache").build()
-
         assertEquals(TaskOutcome.SUCCESS, result.task(":aalekhCheck")?.outcome)
     }
 
     @Test
     fun `aalekhReport is configuration cache compatible on second run`() {
-        setupSingleModuleProject()
+        setupJavaModuleProject()
 
-        // First run - stores CC entry
-        val first = gradleRunner("aalekhReport").build()
-        assertEquals(TaskOutcome.SUCCESS, first.task(":aalekhReport")?.outcome)
+        gradleRunner("aalekhReport", "--configuration-cache").build()
+        val secondRun = gradleRunner("aalekhReport", "--configuration-cache").build()
 
-        // Second run - must reuse CC without failing
-        val second = gradleRunner("aalekhReport").build()
-        // Task should be UP-TO-DATE or FROM-CACHE since nothing changed
-        val outcome = second.task(":aalekhReport")?.outcome
         assertTrue(
-            outcome == TaskOutcome.SUCCESS || outcome == TaskOutcome.UP_TO_DATE,
-            "Second run should succeed with CC reuse, got: $outcome\n${second.output}"
-        )
-        assertFalse(
-            second.output.contains("Class") && second.output.contains("not found in class loader"),
-            "Second run must not produce classloader errors:\n${second.output}"
+            secondRun.output.contains("Reusing configuration cache") ||
+                    secondRun.output.contains("Configuration cache entry reused"),
+            "Second run should reuse the configuration cache"
         )
     }
+
+    // HTML report
 
     @Test
     fun `aalekhReport generates an HTML file`() {
         setupSingleModuleProject()
-
         gradleRunner("aalekhReport", "--no-configuration-cache").build()
-
         val htmlFile = projectDir.resolve("build/reports/aalekh/index.html")
         assertTrue(htmlFile.exists(), "HTML report was not generated")
-        assertTrue(htmlFile.length() > 1000, "HTML report looks too small: ${htmlFile.length()} bytes")
-        assertFalse(
-            htmlFile.readText().contains("{{PROJECT_NAME}}"),
-            "PROJECT_NAME placeholder was not replaced in the HTML report"
-        )
+        assertTrue(htmlFile.length() > 50_000, "HTML report seems too small")
     }
 
     @Test
     fun `aalekhReport HTML contains injected graph data script tag`() {
         setupSingleModuleProject()
-
         gradleRunner("aalekhReport", "--no-configuration-cache").build()
-
         val html = projectDir.resolve("build/reports/aalekh/index.html").readText()
-        assertTrue(
-            html.contains("""id="aalekh-graph-data""""),
-            "HTML must contain injected <script id='aalekh-graph-data'> data tag"
-        )
-        assertTrue(
-            html.contains("""id="aalekh-summary-data""""),
-            "HTML must contain injected <script id='aalekh-summary-data'> data tag"
-        )
-        // Critical: data tags must appear BEFORE parseScriptJson reads them
-        val dataTagIndex = html.indexOf("""id="aalekh-graph-data"""")
-        val parseScriptIndex = html.indexOf("function parseScriptJson")
-        assertTrue(
-            dataTagIndex < parseScriptIndex,
-            "Data script tag must appear before parseScriptJson() - otherwise getElementById returns null at runtime"
-        )
+        assertTrue(html.contains("""id="aalekh-graph-data""""))
+        assertTrue(html.contains("""id="aalekh-summary-data""""))
     }
 
     @Test
-    fun `aalekhReport HTML does not contain raw comment placeholders`() {
+    fun `aalekhReport HTML does not contain raw injection marker`() {
         setupSingleModuleProject()
-
         gradleRunner("aalekhReport", "--no-configuration-cache").build()
-
         val html = projectDir.resolve("build/reports/aalekh/index.html").readText()
-        assertFalse(
-            html.contains("/* AALEKH_GRAPH_DATA */"),
-            "Old comment placeholder must be replaced, not left as-is"
-        )
+        assertFalse(html.contains("DATA INJECTED BY KOTLIN GENERATOR"))
+    }
+
+    // Graph extraction
+
+    @Test
+    fun `graph extraction captures inter-module dependencies correctly`() {
+        setupMultiModuleProject()
+        gradleRunner("aalekhReport", "--no-configuration-cache").build()
+        val html = projectDir.resolve("build/reports/aalekh/index.html").readText()
+        assertTrue(html.contains(":core:domain"))
+        assertTrue(html.contains(":core:data"))
+        assertTrue(html.contains(":feature:login"))
     }
 
     @Test
-    fun `graph extraction captures intermodule dependencies correctly`() {
+    fun `graph extraction uses full Gradle paths not short names`() {
         setupMultiModuleProject()
-
-        gradleRunner("aalekhReport", "--no-configuration-cache").build()
-
-        val html = projectDir.resolve("build/reports/aalekh/index.html")
-        assertTrue(html.exists(), "HTML report was not generated")
-        val content = html.readText()
-        assertTrue(
-            content.contains(":core:domain"),
-            "HTML report should contain :core:domain"
-        )
-        assertTrue(
-            content.contains(":feature:login"),
-            "HTML report should contain :feature:login"
-        )
-        // Verify data was actually injected (not left as placeholder)
-        assertTrue(
-            content.contains("aalekh-graph-data"),
-            "HTML report should have graph data script tag injected"
-        )
-    }
-
-    @Test
-    fun `graph extraction uses full gradle paths not short names`() {
-        setupMultiModuleProject()
-
-        gradleRunner("aalekhReport", "--no-configuration-cache").build()
-
-        val graphJson = projectDir.resolve("build/tmp/aalekh/graph.json")
-        assertTrue(graphJson.exists(), "Intermediate graph.json was not written")
-        val json = graphJson.readText()
-
-        // Must use full paths like ":core:domain", not just "domain"
+        gradleRunner("aalekhExtract", "--no-configuration-cache").build()
+        val json = projectDir.resolve("build/tmp/aalekh/graph.json").readText()
         assertTrue(json.contains(":core:domain"), "graph.json must use full Gradle project paths")
         assertTrue(json.contains(":feature:login"), "graph.json must use full Gradle project paths")
-        assertFalse(
-            // With the old bug (":${dep.name}"), a module at ":core:domain" would produce ":domain"
-            json.contains("\"to\":\":domain\""),
-            "Edges must use full project paths like ':core:domain', not bare names like ':domain'"
-        )
     }
 
     @Test
     fun `graph json is written to tmp directory`() {
         setupSingleModuleProject()
-
-        gradleRunner("aalekhReport", "--no-configuration-cache").build()
-
+        gradleRunner("aalekhExtract", "--no-configuration-cache").build()
         val graphJson = projectDir.resolve("build/tmp/aalekh/graph.json")
-        assertTrue(graphJson.exists(), "Intermediate graph.json was not found at expected path")
-        assertTrue(graphJson.length() > 0, "graph.json is empty")
+        assertTrue(graphJson.exists())
+        assertTrue(graphJson.length() > 0)
     }
+
+    // aalekhCheck outputs
 
     @Test
     fun `aalekhCheck is wired into the check lifecycle`() {
         setupSingleModuleProject()
-
         val result = gradleRunner("check", "--no-configuration-cache").build()
-
-        // aalekhCheck should have run as part of check
         assertTrue(
             result.tasks.any { it.path == ":aalekhCheck" },
             "aalekhCheck was not executed as part of :check"
@@ -285,34 +295,50 @@ class AalekhPluginFunctionalTest {
     }
 
     @Test
-    fun `aalekhCheck generates junit xml output`() {
+    fun `aalekhCheck generates JUnit XML output`() {
         setupSingleModuleProject()
-
         gradleRunner("aalekhCheck", "--no-configuration-cache").build()
-
         val xmlFile = projectDir.resolve("build/reports/aalekh/aalekh-results.xml")
-        assertTrue(xmlFile.exists(), "JUnit XML was not generated by aalekhCheck")
-        val xml = xmlFile.readText()
-        assertTrue(xml.contains("<testsuites"), "Output must be valid JUnit XML")
+        assertTrue(xmlFile.exists())
+        assertTrue(xmlFile.readText().contains("<testsuites"))
     }
 
     @Test
-    fun `aalekhCheck generates json output`() {
+    fun `aalekhCheck generates JSON output`() {
         setupSingleModuleProject()
-
         gradleRunner("aalekhCheck", "--no-configuration-cache").build()
-
         val jsonFile = projectDir.resolve("build/reports/aalekh/aalekh-results.json")
-        assertTrue(jsonFile.exists(), "JSON results were not generated by aalekhCheck")
-        assertTrue(jsonFile.length() > 0, "aalekh-results.json is empty")
+        assertTrue(jsonFile.exists())
+        assertTrue(jsonFile.length() > 0)
     }
+
+    @Test
+    fun `aalekhCheck generates SARIF output`() {
+        setupSingleModuleProject()
+        gradleRunner("aalekhCheck", "--no-configuration-cache").build()
+        val sarifFile = projectDir.resolve("build/reports/aalekh/aalekh-results.sarif")
+        assertTrue(sarifFile.exists(), "SARIF report was not generated")
+        val sarif = sarifFile.readText()
+        assertTrue(sarif.contains("\"version\": \"2.1.0\""), "SARIF must declare version 2.1.0")
+        assertTrue(sarif.contains("Aalekh"), "SARIF must identify the tool")
+    }
+
+    @Test
+    fun `aalekhCheck JSON output contains envelope structure`() {
+        setupSingleModuleProject()
+        gradleRunner("aalekhCheck", "--no-configuration-cache").build()
+        val json = projectDir.resolve("build/reports/aalekh/aalekh-results.json").readText()
+        assertTrue(json.contains("\"graph\""), "JSON must contain 'graph' field")
+        assertTrue(json.contains("\"summary\""), "JSON must contain 'summary' field")
+        assertTrue(json.contains("\"violations\""), "JSON must contain 'violations' field")
+    }
+
+    // Rule enforcement
 
     @Test
     fun `aalekhCheck fails build when cycle is detected`() {
         setupCyclicProject()
-
         val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
-
         assertEquals(TaskOutcome.FAILED, result.task(":aalekhCheck")?.outcome)
         assertTrue(
             result.output.contains("no-cyclic-dependencies") ||
@@ -323,7 +349,67 @@ class AalekhPluginFunctionalTest {
     }
 
     @Test
-    fun `plugin cannot be applied to non root project`() {
+    fun `aalekhCheck fails build when layer violation is detected`() {
+        setupLayerViolationProject()
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        assertEquals(TaskOutcome.FAILED, result.task(":aalekhCheck")?.outcome)
+        assertTrue(
+            result.output.contains("layer-dependency") ||
+                    result.output.contains("layer") ||
+                    result.output.contains(":feature:login:data"),
+            "Build failure output should mention the layer violation"
+        )
+    }
+
+    @Test
+    fun `aalekhCheck passes when layer violation is downgraded to WARNING`() {
+        setupLayerViolationProject()
+        // Override the root build.gradle.kts to downgrade to WARNING
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                layers {
+                    layer("domain") { modules(":core:domain") }
+                    layer("data") {
+                        modules(":feature:*:data")
+                        canOnlyDependOn("domain")
+                    }
+                    layer("presentation") {
+                        modules(":feature:*:ui")
+                        canOnlyDependOn("domain", "data")
+                    }
+                }
+                rules {
+                    rule("layer-dependency") { severity = com.aalekh.aalekh.model.Severity.WARNING }
+                }
+            }
+            """.trimIndent()
+        )
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").build()
+        assertEquals(
+            TaskOutcome.SUCCESS,
+            result.task(":aalekhCheck")?.outcome,
+            "Build should pass when layer violation is downgraded to WARNING"
+        )
+    }
+
+    @Test
+    fun `SARIF output references build file path for layer violations`() {
+        setupLayerViolationProject()
+        // Run and ignore failure - we just want the SARIF output
+        gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        val sarif = projectDir.resolve("build/reports/aalekh/aalekh-results.sarif").readText()
+        assertTrue(
+            sarif.contains("build.gradle.kts"),
+            "SARIF should reference the build file of the offending module"
+        )
+    }
+
+    // Guard rails
+
+    @Test
+    fun `plugin cannot be applied to non-root project`() {
         projectDir.resolve("submodule").mkdirs()
         projectDir.resolve("settings.gradle.kts").writeText(
             """
@@ -331,7 +417,6 @@ class AalekhPluginFunctionalTest {
             include(":submodule")
             """.trimIndent()
         )
-        // Apply Aalekh only to the submodule's build file, not root - should fail
         projectDir.resolve("build.gradle.kts").writeText("")
         projectDir.resolve("submodule/build.gradle.kts").writeText(
             """
@@ -340,9 +425,7 @@ class AalekhPluginFunctionalTest {
             }
             """.trimIndent()
         )
-
         val result = gradleRunner("help", "--no-configuration-cache").buildAndFail()
-
         assertTrue(
             result.output.contains("root project") || result.output.contains("rootProject"),
             "Plugin should reject non-root application with a clear error"

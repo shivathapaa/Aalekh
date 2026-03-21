@@ -105,6 +105,14 @@ public abstract class AalekhExtractTask : DefaultTask() {
     @get:Input
     public abstract val includeCompileOnlyDependencies: Property<Boolean>
 
+    /**
+     * Root project directory path. Used to resolve conventional build file paths
+     * for violation messages. Stored as a plain string rather than a Directory
+     * property so it doesn't skew UP-TO-DATE checks on the output file.
+     */
+    @get:Input
+    public abstract val rootProjectDir: Property<String>
+
     @get:OutputFile
     public abstract val outputFile: RegularFileProperty
 
@@ -132,6 +140,7 @@ public abstract class AalekhExtractTask : DefaultTask() {
                 plugins = plugins.toSet(),
                 tags = tags,
                 sourceSets = emptySet(),
+                buildFilePath = resolveBuildFilePath(path),
             )
         }
 
@@ -186,6 +195,25 @@ public abstract class AalekhExtractTask : DefaultTask() {
     private fun inferTags(path: String): Set<String> {
         val segments = path.split(":").filter { it.isNotBlank() }
         return if (segments.size > 1) segments.dropLast(1).toSet() else emptySet()
+    }
+
+    /**
+     * Derives the conventional build file path from a Gradle module path.
+     *
+     * Gradle convention: `:feature:login:data` lives at `feature/login/data/build.gradle.kts`.
+     * Check `.kts` first then fall back to `.gradle` (Groovy DSL projects).
+     * Returns null if neither file exists - the module may use a non-standard location.
+     */
+    private fun resolveBuildFilePath(modulePath: String): String? {
+        val relativeDirPath = modulePath.trimStart(':').replace(':', '/')
+        val rootDir = java.io.File(rootProjectDir.get())
+        val kts = rootDir.resolve("$relativeDirPath/build.gradle.kts")
+        val groovy = rootDir.resolve("$relativeDirPath/build.gradle")
+        return when {
+            kts.exists() -> "$relativeDirPath/build.gradle.kts"
+            groovy.exists() -> "$relativeDirPath/build.gradle"
+            else -> null
+        }
     }
 
     // Config classification

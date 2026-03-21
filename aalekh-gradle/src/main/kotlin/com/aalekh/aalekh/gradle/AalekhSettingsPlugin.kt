@@ -35,7 +35,7 @@ import org.gradle.api.provider.Provider
  * }
  * ```
  *
- * ### Note - settings plugin vs project plugin
+ * ### Architecture note - settings plugin vs project plugin
  * `AalekhPlugin` (the project plugin) is kept for backwards compatibility but
  * is deprecated. `AalekhSettingsPlugin` is the canonical implementation.
  * All logic lives here; `AalekhPlugin` delegates to the same task types.
@@ -76,7 +76,7 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
 
                 task.includeTestDependencies.set(extension.includeTestDependencies)
                 task.includeCompileOnlyDependencies.set(extension.includeCompileOnlyDependencies)
-
+                task.rootProjectDir.set(rootProject.rootDir.absolutePath)
                 task.outputFile.set(graphJsonFile)
             }
 
@@ -102,6 +102,22 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
                 task.graphJsonFile.set(graphJsonFile)
                 task.projectName.set(rootProject.name)
                 task.outputDir.set(rootProject.layout.buildDirectory.dir(extension.outputDir))
+
+                // Serialize layer config to CC-safe strings at configuration time.
+                // Format: "name|pat1,pat2|allowed1,allowed2|hasRestriction"
+                task.layerEntries.set(rootProject.provider {
+                    extension.layerContainer.map { layer ->
+                        val patterns = layer.modulePatterns.get().joinToString(",")
+                        val allowed = layer.allowedDependencyLayers.get().joinToString(",")
+                        val restricted = layer.hasRestriction.get()
+                        "${layer.name}|$patterns|$allowed|$restricted"
+                    }
+                })
+
+                task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
+                task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
+                task.ruleEntries.set(extension.rulesConfig.entries)
+
                 task.dependsOn(extractTask)
             }
 
@@ -111,6 +127,8 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
         }
     }
 
+    // Data collection
+    //
     // Collects ALL configurations unconditionally. Filtering by
     // includeTestDependencies / includeCompileOnlyDependencies happens
     // inside AalekhExtractTask, not here. This separation means:
