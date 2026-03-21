@@ -60,7 +60,7 @@ beyond the browser.
 
 ```kotlin
 plugins {
-    id("io.github.shivathapaa.aalekh") version "<latest-version>"
+    id("io.github.shivathapaa.aalekh") version "0.3.0"
 }
 ```
 
@@ -82,7 +82,7 @@ across configuration cache entries, preventing cache misses on second runs.
 ```kotlin
 // settings.gradle.kts
 plugins {
-    id("io.github.shivathapaa.aalekh") version "<latest-version>"
+    id("io.github.shivathapaa.aalekh") version "0.3.0"
 }
 ```
 
@@ -98,7 +98,7 @@ remove the plugin from `build.gradle.kts` and add it to `settings.gradle.kts` in
 ```kotlin
 // build.gradle.kts (root project only) - deprecated, migrate to settings plugin
 plugins {
-    id("io.github.shivathapaa.aalekh.project") version "<latest-version>"
+    id("io.github.shivathapaa.aalekh.project") version "0.3.0"
 }
 ```
 
@@ -453,47 +453,6 @@ match wins.
 | **Isolated modules** | Modules with zero fan-in and zero fan-out - candidates for removal                                                                                                                        |
 | **Health score**     | 0–100 composite score. Weighted from instability (30%), god module (25%), cycle participation (25%), transitive dep count (20%). Shown in the metrics table and module inspector sidebar. |
 
-## Project Structure
-
-```
-aalekh/
-├── aalekh-model/          ← Data classes only. No Gradle dependency.
-│                             ModuleDependencyGraph, ModuleNode, DependencyEdge,
-│                             Violation, Severity, ModuleType
-│
-├── aalekh-analysis/       ← Pure Kotlin. No Gradle API.
-│                             GraphAnalyzer      - topological sort, critical path,
-│                                                  god/leaf/root/isolated module detection
-│                             RuleEngine         - evaluates ArchRule implementations,
-│                                                  severity overrides, suppressions
-│                             GlobMatcher        - * and ** pattern matching for module paths
-│                             HealthScoreCalculator - weighted 0–100 per-module score
-│                             LayerDependencyRule, NoFeatureToFeatureDependencyRule
-│                             MaxTransitiveDependenciesRule, NoCyclicDependenciesRule
-│                             MetricsEngine      - per-module and project-wide metrics
-│
-├── aalekh-report/         ← Report generators. No Gradle API.
-│                             HtmlReportGenerator - self-contained HTML with D3.js
-│                             JUnitXmlWriter      - CI-compatible XML
-│                             JsonReporter        - full JSON report envelope
-│                             SarifReporter       - SARIF 2.1 for GitHub code scanning
-│                             CsvMetricsExporter  - per-module metrics CSV for external tools
-│
-├── aalekh-gradle/         ← Gradle plugin entry point and tasks.
-│                             AalekhSettingsPlugin (primary), AalekhPlugin (deprecated)
-│                             AalekhExtractTask, AalekhReportTask, AalekhCheckTask
-│                             AalekhExtension (DSL)
-│                             dsl/  LayerConfig, FeatureIsolationConfig, RulesConfig
-│                             GraphExtractor, ModuleTypeDetector
-│
-└── build-logic/           ← Convention plugins for the Aalekh build itself.
-                              Not part of the published plugin.
-```
-
-The layering is intentional: `aalekh-model` ← `aalekh-analysis` ← `aalekh-report` ← `aalekh-gradle`.
-The Gradle API only appears in the outermost module. All analysis and report logic is pure Kotlin
-and testable without Gradle on the classpath.
-
 ## Configuration Cache
 
 Aalekh is fully compatible with Gradle's configuration cache, which is enabled by default in Gradle
@@ -551,14 +510,6 @@ aalekh {
 Aalekh requires the **settings plugin** (`settings.gradle.kts`) on Gradle 9.x because
 configuration cache is enabled by default and the project plugin cannot safely capture
 inter-project state. Kotlin DSL (`*.kts`) is required - Groovy DSL is not supported.
-
-## Roadmap
-
-| Version    | Theme                                          | Status     |
-|------------|------------------------------------------------|------------|
-| **v0.1.0** | Graph extraction + interactive HTML report     | ✅ Released |
-| **v0.2.0** | Layer rules + feature isolation + SARIF output | ✅ Released |
-| **v0.3.0** | Health scores + transitive rule + CSV export   | ✅ Released |
 
 ## Contributing
 
