@@ -1,5 +1,5 @@
 [versions]
-plugin-version = "0.2.0"
+plugin-version = "0.3.0"
 kotlin = "2.3.20"
 kotlinx-serialization = "1.10.0"
 gradle-plugin-publish = "2.1.0"
