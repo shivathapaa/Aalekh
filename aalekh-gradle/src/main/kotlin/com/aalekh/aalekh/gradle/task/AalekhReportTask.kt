@@ -96,10 +96,10 @@ public abstract class AalekhReportTask : DefaultTask() {
         if (exportMetrics.getOrElse(false)) {
             val csvFile = outputPath.resolveSibling("aalekh-metrics.csv")
             csvFile.writeText(report.generateCsv())
-            logger.lifecycle("Aalekh metrics → ${csvFile.absolutePath}")
+            logger.lifecycle("Aalekh metrics → file://${csvFile.absolutePath}")
         }
 
-        logger.lifecycle("Aalekh report → ${outputPath.absolutePath}")
+        logger.lifecycle("Aalekh report → file://${outputPath.absolutePath}")
 
         if (openBrowser.getOrElse(true)) {
             openInBrowser(outputPath.absolutePath)
