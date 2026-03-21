@@ -92,6 +92,17 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
                         .dir(extension.outputDir)
                         .map { it.file("index.html") }
                 )
+                task.layerEntries.set(rootProject.provider {
+                    extension.layerContainer.map { layer ->
+                        val patterns = layer.modulePatterns.get().joinToString(",")
+                        val allowed = layer.allowedDependencyLayers.get().joinToString(",")
+                        val restricted = layer.hasRestriction.get()
+                        "${layer.name}|$patterns|$allowed|$restricted"
+                    }
+                })
+                task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
+                task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
+                task.ruleEntries.set(extension.rulesConfig.entries)
                 task.dependsOn(extractTask)
             }
 

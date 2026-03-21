@@ -73,6 +73,7 @@ public class AalekhPlugin : Plugin<Project> {
             task.gradleVersion.set(project.gradle.gradleVersion)
             task.subprojectData.set(project.provider { buildSubprojectData(project) })
             task.subprojectPlugins.set(project.provider { buildPluginData(project) })
+            // Wire extension flags - same as settings plugin
             task.includeTestDependencies.set(extension.includeTestDependencies)
             task.includeCompileOnlyDependencies.set(extension.includeCompileOnlyDependencies)
             task.rootProjectDir.set(project.rootDir.absolutePath)
@@ -88,6 +89,17 @@ public class AalekhPlugin : Plugin<Project> {
                     .dir(extension.outputDir)
                     .map { it.file("index.html") }
             )
+            task.layerEntries.set(project.provider {
+                extension.layerContainer.map { layer ->
+                    val patterns = layer.modulePatterns.get().joinToString(",")
+                    val allowed = layer.allowedDependencyLayers.get().joinToString(",")
+                    val restricted = layer.hasRestriction.get()
+                    "${layer.name}|$patterns|$allowed|$restricted"
+                }
+            })
+            task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
+            task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
+            task.ruleEntries.set(extension.rulesConfig.entries)
             task.dependsOn(extractTask)
         }
 

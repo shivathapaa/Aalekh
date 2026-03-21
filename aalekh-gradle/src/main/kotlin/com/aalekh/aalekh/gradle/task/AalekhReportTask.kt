@@ -41,6 +41,18 @@ public abstract class AalekhReportTask : DefaultTask() {
     @get:OutputFile
     public abstract val outputFile: RegularFileProperty
 
+    @get:Input
+    public abstract val layerEntries: ListProperty<String>
+
+    @get:Input
+    public abstract val featurePattern: Property<String>
+
+    @get:Input
+    public abstract val featureAllowedPairs: ListProperty<String>
+
+    @get:Input
+    public abstract val ruleEntries: ListProperty<String>
+
     init {
         group = "aalekh"
         description = "Generates an interactive HTML module dependency graph. " +
@@ -50,11 +62,13 @@ public abstract class AalekhReportTask : DefaultTask() {
     @TaskAction
     public fun generate() {
         val graph = readGraph()
-        val report = ReportCoordinator(
-            graph,
-            RuleEngine.withBuiltinRules().evaluate(graph),
-            projectName.get()
+        val ruleEngine = RuleEngine.fromConfig(
+            layerEntries = layerEntries.get(),
+            featurePattern = featurePattern.getOrElse(""),
+            featureAllowedPairs = featureAllowedPairs.get(),
+            ruleEntries = ruleEntries.get(),
         )
+        val report = ReportCoordinator(graph, ruleEngine.evaluate(graph), projectName.get())
         val outputPath = outputFile.get().asFile
 
         outputPath.parentFile.mkdirs()
