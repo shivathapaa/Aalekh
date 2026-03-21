@@ -1,9 +1,14 @@
 package com.aalekh.aalekh.gradle.task
 
 import com.aalekh.aalekh.analysis.rules.RuleEngine
+import com.aalekh.aalekh.analysis.rules.RuleEngineResult
 import com.aalekh.aalekh.model.ModuleDependencyGraph
+import com.aalekh.aalekh.model.Severity
 import com.aalekh.aalekh.report.ReportCoordinator
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
@@ -20,10 +25,17 @@ import org.gradle.api.tasks.TaskAction
 import org.gradle.work.DisableCachingByDefault
 
 /**
- * Generates the Aalekh HTML dependency report.
+ * Generates the interactive HTML dependency report.
+ *
+ * The report is a single self-contained HTML file with D3.js embedded - no server,
+ * no CDN, no internet connection required at render time. It opens automatically
+ * in the default browser after generation (disable with `openBrowserAfterReport.set(false)`
+ * for CI environments).
  *
  * Run: `./gradlew aalekhReport`
  * Output: `<projectRoot>/build/reports/aalekh/index.html`
+ *
+ * When [exportMetrics] is true, also writes `aalekh-metrics.csv` alongside the HTML file.
  */
 @DisableCachingByDefault(because = "HTML reports should always reflect the current project state; the task also opens a browser window")
 public abstract class AalekhReportTask : DefaultTask() {
@@ -38,9 +50,15 @@ public abstract class AalekhReportTask : DefaultTask() {
     @get:Input
     public abstract val openBrowser: Property<Boolean>
 
+    /** When true, writes `aalekh-metrics.csv` alongside the HTML report. */
+    @get:Input
+    public abstract val exportMetrics: Property<Boolean>
+
     @get:OutputFile
     public abstract val outputFile: RegularFileProperty
 
+    // Rule config inputs mirror AalekhCheckTask so the HTML violations tab
+    // shows exactly what the build enforces - no discrepancy between report and check.
     @get:Input
     public abstract val layerEntries: ListProperty<String>
 
@@ -57,6 +75,7 @@ public abstract class AalekhReportTask : DefaultTask() {
         group = "aalekh"
         description = "Generates an interactive HTML module dependency graph. " +
                 "Run: ./gradlew aalekhReport"
+        exportMetrics.convention(false)
     }
 
     @TaskAction
@@ -73,6 +92,12 @@ public abstract class AalekhReportTask : DefaultTask() {
 
         outputPath.parentFile.mkdirs()
         outputPath.writeText(report.generateHtml())
+
+        if (exportMetrics.getOrElse(false)) {
+            val csvFile = outputPath.resolveSibling("aalekh-metrics.csv")
+            csvFile.writeText(report.generateCsv())
+            logger.lifecycle("Aalekh metrics → ${csvFile.absolutePath}")
+        }
 
         logger.lifecycle("Aalekh report → ${outputPath.absolutePath}")
 
@@ -108,15 +133,16 @@ public abstract class AalekhReportTask : DefaultTask() {
 }
 
 /**
- * Evaluates architecture rules and fails the build on violations.
+ * Evaluates all configured architecture rules and fails the build on `ERROR`-severity violations.
+ *
+ * On each run, reads the previous run's `aalekh-results.json` to extract the prior cycle count
+ * for regression detection. Writes three output files:
+ * - `aalekh-results.xml` - JUnit XML for CI test reporters
+ * - `aalekh-results.json` - full machine-readable report envelope
+ * - `aalekh-results.sarif` - SARIF 2.1 for GitHub code scanning PR annotations
  *
  * Run: `./gradlew aalekhCheck`
- * Also runs as part of `./gradlew check`.
- *
- * Outputs:
- * - `<outputDir>/aalekh-results.xml`  - JUnit XML for CI systems
- * - `<outputDir>/aalekh-results.json` - Full machine-readable report
- * - `<outputDir>/aalekh-results.sarif` - SARIF for GitHub code scanning annotations
+ * Also runs automatically as part of `./gradlew check`.
  */
 @CacheableTask
 public abstract class AalekhCheckTask : DefaultTask() {
@@ -172,39 +198,93 @@ public abstract class AalekhCheckTask : DefaultTask() {
     @TaskAction
     public fun check() {
         val graph = readGraph()
+        val outDir = outputDir.get().asFile
+        outDir.mkdirs()
+
+        val previousCycleCount = readPreviousCycleCount(outDir)
+
         val ruleEngine = RuleEngine.fromConfig(
             layerEntries = layerEntries.get(),
             featurePattern = featurePattern.getOrElse(""),
             featureAllowedPairs = featureAllowedPairs.get(),
             ruleEntries = ruleEntries.get(),
+            previousCycleCount = previousCycleCount,
         )
         val ruleResult = ruleEngine.evaluate(graph)
         val report = ReportCoordinator(graph, ruleResult, projectName.get())
-        val outDir = outputDir.get().asFile
 
-        outDir.mkdirs()
         outDir.resolve("aalekh-results.xml").writeText(report.generateJUnitXml())
         outDir.resolve("aalekh-results.json").writeText(report.generateJson())
         outDir.resolve("aalekh-results.sarif").writeText(report.generateSarif())
 
+        logResults(ruleResult, outDir)
+
+        check(!ruleResult.hasBuildFailure) {
+            "\nAalekh: ${ruleResult.errorCount} violation(s) found. " +
+                    "Run ./gradlew aalekhReport to see the full interactive report."
+        }
+    }
+
+    private fun logResults(ruleResult: RuleEngineResult, outDir: java.io.File) {
         if (ruleResult.violations.isEmpty()) {
             logger.lifecycle(
-                "Aalekh: ✓ All architecture rules passed (${ruleResult.rulesEvaluated} rules evaluated)"
+                "Aalekh: ✓ All rules passed (${ruleResult.rulesEvaluated} rule(s) evaluated)"
             )
-        } else {
-            ruleResult.violations.forEach { v ->
-                when (v.severity.name) {
-                    "ERROR" -> logger.error("Aalekh [${v.ruleId}] ${v.message}")
-                    "WARNING" -> logger.warn("Aalekh [${v.ruleId}] ${v.message}")
-                    else -> logger.info("Aalekh [${v.ruleId}] ${v.message}")
+            return
+        }
+
+        val errors = ruleResult.violations.filter { it.severity == Severity.ERROR }
+        val warnings = ruleResult.violations.filter { it.severity == Severity.WARNING }
+        val infos = ruleResult.violations.filter { it.severity == Severity.INFO }
+
+        // Group by ruleId so output is scannable - all violations of the same type together
+        val byRule = ruleResult.violations
+            .filter { it.severity != Severity.INFO }
+            .groupBy { it.ruleId }
+
+        byRule.forEach { (ruleId, violations) ->
+            val first = violations.first()
+            val level = if (first.severity == Severity.ERROR) "ERROR" else "WARNING"
+            logger.lifecycle("\nAalekh [$ruleId] $level - ${violations.size} violation(s):")
+            violations.forEach { v ->
+                val indent = "  "
+                when (v.severity) {
+                    Severity.ERROR -> logger.error("$indent✗ ${v.message}")
+                    Severity.WARNING -> logger.warn("$indent⚠ ${v.message}")
+                    else -> {}
                 }
             }
         }
 
-        check(!ruleResult.hasBuildFailure) {
-            "\nAalekh: ${ruleResult.errorCount} architecture violation(s) found. " +
-                    "See ${outDir.absolutePath}/aalekh-results.xml for details."
+        if (infos.isNotEmpty()) {
+            logger.lifecycle("\nAalekh [info] ${infos.size} informational violation(s) - see the report for details.")
         }
+
+        val summary = buildString {
+            if (errors.isNotEmpty()) append("${errors.size} error(s)")
+            if (warnings.isNotEmpty()) {
+                if (isNotEmpty()) append(", ")
+                append("${warnings.size} warning(s)")
+            }
+        }
+        logger.lifecycle(
+            "\nAalekh: $summary found across ${ruleResult.rulesEvaluated} rule(s). " +
+                    "Report: ${outDir.absolutePath}/index.html"
+        )
+    }
+
+    /**
+     * Reads the main-code cycle count from the previous run's results JSON.
+     * Returns null when no prior results exist - the regression check is then skipped.
+     */
+    private fun readPreviousCycleCount(outDir: java.io.File): Int? {
+        val previousJson = outDir.resolve("aalekh-results.json")
+        if (!previousJson.exists()) return null
+        return runCatching {
+            val root = taskJson.parseToJsonElement(previousJson.readText())
+                .jsonObject
+            root["summary"]?.jsonObject?.get("cycleCount")?.jsonPrimitive?.intOrNull
+        }.getOrNull()
     }
 
     private fun readGraph(): ModuleDependencyGraph =

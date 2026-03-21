@@ -91,14 +91,26 @@ public class RuleEngine(
 
     public companion object {
 
+        /** Builds an engine with only the built-in cycle detection rule. */
         public fun withBuiltinRules(): RuleEngine = RuleEngine(
             rules = listOf(NoCyclicDependenciesRule())
         )
 
         /**
-         * Builds a fully configured [RuleEngine] from the serialized DSL inputs passed through
-         * task properties. The [previousCycleCount] is read from the previous run's results JSON
-         * by the task and passed here; it is null when no prior result exists.
+         * Builds a fully configured [RuleEngine] from the serialized DSL inputs passed
+         * through Gradle task properties. All parameters are plain strings for
+         * configuration-cache safety - no live Gradle objects.
+         *
+         * @param layerEntries Serialized layer declarations. Format per entry:
+         *   `"layerName|pat1,pat2|allowedLayer1,allowedLayer2|hasRestriction"`.
+         * @param featurePattern Glob pattern identifying feature modules, e.g. `":feature:**"`.
+         *   Empty string disables the feature isolation rule.
+         * @param featureAllowedPairs Serialized allow-pairs. Format: `"fromPattern->toPattern"`.
+         * @param ruleEntries Serialized rule overrides. Formats:
+         *   `"ruleId:severity:LEVEL"`, `"ruleId:suppress:pattern"`,
+         *   `"ruleId:option:preventRegression"`, `"ruleId:threshold:N"`.
+         * @param previousCycleCount Main-code cycle count from the previous run's results JSON.
+         *   Null when no prior results exist - regression check is skipped in that case.
          */
         public fun fromConfig(
             layerEntries: List<String>,
@@ -162,15 +174,27 @@ public class RuleEngine(
             )
         }
 
+        /** Builds an engine with no rules - useful in tests. */
         public fun empty(): RuleEngine = RuleEngine(emptyList())
     }
 }
 
+/**
+ * The result of a [RuleEngine.evaluate] call.
+ *
+ * @param violations All violations found, across all rules.
+ * @param rulesEvaluated The number of rules that were run.
+ */
 public data class RuleEngineResult(
     val violations: List<Violation>,
     val rulesEvaluated: Int,
 ) {
+    /** Number of ERROR-severity violations. */
     val errorCount: Int get() = violations.count { it.severity == Severity.ERROR }
+
+    /** Number of WARNING-severity violations. */
     val warningCount: Int get() = violations.count { it.severity == Severity.WARNING }
+
+    /** True when the build should fail - i.e. at least one ERROR-severity violation exists. */
     val hasBuildFailure: Boolean get() = errorCount > 0
 }

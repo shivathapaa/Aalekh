@@ -125,7 +125,7 @@ class JsonReporterTest {
         )
     }
 
-    // ── Regression guard ──────────────────────────────────────────────────
+    // Regression guard
 
     @Test
     fun `output is NOT just the raw graph (regression guard)`() {

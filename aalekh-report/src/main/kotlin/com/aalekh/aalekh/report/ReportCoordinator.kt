@@ -12,11 +12,7 @@ import com.aalekh.aalekh.report.sarif.SarifReporter
  * Facade that drives all report generation from a single call site.
  *
  * Tasks never instantiate individual report generators directly - this keeps
- * task code thin and the report logic testable without Gradle on the classpath.
- *
- * @param graph         The extracted module dependency graph
- * @param ruleResult    Results from the rule engine
- * @param projectName   Root project name, used in report titles
+ * task code thin and report logic testable without Gradle on the classpath.
  */
 public class ReportCoordinator(
     private val graph: ModuleDependencyGraph,
@@ -25,7 +21,7 @@ public class ReportCoordinator(
 ) {
     private val summary = GraphAnalyzer.summary(graph)
 
-    /** Generates the self-contained HTML report. Returns the full HTML string. */
+    /** Generates the self-contained HTML report. Returns the complete HTML string. */
     public fun generateHtml(): String =
         HtmlReportGenerator.generate(
             projectName = projectName,
@@ -34,14 +30,17 @@ public class ReportCoordinator(
             violations = ruleResult.violations,
         )
 
-    /** Generates the JUnit XML report for CI systems. */
+    /** Generates JUnit XML output for CI test reporting systems. */
     public fun generateJUnitXml(): String =
         JUnitXmlWriter.generate(
             projectName = projectName,
             result = ruleResult,
         )
 
-    /** Generates the machine-readable JSON report envelope. */
+    /**
+     * Generates the machine-readable JSON report envelope:
+     * `{ graph, summary, violations, generatedAt, aalekhVersion }`.
+     */
     public fun generateJson(): String =
         JsonReporter.generate(
             graph = graph,
@@ -49,10 +48,17 @@ public class ReportCoordinator(
             violations = ruleResult.violations,
         )
 
-    /** Generates the SARIF report for GitHub code scanning PR annotations. */
+    /** Generates SARIF 2.1 output for GitHub code scanning PR annotations. */
     public fun generateSarif(): String =
         SarifReporter.generate(
             graph = graph,
             result = ruleResult,
         )
+
+    /**
+     * Generates a CSV of per-module metrics for import into external tools.
+     * One timestamped row per module with fan-in, fan-out, instability,
+     * transitive dep count, health score, and boolean flags.
+     */
+    public fun generateCsv(): String = CsvMetricsExporter.export(graph)
 }
