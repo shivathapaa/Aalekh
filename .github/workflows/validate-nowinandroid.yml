@@ -1,4 +1,4 @@
-name: Validation using NowInAndroid
+name: Real-world validation
 
 on:
   schedule:
@@ -99,8 +99,13 @@ jobs:
               )
               content = block + content
 
-          # Append Aalekh plugin declaration
-          content += f'\nplugins {{ id("io.github.shivathapaa.aalekh") version "{version}" }}\n'
+          # Inject Aalekh plugin - insert into existing plugins block if present,
+          # otherwise append a new one.
+          aalekh_plugin = f'    id("io.github.shivathapaa.aalekh") version "{version}"'
+          if "plugins {" in content:
+              content = content.replace("plugins {", f"plugins {{\n{aalekh_plugin}", 1)
+          else:
+              content += f'\nplugins {{\n{aalekh_plugin}\n}}\n'
 
           open(settings_file, "w").write(content)
           print(f"Patched {settings_file}")
