@@ -19,6 +19,12 @@ import kotlinx.serialization.Serializable
  *   in the source module's build file. Populated by scanning the build file during
  *   extraction. Null when the file was not scanned or the line could not be located.
  *   Used in violation messages to point developers directly to the line to remove.
+ * @param reason Human-readable explanation of why this dependency exists.
+ *   Displayed in the HTML report as an edge annotation and in violation messages.
+ *   Null when no explanation has been provided.
+ * @param adrUrl URL to an Architecture Decision Record (ADR) that justifies this dependency.
+ *   Rendered as a link in the HTML report so reviewers can navigate to the decision.
+ *   Null when no ADR URL has been provided.
  */
 @Serializable
 public data class DependencyEdge(
@@ -27,6 +33,8 @@ public data class DependencyEdge(
     val configuration: String,
     val sourceSet: String? = null,
     val declarationLine: Int? = null,
+    val reason: String? = null,
+    val adrUrl: String? = null,
 ) {
     /** True when this dependency is declared as `api` - it leaks to consumers of [from]. */
     val isApi: Boolean get() = configuration == "api"
