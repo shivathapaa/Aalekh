@@ -3,6 +3,7 @@ package com.aalekh.aalekh.gradle
 import com.aalekh.aalekh.gradle.dsl.FeatureIsolationConfig
 import com.aalekh.aalekh.gradle.dsl.LayerConfig
 import com.aalekh.aalekh.gradle.dsl.RulesConfig
+import com.aalekh.aalekh.gradle.dsl.TeamOwnershipConfig
 import org.gradle.api.Action
 import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.model.ObjectFactory
@@ -119,6 +120,28 @@ public abstract class AalekhExtension @Inject constructor(private val objects: O
 
     public fun rules(configure: RulesConfig.() -> Unit) {
         rulesConfig.configure()
+    }
+
+    /**
+     * Declares which teams own which modules using glob patterns.
+     *
+     * Team assignments appear in the HTML report as a colour overlay and
+     * cross-team dependency violations are annotated separately.
+     *
+     * ```kotlin
+     * aalekh {
+     *     teams {
+     *         team("auth-team") { modules(":feature:login:**", ":core:auth") }
+     *         team("data-team") { modules(":data:**") }
+     *     }
+     * }
+     * ```
+     */
+    public val teamOwnership: TeamOwnershipConfig = TeamOwnershipConfig()
+
+    /** Configures team ownership mappings via the [TeamOwnershipConfig] DSL. */
+    public fun teams(configure: TeamOwnershipConfig.() -> Unit) {
+        teamOwnership.configure()
     }
 
     public companion object {
