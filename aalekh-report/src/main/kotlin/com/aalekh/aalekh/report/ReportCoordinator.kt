@@ -21,13 +21,19 @@ public class ReportCoordinator(
 ) {
     private val summary = GraphAnalyzer.summary(graph)
 
-    /** Generates the self-contained HTML report. Returns the complete HTML string. */
-    public fun generateHtml(): String =
+    /**
+     * Generates the self-contained HTML report. Returns the complete HTML string.
+     *
+     * @param trendJson JSON array string of historical trend entries to embed in the report.
+     *   Defaults to `"[]"` when no trend history is available.
+     */
+    public fun generateHtml(trendJson: String = "[]"): String =
         HtmlReportGenerator.generate(
             projectName = projectName,
             graph = graph,
             summary = summary,
             violations = ruleResult.violations,
+            trendJson = trendJson,
         )
 
     /** Generates JUnit XML output for CI test reporting systems. */

@@ -52,16 +52,20 @@ public object HtmlReportGenerator {
      * @param graph       The complete module dependency graph
      * @param summary     Pre-computed summary statistics
      * @param violations  Rule violations (empty for pure visualization, populated when rules run)
+     * @param trendJson   JSON array string of historical trend entries, injected into the report
+     *                    so the client-side chart can plot module/edge counts over time.
+     *                    Defaults to `"[]"` when no history is available yet.
      */
     public fun generate(
         projectName: String,
         graph: ModuleDependencyGraph,
         summary: GraphSummary,
         violations: List<Violation> = emptyList(),
+        trendJson: String = "[]",
     ): String {
         val template = loadTemplate()
         val graphJson = json.encodeToString(graph)
-        val summaryJson = buildSummaryJson(summary, violations, graph)
+        val summaryJson = buildSummaryJson(summary, violations, graph, trendJson)
 
         // Build the two data script tags that the template JS reads via
         // parseScriptJson('aalekh-graph-data') and parseScriptJson('aalekh-summary-data').
@@ -94,6 +98,7 @@ public object HtmlReportGenerator {
         summary: GraphSummary,
         violations: List<Violation>,
         graph: ModuleDependencyGraph,
+        trendJson: String,
     ): String {
         val byType = summary.modulesByType.entries.joinToString(",") { (k, v) -> "\"$k\":$v" }
         val violationsJson = violations.joinToString(",") { v ->
@@ -127,6 +132,18 @@ public object HtmlReportGenerator {
         val godPathJson = godModulePaths.joinToString(",") { "\"${escapeJson(it)}\"" }
         val isolPathJson = isolatedPaths.joinToString(",") { "\"${escapeJson(it)}\"" }
 
+        // Build adrLinks: map "from→to" edge keys to {reason, adrUrl} for annotated edges.
+        val adrLinksJson = graph.edges
+            .filter { it.reason != null || it.adrUrl != null }
+            .joinToString(",") { edge ->
+                val key = "${escapeJson(edge.from)}\u2192${escapeJson(edge.to)}"
+                val reasonValue =
+                    if (edge.reason != null) "\"${escapeJson(edge.reason.orEmpty())}\"" else "null"
+                val adrUrlValue =
+                    if (edge.adrUrl != null) "\"${escapeJson(edge.adrUrl.orEmpty())}\"" else "null"
+                "\"$key\":{\"reason\":$reasonValue,\"adrUrl\":$adrUrlValue}"
+            }
+
         return """{
 "totalModules":${summary.totalModules},
 "totalEdges":${summary.totalEdges},
@@ -148,7 +165,10 @@ public object HtmlReportGenerator {
 "godModulePaths":[$godPathJson],
 "isolatedModulePaths":[$isolPathJson],
 "mainCycleNodes":[$mainCycleNodesJson],
-"mainCycleEdges":[$mainCycleEdgesJson]
+"mainCycleEdges":[$mainCycleEdgesJson],
+"trendEntries":$trendJson,
+"teamOwners":{},
+"adrLinks":{$adrLinksJson}
 }""".replace("\n", "")  // single line for embedding in HTML
     }
 
