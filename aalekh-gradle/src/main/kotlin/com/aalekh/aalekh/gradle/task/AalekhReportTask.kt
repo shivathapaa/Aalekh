@@ -1,14 +1,20 @@
 package com.aalekh.aalekh.gradle.task
 
+import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
 import com.aalekh.aalekh.analysis.rules.RuleEngine
 import com.aalekh.aalekh.analysis.rules.RuleEngineResult
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.Severity
 import com.aalekh.aalekh.report.ReportCoordinator
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
@@ -17,6 +23,7 @@ import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.PathSensitive
@@ -71,6 +78,14 @@ public abstract class AalekhReportTask : DefaultTask() {
     @get:Input
     public abstract val ruleEntries: ListProperty<String>
 
+    /**
+     * Path to the rolling trend history JSON file (`build/aalekh/trend.json`).
+     * Marked `@Internal` so it is not a CC input/output - the file is written as a
+     * side-effect and failure to read/write it is always non-fatal.
+     */
+    @get:Internal
+    public abstract val trendFile: RegularFileProperty
+
     init {
         group = "aalekh"
         description = "Generates an interactive HTML module dependency graph. " +
@@ -87,11 +102,15 @@ public abstract class AalekhReportTask : DefaultTask() {
             featureAllowedPairs = featureAllowedPairs.get(),
             ruleEntries = ruleEntries.get(),
         )
-        val report = ReportCoordinator(graph, ruleEngine.evaluate(graph), projectName.get())
+        val ruleResult = ruleEngine.evaluate(graph)
+        val report = ReportCoordinator(graph, ruleResult, projectName.get())
         val outputPath = outputFile.get().asFile
 
+        // Collect trend history before writing the report so the current run is included.
+        val trendJson = updateAndReadTrend(graph)
+
         outputPath.parentFile.mkdirs()
-        outputPath.writeText(report.generateHtml())
+        outputPath.writeText(report.generateHtml(trendJson))
 
         if (exportMetrics.getOrElse(false)) {
             val csvFile = outputPath.resolveSibling("aalekh-metrics.csv")
@@ -104,6 +123,57 @@ public abstract class AalekhReportTask : DefaultTask() {
         if (openBrowser.getOrElse(true)) {
             openInBrowser(outputPath.absolutePath)
         }
+    }
+
+    /**
+     * Reads the existing trend history from `build/aalekh/trend.json`, appends a new entry
+     * built from the current graph, trims the list to the most recent 30 entries, writes the
+     * updated list back to disk, and returns the final JSON array string for HTML injection.
+     *
+     * A failure at any step is swallowed so that a disk error never fails the build.
+     */
+    private fun updateAndReadTrend(graph: ModuleDependencyGraph): String {
+        val trendFile = trendFile.orNull?.asFile ?: return "[]"
+
+        // 1. Read existing entries (returns empty list on any error).
+        val existing: List<JsonObject> = runCatching {
+            val text = trendFile.readText()
+            taskJson.parseToJsonElement(text).jsonArray
+                .mapNotNull { it as? JsonObject }
+        }.getOrElse { emptyList() }
+
+        // 2. Build a new trend entry from the current graph.
+        val summary = GraphAnalyzer.summary(graph)
+        val cycleCount = summary.cycleCount
+        val godModuleCount = summary.godModuleCount
+        val critPathLen = summary.criticalPathLength
+        val avgInstability = summary.averageInstability
+
+        val newEntry = buildJsonObject {
+            put("ts", System.currentTimeMillis())
+            put("modules", summary.totalModules)
+            put("edges", summary.totalEdges)
+            put("cycles", cycleCount)
+            put("godModules", godModuleCount)
+            put("critPathLen", critPathLen)
+            put("avgInstability", avgInstability)
+        }
+
+        // 3. Append and keep only the last 30 entries.
+        val updated = (existing + newEntry).takeLast(30)
+
+        // 4. Serialise back to JSON string.
+        val updatedJson = JsonArray(updated).toString()
+
+        // 5. Write to disk - failure is non-fatal.
+        runCatching {
+            trendFile.parentFile.mkdirs()
+            trendFile.writeText(updatedJson)
+        }.onFailure { ex ->
+            logger.warn("Aalekh: could not write trend history - ${ex.message}")
+        }
+
+        return updatedJson
     }
 
     private fun openInBrowser(absolutePath: String) {

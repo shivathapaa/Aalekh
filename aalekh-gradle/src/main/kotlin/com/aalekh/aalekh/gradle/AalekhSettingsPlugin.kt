@@ -104,6 +104,7 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
                 task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
                 task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
                 task.ruleEntries.set(extension.rulesConfig.entries)
+                task.trendFile.set(rootProject.layout.buildDirectory.file("aalekh/trend.json"))
                 task.dependsOn(extractTask)
             }
 
