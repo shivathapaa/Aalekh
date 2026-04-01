@@ -4256,7 +4256,7 @@
     })();
 
     function buildLayerSuggestion() {
-        var paths = (graphData.modules || []).map(function (m) { return m.path; });
+        var paths = (GRAPH_DATA && GRAPH_DATA.modules || []).map(function (m) { return m.path; });
         if (paths.length < 4) return '';
 
         var hasLayerRules = violations.some(function (v) { return v.ruleId === 'layer-dependency'; });
