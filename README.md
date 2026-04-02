@@ -60,7 +60,7 @@ beyond the browser.
 
 ```kotlin
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.3.0"
+    id("io.github.shivathapaa.aalekh") version "0.4.0"
 }
 ```
 
@@ -82,7 +82,7 @@ across configuration cache entries, preventing cache misses on second runs.
 ```kotlin
 // settings.gradle.kts
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.3.0"
+    id("io.github.shivathapaa.aalekh") version "0.4.0"
 }
 ```
 
@@ -98,7 +98,7 @@ remove the plugin from `build.gradle.kts` and add it to `settings.gradle.kts` in
 ```kotlin
 // build.gradle.kts (root project only) - deprecated, migrate to settings plugin
 plugins {
-    id("io.github.shivathapaa.aalekh.project") version "0.3.0"
+    id("io.github.shivathapaa.aalekh.project") version "0.4.0"
 }
 ```
 
@@ -191,7 +191,9 @@ details; click a row or column label to inspect the module and sync with the gra
 
 **◎ Metrics** - KPI dashboard with fan-in, fan-out, instability index, critical build path, god
 module count, and cycle counts. Main cycles and test-only cycles are reported separately. Per-module
-sortable table with inline bar charts.
+sortable table with inline bar charts. Includes a **layer purity table** showing the percentage of
+edges flowing in the correct declared direction, and **consolidation candidates** - module pairs
+that share a high number of dependents and may be worth merging.
 
 **⚑ Violations** - Structured violation cards for every `aalekhCheck` failure. Each card shows the
 rule ID, severity badge, the exact dependency edge to remove, a plain-language explanation of why
@@ -203,12 +205,38 @@ When no violations exist and no layer rules are configured, the panel analyses y
 and suggests a ready-to-paste `layers { }` DSL block based on detected `domain`, `data`, and
 `ui`/`presentation` patterns.
 
+### Interactive features
+
+The report includes a full set of analytical tools accessible directly from the browser:
+
+| Feature | Description |
+|---------|-------------|
+| **URL permalink** | Active tab and selected module are encoded in `location.hash` - paste the URL to share a specific view |
+| **Architecture debt score** | 0–100 badge in the report header summarising technical debt across all rules |
+| **Blast radius** | Module Inspector shows transitive dependent count - modules that would break if this module changes |
+| **Path finder** | Enter any two modules to find the shortest dependency path; the result is highlighted in the graph |
+| **Instability heatmap** | Toggle to colour nodes from green (stable) to red (unstable) based on instability index |
+| **Layer purity table** | Metrics panel table showing the percentage of edges flowing in the correct layer direction |
+| **Consolidation candidates** | Module pairs that share many dependents and may be worth merging |
+| **SVG export** | Download the current Graph, Explorer, or Matrix view as an SVG file |
+| **Snapshot diff** | Drag-drop a previous `graph.json` to see modules and edges added or removed since that snapshot |
+| **Animated edge flow** | Hovering a node animates traffic along its edges to make dependency direction obvious |
+| **Team ownership overlay** | Colour stripes from the `teams { }` DSL config identify which team owns each module |
+| **Trend sparklines** | KPI cards include a sparkline chart of that metric over the last 30 `aalekhReport` runs |
+| **ADR links in tooltips** | Edge tooltips show a clickable link to the Architecture Decision Record that justifies the dependency |
+
 ### Metrics CSV export
 
 Set `exportMetrics.set(true)` to write `aalekh-metrics.csv` alongside the HTML report on every
 `aalekhReport` run. The CSV contains one timestamped row per module with fan-in, fan-out,
 instability, transitive dep count, health score, and boolean flags for god module, critical path,
 and cycle participation. Import into Datadog, Grafana, or a spreadsheet for external trending.
+
+### Trend history
+
+Every `aalekhReport` run appends a snapshot to `build/aalekh/trend.json` (up to 30 entries). The
+file is read on the next run and the data is embedded in the report to power the trend sparklines
+in the KPI cards. Failure to read or write the file is always non-fatal and never breaks the build.
 
 ### Sidebar - Module Inspector
 
@@ -217,6 +245,7 @@ Click any node in the graph to open the module inspector in the right sidebar. I
 - Module path and short name
 - Module type badge (colour-coded)
 - Fan-in, fan-out, and transitive dependency count
+- **Blast radius** - number of modules that transitively depend on this one
 - Instability index bar (green = stable, yellow = mixed, red = unstable)
 - KMP source sets (if applicable)
 - Direct dependencies and dependents (clickable, navigate to the target node)
@@ -252,6 +281,10 @@ aalekh {
     // Include compileOnly edges in the graph.
     // Default: false.
     includeCompileOnlyDependencies.set(false)
+
+    // Write aalekh-metrics.csv alongside the HTML report on every aalekhReport run.
+    // Default: false.
+    exportMetrics.set(false)
 }
 ```
 
@@ -328,6 +361,25 @@ aalekh {
     }
 }
 ```
+
+### Team ownership
+
+Map team names to module path glob patterns. Team assignments appear in the HTML report as a colour
+overlay on the graph, and cross-team dependency edges are annotated separately so reviewers can
+quickly identify dependencies that cross ownership boundaries.
+
+```kotlin
+aalekh {
+    teams {
+        team("auth-team") { modules(":feature:login:**", ":core:auth") }
+        team("data-team") { modules(":data:**") }
+        team("platform") { modules(":core:**") }
+    }
+}
+```
+
+Module path patterns support `*` (one path segment) and `**` (any number of segments). A module
+can belong to at most one team; the first matching pattern wins.
 
 ### Gradual adoption
 
@@ -426,6 +478,19 @@ class NoAndroidInDomainRule : ArchRule {
 }
 ```
 
+## Annotating Dependencies
+
+`DependencyEdge` supports two optional annotation fields that surface in the HTML report:
+
+| Field     | Type     | Description                                                                                                                                                    |
+|-----------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `reason`  | `String` | Explanation of why this dependency exists. Shown as an edge annotation in the graph and included in violation messages.                                        |
+| `adrUrl`  | `String` | URL to an Architecture Decision Record that justifies the dependency. Rendered as a clickable link in edge tooltips so reviewers can navigate to the decision. |
+
+These fields are populated automatically when the corresponding metadata is present in the build
+graph. They appear in the Module Inspector sidebar, in violation messages, and (for `adrUrl`) as
+clickable links in graph edge tooltips.
+
 ## Module Types
 
 Aalekh infers the module type from applied plugin IDs. Detection runs in priority order - first
@@ -448,10 +513,12 @@ match wins.
 | **Fan-in**           | Number of modules that directly depend on this one (production only)                                                                                                                      |
 | **Instability**      | `fanOut / (fanIn + fanOut)`. Range 0.0 (stable) to 1.0 (unstable)                                                                                                                         |
 | **Transitive deps**  | Total number of modules reachable by following dependencies from this module                                                                                                              |
+| **Blast radius**     | Total number of modules that transitively depend on this module - impact scope of a breaking change                                                                                       |
 | **Critical path**    | Longest dependency chain in the graph - constrains build parallelism                                                                                                                      |
 | **God modules**      | Modules with both high fan-in AND high fan-out - architectural hotspots                                                                                                                   |
 | **Isolated modules** | Modules with zero fan-in and zero fan-out - candidates for removal                                                                                                                        |
 | **Health score**     | 0–100 composite score. Weighted from instability (30%), god module (25%), cycle participation (25%), transitive dep count (20%). Shown in the metrics table and module inspector sidebar. |
+| **Layer purity**     | Per-layer percentage of dependency edges flowing in the correct declared direction                                                                                                        |
 
 ## Configuration Cache
 
@@ -503,6 +570,7 @@ aalekh {
 
 | Aalekh | Gradle | Kotlin | AGP  | JDK        |
 |--------|--------|--------|------|------------|
+| 0.4.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
 | 0.3.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
 | 0.2.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
 | 0.1.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
