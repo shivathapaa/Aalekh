@@ -233,4 +233,81 @@ class RuleEngineConfigTest {
         val result = engine.evaluate(featureGraph())
         assertEquals(3, result.rulesEvaluated)
     }
+
+    // Custom rule registration
+
+    @Test
+    fun `fromConfig loads custom rule by fully qualified class name`() {
+        val engine = RuleEngine.fromConfig(
+            layerEntries = emptyList(),
+            featurePattern = "",
+            featureAllowedPairs = emptyList(),
+            ruleEntries = listOf(
+                "custom:class:com.aalekh.aalekh.analysis.rules.AlwaysFiringCustomRuleFixture"
+            ),
+        )
+        val result = engine.evaluate(featureGraph())
+        assertTrue(
+            result.violations.any { it.ruleId == "custom-fixture" },
+            "Custom rule should fire and emit its violation"
+        )
+    }
+
+    @Test
+    fun `fromConfig surfaces missing custom rule class as ERROR violation`() {
+        val engine = RuleEngine.fromConfig(
+            layerEntries = emptyList(),
+            featurePattern = "",
+            featureAllowedPairs = emptyList(),
+            ruleEntries = listOf("custom:class:com.example.NoSuchRule"),
+        )
+        val result = engine.evaluate(featureGraph())
+        val failures = result.violations.filter { it.ruleId == "aalekh-custom-rule" }
+        assertEquals(1, failures.size, "Missing custom rule must surface as one ERROR violation")
+        assertEquals(Severity.ERROR, failures.first().severity)
+        assertTrue(failures.first().message.contains("com.example.NoSuchRule"))
+    }
+
+    @Test
+    fun `fromConfig rejects custom rule class that does not implement ArchRule`() {
+        val engine = RuleEngine.fromConfig(
+            layerEntries = emptyList(),
+            featurePattern = "",
+            featureAllowedPairs = emptyList(),
+            ruleEntries = listOf(
+                "custom:class:com.aalekh.aalekh.analysis.rules.NotAnArchRuleFixture"
+            ),
+        )
+        val result = engine.evaluate(featureGraph())
+        val failures = result.violations.filter { it.ruleId == "aalekh-custom-rule" }
+        assertEquals(1, failures.size)
+        assertTrue(
+            failures.first().message.contains("does not implement") ||
+                    failures.first().message.contains("ArchRule"),
+        )
+    }
+}
+
+/** Test fixture: always emits one ERROR violation when evaluated. */
+class AlwaysFiringCustomRuleFixture : ArchRule {
+    override val id: String = "custom-fixture"
+    override val description: String = "Always-firing test fixture."
+    override val defaultSeverity: Severity = Severity.ERROR
+    override val plainLanguageExplanation: String = "Fixture for custom-rule registration test."
+
+    override fun evaluate(graph: com.aalekh.aalekh.model.ModuleDependencyGraph) = listOf(
+        com.aalekh.aalekh.model.Violation(
+            ruleId = id,
+            severity = defaultSeverity,
+            message = "fixture-fired",
+            source = "fixture",
+            moduleHint = "fixture",
+            plainLanguageExplanation = plainLanguageExplanation,
+        )
+    )
+}
+
+/** Test fixture: does NOT implement [ArchRule] - used to verify type-cast guard. */
+class NotAnArchRuleFixture {
+    val marker: String = "not-an-arch-rule"
 }
