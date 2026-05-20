@@ -36,8 +36,10 @@ All notable changes to this project are documented here. Format based on
   constructor. Load failures surface as an `aalekh-custom-rule` ERROR violation
   rather than crashing the build.
 - `.github/workflows/compatibility-matrix.yml` runs `checkAll` + functional
-  tests on JDK 11, 17, and 21, plus an explicit configuration-cache reuse
-  assertion job, backing the published compatibility table claims.
+  tests on JDK 17 and 21 (the JDKs Gradle 9 supports for the daemon),
+  verifies the published library JARs ship as Java 11 bytecode (class-file
+  major version 55), and asserts configuration-cache reuse on a second
+  invocation.
 - This `CHANGELOG.md`, satisfying the `CONTRIBUTING.md` PR checklist.
 
 ### Changed
