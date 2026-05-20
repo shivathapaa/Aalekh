@@ -181,34 +181,50 @@ public object GraphAnalyzer {
 
     /**
      * Finds cycles using only main (non-test) edges.
-     * Test dependencies (testImplementation, etc.) are excluded because
-     * test code legitimately creates apparent cycles that aren't real.
+     *
+     * Test dependencies (`testImplementation`, etc.) are excluded because test code
+     * legitimately creates apparent cycles that are not real production cycles.
+     * Iterative DFS over an explicit frame stack - safe on deep graphs.
      */
     public fun findMainOnlyCycles(graph: ModuleDependencyGraph): List<List<String>> {
         val cycles = mutableListOf<List<String>>()
         val visited = mutableSetOf<String>()
-        val path = mutableListOf<String>()
+        val pathList = mutableListOf<String>()
         val onPath = mutableSetOf<String>()
+        val frames = ArrayDeque<Iterator<String>>()
 
-        fun dfs(node: String) {
-            if (node in onPath) {
-                val start = path.indexOf(node)
-                if (start >= 0) {
-                    val cycle = path.subList(start, path.size).toList()
-                    if (cycle.size >= 2) cycles += cycle
+        fun mainEdgesFrom(p: String): Iterator<String> =
+            graph.edgesFrom(p).asSequence().filter { it.to != p && !it.isTest }.map { it.to }.iterator()
+
+        for (root in graph.modules) {
+            if (root.path in visited) continue
+            pathList += root.path
+            onPath += root.path
+            frames.addLast(mainEdgesFrom(root.path))
+            while (frames.isNotEmpty()) {
+                val it = frames.last()
+                if (it.hasNext()) {
+                    val next = it.next()
+                    if (next in onPath) {
+                        val start = pathList.indexOf(next)
+                        if (start >= 0) {
+                            val cycle = pathList.subList(start, pathList.size).toList()
+                            if (cycle.size >= 2) cycles += cycle
+                        }
+                        continue
+                    }
+                    if (next in visited) continue
+                    pathList += next
+                    onPath += next
+                    frames.addLast(mainEdgesFrom(next))
+                } else {
+                    val leaving = pathList.removeAt(pathList.size - 1)
+                    onPath -= leaving
+                    visited += leaving
+                    frames.removeLast()
                 }
-                return
             }
-            if (node in visited) return
-            visited += node; onPath += node; path += node
-            graph.edgesFrom(node)
-                .filter { it.to != node && !it.isTest }
-                .forEach { dfs(it.to) }
-            path.removeAt(path.size - 1)
-            onPath -= node
         }
-
-        graph.modules.forEach { if (it.path !in visited) dfs(it.path) }
         return cycles
     }
 }

@@ -9,10 +9,10 @@ import kotlinx.serialization.Serializable
  *
  * ```
  * Gradle Project Model
- *   → [GraphExtractor]
+ *   → aalekh-gradle extraction (AalekhExtractTask)
  *   → ModuleDependencyGraph (this class)
- *   → [RuleEngine]  → List<Violation>
- *   → [HtmlReportGenerator / JUnitXmlWriter / JsonReporter]
+ *   → RuleEngine  → List<Violation>
+ *   → HtmlReportGenerator / JUnitXmlWriter / JsonReporter / SarifReporter
  * ```
  *
  * All fields are serializable to JSON for tooling interoperability and
@@ -30,9 +30,16 @@ public data class ModuleDependencyGraph(
     val edges: List<DependencyEdge>,
     val metadata: Map<String, String> = emptyMap(),
 ) {
-    // Index (lazy, computed once)
+    // Indices (lazy, computed once). Avoid O(E) scans inside hot graph algorithms;
+    // for graphs with thousands of modules the linear filter would dominate analysis time.
     private val moduleIndex: Map<String, ModuleNode> by lazy {
         modules.associateBy { it.path }
+    }
+    private val edgesFromIndex: Map<String, List<DependencyEdge>> by lazy {
+        edges.groupBy { it.from }
+    }
+    private val edgesToIndex: Map<String, List<DependencyEdge>> by lazy {
+        edges.groupBy { it.to }
     }
 
     /** Finds a module by its Gradle project path, or null if not found.*/
@@ -40,11 +47,11 @@ public data class ModuleDependencyGraph(
 
     /** All edges leaving a module (what it directly depends on).*/
     public fun edgesFrom(path: String): List<DependencyEdge> =
-        edges.filter { it.from == path }
+        edgesFromIndex[path] ?: emptyList()
 
     /** All edges arriving at a module (what directly depends on it).*/
     public fun edgesTo(path: String): List<DependencyEdge> =
-        edges.filter { it.to == path }
+        edgesToIndex[path] ?: emptyList()
 
     // Structural metrics (used by GraphAnalyzer and HTML sidebar)
     /** Fan-out: number of modules this module directly depends on.*/
@@ -87,57 +94,90 @@ public data class ModuleDependencyGraph(
 
     /**
      * Returns true if the graph contains at least one cycle.
-     * Uses iterative DFS with an explicit recursion stack to avoid stack overflow
-     * on large project graphs.
+     *
+     * Iterative DFS over an explicit frame stack of outgoing-edge iterators - safe on graphs
+     * deep enough to blow a recursive call stack. Self-loops are skipped at the edge level so
+     * a `project(":self")` declaration does not register as a cycle.
      */
     public fun hasCycle(): Boolean {
         val visited = mutableSetOf<String>()
-        val stack = mutableSetOf<String>()
+        val onStack = mutableSetOf<String>()
+        val frames = ArrayDeque<Iterator<String>>()
+        val nodes = ArrayDeque<String>()
 
-        fun dfs(node: String): Boolean {
-            if (node in stack) return true
-            if (node in visited) return false
-            visited += node
-            stack += node
-            val hasCycle = edgesFrom(node)
-                .filter { it.to != node }  // skip self-loops
-                .any { dfs(it.to) }
-            stack -= node
-            return hasCycle
+        for (root in modules) {
+            if (root.path in visited) continue
+            nodes.addLast(root.path)
+            onStack += root.path
+            frames.addLast(edgesFrom(root.path).map { it.to }.iterator())
+            while (frames.isNotEmpty()) {
+                val it = frames.last()
+                val current = nodes.last()
+                if (it.hasNext()) {
+                    val next = it.next()
+                    if (next == current) continue  // self-loop
+                    if (next in onStack) return true
+                    if (next in visited) continue
+                    nodes.addLast(next)
+                    onStack += next
+                    frames.addLast(edgesFrom(next).map { it.to }.iterator())
+                } else {
+                    val leaving = nodes.removeLast()
+                    onStack -= leaving
+                    visited += leaving
+                    frames.removeLast()
+                }
+            }
         }
-
-        return modules.any { dfs(it.path) }
+        return false
     }
 
     /**
      * Finds all cycles in the graph and returns them as lists of module paths.
      * Returns an empty list if the graph is acyclic.
+     *
+     * Iterative DFS - safe on graphs deep enough to blow a recursive call stack. Each
+     * back-edge to an on-stack node emits the sub-path between that node and the current
+     * frame as one cycle. Cycles of length 1 (self-loops) are filtered out.
      */
     public fun findCycles(): List<List<String>> {
         val cycles = mutableListOf<List<String>>()
         val visited = mutableSetOf<String>()
-        val path = mutableListOf<String>()
+        val pathList = mutableListOf<String>()
         val onPath = mutableSetOf<String>()
+        val frames = ArrayDeque<Iterator<String>>()
 
-        fun dfs(node: String) {
-            if (node in onPath) {
-                val cycleStart = path.indexOf(node)
-                if (cycleStart >= 0) {
-                    val cycle = path.subList(cycleStart, path.size).toList()
-                    if (cycle.size >= 2) cycles += cycle  // skip self-loops (size 1)
+        for (root in modules) {
+            if (root.path in visited || root.path in onPath) continue
+            pathList += root.path
+            onPath += root.path
+            frames.addLast(edgesFrom(root.path).map { it.to }.iterator())
+            while (frames.isNotEmpty()) {
+                val it = frames.last()
+                val current = pathList.last()
+                if (it.hasNext()) {
+                    val next = it.next()
+                    if (next == current) continue  // self-loop, size-1 cycle filtered anyway
+                    if (next in onPath) {
+                        val start = pathList.indexOf(next)
+                        if (start >= 0) {
+                            val cycle = pathList.subList(start, pathList.size).toList()
+                            if (cycle.size >= 2) cycles += cycle
+                        }
+                        continue
+                    }
+                    if (next in visited) continue
+                    pathList += next
+                    onPath += next
+                    frames.addLast(edgesFrom(next).map { it.to }.iterator())
+                } else {
+                    val leaving = pathList.removeAt(pathList.size - 1)
+                    onPath -= leaving
+                    visited += leaving
+                    frames.removeLast()
                 }
-                return
             }
-            if (node in visited) return
-            visited += node
-            onPath += node
-            path += node
-            edgesFrom(node).forEach { dfs(it.to) }
-            path.removeAt(path.size - 1)
-            onPath -= node
         }
-
-        modules.forEach { dfs(it.path) }
         return cycles
     }
 }
