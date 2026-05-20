@@ -177,6 +177,113 @@ class HtmlReportGeneratorTest {
         assertTrue(html.contains("d3js.org"), "Inlined D3 copyright banner expected in output.")
     }
 
+    // ---- Blueprint redesign markers ---------------------------------------
+    // These guard the new dual-theme + 6-panel IA + UX layer added in the
+    // blueprint refactor. They fail loudly if anyone accidentally regresses
+    // the visual identity or removes a panel.
+
+    @Test
+    fun `blueprint theme preamble sets data-theme on html before body JS runs`() {
+        val html = generateHtml()
+        assertTrue(
+            html.contains("document.documentElement.setAttribute('data-theme'"),
+            "Theme preamble must set data-theme attribute on <html> early in <head>."
+        )
+        assertTrue(
+            html.contains("[data-theme=\"dark\"]") && html.contains("[data-theme=\"light\"]"),
+            "Both dark and light theme palettes must be declared."
+        )
+        assertTrue(
+            html.contains("prefers-color-scheme: dark"),
+            "Default theme should follow the user's OS preference."
+        )
+    }
+
+    @Test
+    fun `blueprint exposes a theme toggle button`() {
+        val html = generateHtml()
+        assertTrue(html.contains("""id="btn-theme""""), "Theme toggle button must be present.")
+    }
+
+    @Test
+    fun `blueprint information architecture is six panels`() {
+        val html = generateHtml()
+        val expectedTabs = listOf("overview", "map", "browse", "health", "violations", "diff")
+        expectedTabs.forEach { name ->
+            assertTrue(
+                html.contains("""data-p="$name""""),
+                "Expected outer tab data-p=\"$name\" in new IA."
+            )
+        }
+        // Architecture/Explore/Explorer/Matrix were folded into Map and Browse — they
+        // should no longer surface as top-level outer tabs.
+        assertFalse(
+            html.contains("""data-p="arch""""),
+            "Architecture is now a subview of Map, not an outer tab."
+        )
+        assertFalse(
+            html.contains("""data-p="graph""""),
+            "Force graph is now a subview of Map, not an outer tab."
+        )
+        assertFalse(
+            html.contains("""data-p="explorer""""),
+            "Tree explorer is now a subview of Browse, not an outer tab."
+        )
+        assertFalse(
+            html.contains("""data-p="metrics""""),
+            "Metrics outer tab was renamed to Health (data-p=\"health\")."
+        )
+    }
+
+    @Test
+    fun `blueprint preserves inner panel IDs the render layer depends on`() {
+        // The unified IA wraps existing panels rather than replacing them.
+        // Make sure every panel JS still queries by ID is present somewhere.
+        val html = generateHtml()
+        val required = listOf(
+            "panel-overview", "panel-map", "panel-browse", "panel-health",
+            "panel-violations", "panel-diff",
+            "panel-arch", "panel-graph", "panel-explorer", "panel-matrix", "panel-metrics"
+        )
+        required.forEach { id ->
+            assertTrue(
+                html.contains("""id="$id""""),
+                "Required panel id=\"$id\" must remain in markup."
+            )
+        }
+    }
+
+    @Test
+    fun `blueprint ships a command palette and keyboard help overlay`() {
+        val html = generateHtml()
+        assertTrue(html.contains("""id="palette-overlay""""), "Command palette overlay must be present.")
+        assertTrue(html.contains("""id="palette-input""""), "Command palette search input must be present.")
+        assertTrue(html.contains("""id="kbd-overlay""""), "Keyboard shortcuts overlay must be present.")
+    }
+
+    @Test
+    fun `blueprint ships a print stylesheet so the report doubles as a deliverable`() {
+        val html = generateHtml()
+        assertTrue(
+            html.contains("@media print"),
+            "A print stylesheet is required so the report can be archived as PDF."
+        )
+    }
+
+    @Test
+    fun `blueprint Overview is the default landing tab`() {
+        val html = generateHtml()
+        // The Overview tab carries .active on first render so the landing
+        // page is what users see before any interaction.
+        val ovTabIdx = html.indexOf("""data-p="overview"""")
+        val ovActiveIdx = html.indexOf("""class="tab active" data-p="overview"""")
+        assertTrue(ovTabIdx >= 0, "Overview tab must be defined in the nav.")
+        assertTrue(
+            ovActiveIdx >= 0,
+            "Overview tab must carry .active so it's the default landing view."
+        )
+    }
+
     // HTML escaping
 
     @Test

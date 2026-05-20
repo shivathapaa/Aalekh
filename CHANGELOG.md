@@ -7,6 +7,28 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- HTML report **blueprint redesign**. Light + dark themes (default tracks
+  `prefers-color-scheme`, toggle via header button or `T`) with a drafting-table
+  visual identity: faint grid background, ink + drafting-cyan palette,
+  monospaced metadata labels, registration-mark accents. System font stack
+  only — no Google Fonts, fully offline.
+- Information architecture consolidated from 7 tabs to **6 panels**:
+  *Overview* (new KPI landing with health hero, hotspot/cycle/critical-path/
+  module-mix lists), *Map* (Architecture + Force graph as toggleable
+  subpanels), *Browse* (Tree + Matrix as toggleable subpanels), *Health*
+  (formerly Metrics), *Violations*, *Diff*.
+- **Command palette** (`⌘K` / `Ctrl+K`) — fuzzy jump to any module or run an
+  action (toggle theme, print, download JSON/CSV/SVG, path finder, switch
+  view). Powered locally; no network.
+- **Keyboard shortcuts overlay** (`?`) listing tab digits, view actions,
+  density/theme/inspector toggles, export shortcuts.
+- **Print stylesheet** so the report doubles as a deliverable PDF artefact
+  (hides chrome, switches to paper-tint, page-breaks per panel).
+- **Density toggle** (compact / comfy, `D`) persists to `localStorage`.
+- **Inspector rail** — sidebar collapses to a narrow rail (`I`) when no module
+  is selected, reclaiming canvas real-estate.
+- Hash-state permalink now uses the readable `#tab=NAME&sub=NAME&m=:path`
+  scheme so links can be shared and skimmed.
 - `rules { custom("fully.qualified.ClassName") }` DSL entry registers a
   user-defined `ArchRule` implementation by class name. The rule class must be
   reachable from the plugin's runtime classpath (consumer buildscript classpath
