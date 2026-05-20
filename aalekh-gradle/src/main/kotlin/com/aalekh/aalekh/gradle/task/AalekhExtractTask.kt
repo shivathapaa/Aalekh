@@ -1,5 +1,6 @@
 package com.aalekh.aalekh.gradle.task
 
+import com.aalekh.aalekh.gradle.extractor.ConfigurationClassifier
 import com.aalekh.aalekh.gradle.extractor.ModuleTypeDetector
 import com.aalekh.aalekh.model.AalekhBuildConfig
 import com.aalekh.aalekh.model.DependencyEdge
@@ -153,14 +154,14 @@ public abstract class AalekhExtractTask : DefaultTask() {
 
                 // Apply filter flags before building the edge - this is the
                 // single place where the extension flags take effect.
-                if (!includeTest && isTestConfig(config)) return@mapNotNull null
-                if (!includeCompileOnly && isCompileOnlyConfig(config)) return@mapNotNull null
+                if (!includeTest && ConfigurationClassifier.isTestConfig(config)) return@mapNotNull null
+                if (!includeCompileOnly && ConfigurationClassifier.isCompileOnlyConfig(config)) return@mapNotNull null
 
                 DependencyEdge(
                     from = fromPath,
                     to = toPath,
                     configuration = config,
-                    sourceSet = kmpSourceSetName(config),
+                    sourceSet = ConfigurationClassifier.kmpSourceSetName(config),
                 )
             }
         }.distinctBy { Triple(it.from, it.to, it.configuration) }
@@ -216,33 +217,4 @@ public abstract class AalekhExtractTask : DefaultTask() {
         }
     }
 
-    // Config classification
-
-    private fun isTestConfig(configName: String): Boolean =
-        configName.contains("test", ignoreCase = true)
-
-    private fun isCompileOnlyConfig(configName: String): Boolean =
-        configName.contains("compileOnly", ignoreCase = true)
-
-    private val KMP_CONFIG_SUFFIXES = listOf("Implementation", "Api", "CompileOnly", "RuntimeOnly")
-    private val STANDARD_CONFIGS = setOf(
-        "implementation", "api", "compileOnly", "runtimeOnly",
-        "testImplementation", "testRuntimeOnly", "testApi", "testCompileOnly"
-    )
-
-    /**
-     * Extracts the KMP source set name from a configuration name, or null for
-     * standard (non-KMP) configurations.
-     *
-     * Examples:
-     * - `"commonMainImplementation"` → `"commonMain"`
-     * - `"androidMainApi"` → `"androidMain"`
-     * - `"implementation"` → `null`
-     */
-    private fun kmpSourceSetName(configName: String): String? {
-        if (configName in STANDARD_CONFIGS) return null
-        val suffix = KMP_CONFIG_SUFFIXES.firstOrNull { configName.endsWith(it) } ?: return null
-        val candidate = configName.removeSuffix(suffix)
-        return candidate.ifEmpty { null }
-    }
 }

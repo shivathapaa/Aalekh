@@ -1,5 +1,6 @@
 package com.aalekh.aalekh.gradle
 
+import com.aalekh.aalekh.gradle.extractor.ConfigurationClassifier
 import com.aalekh.aalekh.gradle.task.AalekhCheckTask
 import com.aalekh.aalekh.gradle.task.AalekhExtractTask
 import com.aalekh.aalekh.gradle.task.AalekhReportTask
@@ -26,11 +27,12 @@ import org.gradle.api.provider.Provider
  * ```kotlin
  * // settings.gradle.kts - REPLACE the build.gradle.kts plugin block with this:
  * plugins {
- *     id("io.github.shivathapaa.aalekh") version "0.1.1"
+ *     id("io.github.shivathapaa.aalekh") version "<latest>"
  * }
  * ```
  * Then remove the plugin from `build.gradle.kts`. The `aalekh { }` extension
- * block in `build.gradle.kts` stays exactly as-is.
+ * block in `build.gradle.kts` stays exactly as-is. See the README for the
+ * current published version.
  */
 @Deprecated(
     message = "Use the settings plugin instead: " +
@@ -47,15 +49,16 @@ public class AalekhPlugin : Plugin<Project> {
             It was applied to '${project.path}'.
 
             Recommended: use the settings plugin in settings.gradle.kts instead:
-                plugins { id("io.github.shivathapaa.aalekh") version "0.1.1" }
+                plugins { id("io.github.shivathapaa.aalekh") version "<version>" }
             """.trimIndent()
         }
 
         project.logger.warn(
             "\n⚠ Aalekh: the project plugin (io.github.shivathapaa.aalekh.project) is deprecated.\n" +
                     "  Migrate to the settings plugin for configuration cache stability:\n" +
-                    "  In settings.gradle.kts: plugins { id(\"io.github.shivathapaa.aalekh\") version \"0.1.1\" }\n" +
-                    "  Then remove Aalekh from build.gradle.kts. The aalekh { } block stays as-is.\n"
+                    "  In settings.gradle.kts: plugins { id(\"io.github.shivathapaa.aalekh\") }\n" +
+                    "  Then remove Aalekh from build.gradle.kts. The aalekh { } block stays as-is.\n" +
+                    "  See https://github.com/shivathapaa/aalekh for the latest version.\n"
         )
 
         val extension = project.extensions.create(
@@ -130,17 +133,11 @@ public class AalekhPlugin : Plugin<Project> {
         }
     }
 
-    private fun buildSubprojectData(rootProject: Project): Map<String, List<String>> {
-        val allConfigs = setOf(
-            "implementation", "api", "compileOnly", "runtimeOnly",
-            "testImplementation", "testRuntimeOnly", "testApi", "testCompileOnly",
-            "androidTestImplementation", "androidTestRuntimeOnly",
-            "debugImplementation", "releaseImplementation",
-        )
-        return rootProject.subprojects.associate { sub ->
+    private fun buildSubprojectData(rootProject: Project): Map<String, List<String>> =
+        rootProject.subprojects.associate { sub ->
             val deps = mutableListOf<String>()
             sub.configurations
-                .filter { cfg -> allConfigs.contains(cfg.name) || isKmpConfig(cfg.name) }
+                .filter { cfg -> ConfigurationClassifier.isCaptured(cfg.name) }
                 .forEach { cfg ->
                     cfg.dependencies.filterIsInstance<org.gradle.api.artifacts.ProjectDependency>()
                         .forEach { dep ->
@@ -150,19 +147,9 @@ public class AalekhPlugin : Plugin<Project> {
                 }
             sub.path to deps
         }
-    }
 
     private fun buildPluginData(rootProject: Project): Map<String, List<String>> =
         rootProject.subprojects.associate { sub ->
             sub.path to sub.plugins.map { it.javaClass.name }
         }
-
-    private fun isKmpConfig(name: String): Boolean {
-        val kmpSuffixes = listOf("Implementation", "Api", "CompileOnly", "RuntimeOnly")
-        val standardConfigs = setOf(
-            "implementation", "api", "compileOnly", "runtimeOnly",
-            "testImplementation", "testRuntimeOnly", "testApi", "testCompileOnly"
-        )
-        return kmpSuffixes.any { name.endsWith(it) } && name !in standardConfigs
-    }
 }
