@@ -1,0 +1,42 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:ArchRule.kt$RuleEngine.Companion$public fun fromConfig( layerEntries: List&lt;String&gt;, featurePattern: String, featureAllowedPairs: List&lt;String&gt;, ruleEntries: List&lt;String&gt;, previousCycleCount: Int? = null, ): RuleEngine</ID>
+    <ID>CyclomaticComplexMethod:LayerDependencyRule.kt$LayerDependencyRule$override fun evaluate(graph: ModuleDependencyGraph): List&lt;Violation&gt;</ID>
+    <ID>LoopWithTooManyJumpStatements:ArchRule.kt$RuleEngine.Companion$for</ID>
+    <ID>LoopWithTooManyJumpStatements:GraphAnalyzer.kt$GraphAnalyzer$while</ID>
+    <ID>LoopWithTooManyJumpStatements:LayerDependencyRule.kt$LayerDependencyRule$for</ID>
+    <ID>LoopWithTooManyJumpStatements:NoFeatureToFeatureDependencyRule.kt$NoFeatureToFeatureDependencyRule$for</ID>
+    <ID>MagicNumber:ArchRule.kt$RuleEngine.Companion$3</ID>
+    <ID>MagicNumber:HealthScoreCalculator.kt$HealthScoreCalculator$100</ID>
+    <ID>MagicNumber:HealthScoreCalculator.kt$HealthScoreCalculator$20</ID>
+    <ID>MagicNumber:HealthScoreCalculator.kt$HealthScoreCalculator$25.0</ID>
+    <ID>MagicNumber:HealthScoreCalculator.kt$HealthScoreCalculator$30</ID>
+    <ID>MagicNumber:LayerDependencyRule.kt$LayerDependencyRule.Companion$3</ID>
+    <ID>MagicNumber:LayerDependencyRule.kt$LayerDependencyRule.Companion$4</ID>
+    <ID>NestedBlockDepth:GraphAnalyzer.kt$GraphAnalyzer$public fun findMainOnlyCycles(graph: ModuleDependencyGraph): List&lt;List&lt;String&gt;&gt;</ID>
+    <ID>NestedBlockDepth:GraphAnalyzer.kt$GraphAnalyzer$public fun topologicalOrder(graph: ModuleDependencyGraph): List&lt;ModuleNode&gt;</ID>
+    <ID>NewLineAtEndOfFile:ArchRule.kt$com.aalekh.aalekh.analysis.rules.ArchRule.kt</ID>
+    <ID>NewLineAtEndOfFile:GlobMatcher.kt$com.aalekh.aalekh.analysis.rules.GlobMatcher.kt</ID>
+    <ID>NewLineAtEndOfFile:GlobMatcherTest.kt$com.aalekh.aalekh.analysis.rules.GlobMatcherTest.kt</ID>
+    <ID>NewLineAtEndOfFile:GraphAnalyzer.kt$com.aalekh.aalekh.analysis.graph.GraphAnalyzer.kt</ID>
+    <ID>NewLineAtEndOfFile:HealthScoreCalculator.kt$com.aalekh.aalekh.analysis.metrics.HealthScoreCalculator.kt</ID>
+    <ID>NewLineAtEndOfFile:HealthScoreCalculatorTest.kt$com.aalekh.aalekh.analysis.metrics.HealthScoreCalculatorTest.kt</ID>
+    <ID>NewLineAtEndOfFile:LayerDependencyRule.kt$com.aalekh.aalekh.analysis.rules.LayerDependencyRule.kt</ID>
+    <ID>NewLineAtEndOfFile:LayerDependencyRuleTest.kt$com.aalekh.aalekh.analysis.rules.LayerDependencyRuleTest.kt</ID>
+    <ID>NewLineAtEndOfFile:MaxTransitiveDependenciesRule.kt$com.aalekh.aalekh.analysis.rules.MaxTransitiveDependenciesRule.kt</ID>
+    <ID>NewLineAtEndOfFile:MaxTransitiveDependenciesRuleTest.kt$com.aalekh.aalekh.analysis.rules.MaxTransitiveDependenciesRuleTest.kt</ID>
+    <ID>NewLineAtEndOfFile:MetricsEngine.kt$com.aalekh.aalekh.analysis.metrics.MetricsEngine.kt</ID>
+    <ID>NewLineAtEndOfFile:NoCyclicDependenciesRule.kt$com.aalekh.aalekh.analysis.rules.NoCyclicDependenciesRule.kt</ID>
+    <ID>NewLineAtEndOfFile:NoCyclicDependenciesRulePreventRegressionTest.kt$com.aalekh.aalekh.analysis.rules.NoCyclicDependenciesRulePreventRegressionTest.kt</ID>
+    <ID>NewLineAtEndOfFile:NoFeatureToFeatureDependencyRule.kt$com.aalekh.aalekh.analysis.rules.NoFeatureToFeatureDependencyRule.kt</ID>
+    <ID>NewLineAtEndOfFile:NoFeatureToFeatureDependencyRuleTest.kt$com.aalekh.aalekh.analysis.rules.NoFeatureToFeatureDependencyRuleTest.kt</ID>
+    <ID>NewLineAtEndOfFile:RuleEngineConfigTest.kt$com.aalekh.aalekh.analysis.rules.RuleEngineConfigTest.kt</ID>
+    <ID>NewLineAtEndOfFile:RuleEngineTest.kt$com.aalekh.aalekh.analysis.RuleEngineTest.kt</ID>
+    <ID>ReturnCount:GlobMatcher.kt$GlobMatcher$private fun matchSegments( pattern: List&lt;String&gt;, pi: Int, path: List&lt;String&gt;, si: Int, ): Boolean</ID>
+    <ID>ReturnCount:GraphAnalyzer.kt$GraphAnalyzer$public fun criticalPath(graph: ModuleDependencyGraph): List&lt;String&gt;</ID>
+    <ID>TooGenericExceptionThrown:RuleEngineTest.kt$RuleEngineTest.&lt;no name provided&gt;$throw RuntimeException("Simulated rule crash")</ID>
+    <ID>WildcardImport:GraphAnalyzerTest.kt$import kotlin.test.*</ID>
+  </CurrentIssues>
+</SmellBaseline>
