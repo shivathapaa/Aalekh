@@ -580,8 +580,32 @@ class NoAndroidInDomainRule : ArchRule {
 }
 ```
 
-Register custom rules by passing them to the `RuleEngine` or by wiring them into the analysis
-pipeline in a custom Gradle task that calls `RuleEngine.evaluate()`.
+Register a custom rule from your `aalekh { rules { } }` block by fully qualified class name:
+
+```kotlin
+aalekh {
+    rules {
+        custom("com.example.NoAndroidInDomainRule")
+    }
+}
+```
+
+The class must implement `com.aalekh.aalekh.analysis.rules.ArchRule`, expose a public
+no-argument constructor, and be reachable from the plugin's runtime classpath. Add the rule
+artifact to the consumer's buildscript classpath:
+
+```kotlin
+// settings.gradle.kts
+buildscript {
+    dependencies {
+        classpath("com.example:my-aalekh-rules:1.0.0")
+    }
+}
+```
+
+or include the rule module via `includeBuild`. If the class cannot be loaded or instantiated,
+`aalekhCheck` surfaces a single `aalekh-custom-rule` ERROR violation with the cause instead of
+crashing the build.
 
 ## Metrics & Output
 

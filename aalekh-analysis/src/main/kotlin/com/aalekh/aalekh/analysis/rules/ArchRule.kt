@@ -108,7 +108,8 @@ public class RuleEngine(
          * @param featureAllowedPairs Serialized allow-pairs. Format: `"fromPattern->toPattern"`.
          * @param ruleEntries Serialized rule overrides. Formats:
          *   `"ruleId:severity:LEVEL"`, `"ruleId:suppress:pattern"`,
-         *   `"ruleId:option:preventRegression"`, `"ruleId:threshold:N"`.
+         *   `"ruleId:option:preventRegression"`, `"ruleId:threshold:N"`,
+         *   `"custom:class:fully.qualified.ClassName"`.
          * @param previousCycleCount Main-code cycle count from the previous run's results JSON.
          *   Null when no prior results exist - regression check is skipped in that case.
          */
@@ -144,6 +145,11 @@ public class RuleEngine(
                     "threshold" -> if (ruleId == "max-transitive-dependencies") {
                         maxTransitive = parts[2].toIntOrNull()
                     }
+
+                    "class" -> if (ruleId == "custom") {
+                        val className = parts.drop(2).joinToString(":")
+                        rules += loadCustomRule(className)
+                    }
                 }
             }
 
@@ -176,7 +182,49 @@ public class RuleEngine(
 
         /** Builds an engine with no rules - useful in tests. */
         public fun empty(): RuleEngine = RuleEngine(emptyList())
+
+        /**
+         * Reflectively instantiates a user-supplied [ArchRule] by fully qualified class name.
+         * Failure to load or cast becomes a single always-firing rule so the user sees the
+         * problem in the normal violations pipeline rather than as an opaque build crash.
+         */
+        private fun loadCustomRule(className: String): ArchRule = runCatching {
+            val cls = Class.forName(className)
+            val instance = cls.getDeclaredConstructor().newInstance()
+            instance as? ArchRule
+                ?: error("Class '$className' does not implement ${ArchRule::class.qualifiedName}")
+        }.getOrElse { ex -> FailedToLoadCustomRule(className, ex.message ?: ex.javaClass.simpleName) }
     }
+}
+
+/**
+ * Stand-in [ArchRule] returned by [RuleEngine.fromConfig] when a user-supplied custom rule
+ * class cannot be loaded. Surfaces the load failure as a normal ERROR violation so the user
+ * sees the cause in the report and CI logs rather than as a crash.
+ */
+internal class FailedToLoadCustomRule(
+    private val className: String,
+    private val cause: String,
+) : ArchRule {
+    override val id: String = "aalekh-custom-rule"
+    override val description: String = "Custom rule failed to load."
+    override val defaultSeverity: Severity = Severity.ERROR
+    override val plainLanguageExplanation: String =
+        "Aalekh tried to load a custom ArchRule class from the rules DSL but failed. " +
+                "Verify the class is on the plugin or buildscript classpath, exposes a " +
+                "no-argument public constructor, and implements " +
+                "com.aalekh.aalekh.analysis.rules.ArchRule."
+
+    override fun evaluate(graph: ModuleDependencyGraph): List<Violation> = listOf(
+        Violation(
+            ruleId = id,
+            severity = defaultSeverity,
+            message = "Could not load custom rule '$className': $cause",
+            source = className,
+            moduleHint = null,
+            plainLanguageExplanation = plainLanguageExplanation,
+        )
+    )
 }
 
 /**

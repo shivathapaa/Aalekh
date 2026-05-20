@@ -41,6 +41,32 @@ public abstract class RulesConfig @Inject constructor(objects: ObjectFactory) {
     public fun noTransitiveDependenciesExceeding(max: Int) {
         entries.add("max-transitive-dependencies:threshold:$max")
     }
+
+    /**
+     * Registers a user-defined [com.aalekh.aalekh.analysis.rules.ArchRule] implementation
+     * by its fully qualified class name.
+     *
+     * ```kotlin
+     * aalekh {
+     *     rules {
+     *         custom("com.example.NoAndroidInDomainRule")
+     *     }
+     * }
+     * ```
+     *
+     * The class must implement `com.aalekh.aalekh.analysis.rules.ArchRule`, expose a
+     * no-argument public constructor, and be reachable from the plugin's runtime
+     * classpath. Place the rule class in a module that the consumer adds to the
+     * settings (or root project) `buildscript { dependencies { classpath(...) } }`
+     * block, or in an `includeBuild` composite project alongside the plugin.
+     *
+     * If the class cannot be loaded or instantiated, `aalekhCheck` surfaces an
+     * ERROR violation with the underlying cause rather than crashing the build.
+     */
+    public fun custom(className: String) {
+        require(className.isNotBlank()) { "Custom rule class name must not be blank" }
+        entries.add("custom:class:$className")
+    }
 }
 
 public class RuleOverride(private val id: String) {
