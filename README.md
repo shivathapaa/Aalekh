@@ -183,10 +183,11 @@ tasks.named("check") {
 ./gradlew aalekhReport
 ```
 
-Generates `build/reports/aalekh/index.html` - a fully self-contained HTML file with no server, no
-CDN, and no internet connection required at render time. The report opens automatically in your
-default browser after the task completes. Disable auto-open with `openBrowserAfterReport.set(false)`
-for CI environments.
+Generates `build/reports/aalekh/index.html` - a fully self-contained HTML file. D3.js is inlined
+from the bundled `d3.min.js` resource and the UI falls back to the OS system font stack, so the
+report renders without a server, without any CDN, and without internet access at view time. The
+report opens automatically in your default browser after the task completes. Disable auto-open with
+`openBrowserAfterReport.set(false)` for CI environments.
 
 When `exportMetrics` is enabled, also writes `build/reports/aalekh/aalekh-metrics.csv`.
 

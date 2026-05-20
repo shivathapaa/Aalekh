@@ -159,6 +159,24 @@ class HtmlReportGeneratorTest {
         assertTrue(html.length > 50_000, "HTML seems too small: ${html.length} bytes")
     }
 
+    @Test
+    fun `generated HTML is fully offline - no CDN or font references`() {
+        val html = generateHtml()
+        assertFalse(
+            html.contains("cdn.jsdelivr.net") || html.contains("unpkg.com"),
+            "Report must not reference an external JS CDN; D3 must be inlined."
+        )
+        assertFalse(
+            html.contains("fonts.googleapis.com") || html.contains("fonts.gstatic.com"),
+            "Report must not reference Google Fonts; system font stack only."
+        )
+        assertFalse(
+            html.contains("{{D3_INLINE}}"),
+            "D3 placeholder must be substituted with the bundled d3.min.js contents."
+        )
+        assertTrue(html.contains("d3js.org"), "Inlined D3 copyright banner expected in output.")
+    }
+
     // HTML escaping
 
     @Test
