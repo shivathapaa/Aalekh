@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        jdk: [ '11', '17', '21' ]
+        jdk: [ '17', '21' ]
 
     steps:
       - name: Check out code
@@ -40,6 +40,46 @@ jobs:
 
       - name: Functional tests (Gradle TestKit)
         run: ./gradlew :aalekh-gradle:functionalTest
+
+  bytecode-target:
+    name: Library JARs ship as Java 11 bytecode
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 17
+
+      - name: Build library JARs
+        run: ./gradlew :aalekh-model:jar :aalekh-analysis:jar :aalekh-report:jar :aalekh-gradle:jar
+
+      - name: Assert class-file major version is 55 (Java 11) for every module
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/aalekh-bytecode-check
+          fail=0
+          for mod in aalekh-model aalekh-analysis aalekh-report aalekh-gradle; do
+            jarfile=$(ls "$mod"/build/libs/"$mod"-*.jar | grep -v sources | grep -v javadoc | head -n1)
+            entry=$(unzip -Z1 "$jarfile" | grep '\.class$' | grep -v 'module-info' | head -n1)
+            if [ -z "$entry" ]; then
+              echo "::error::No class entries found in $jarfile"
+              fail=1
+              continue
+            fi
+            unzip -o -p "$jarfile" "$entry" > /tmp/aalekh-bytecode-check/sample.class
+            major=$(javap -v /tmp/aalekh-bytecode-check/sample.class | grep -m1 'major version:' | awk '{print $3}')
+            if [ "$major" = "55" ]; then
+              echo "✓ $mod -> $entry: major version 55 (Java 11)"
+            else
+              echo "::error::$mod -> $entry: major version $major (expected 55 for Java 11)"
+              fail=1
+            fi
+          done
+          exit $fail
 
   cc-regression:
     name: Configuration cache reuse
