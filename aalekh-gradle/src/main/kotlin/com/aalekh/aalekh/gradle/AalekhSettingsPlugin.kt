@@ -1,5 +1,6 @@
 package com.aalekh.aalekh.gradle
 
+import com.aalekh.aalekh.gradle.extractor.ConfigurationClassifier
 import com.aalekh.aalekh.gradle.task.AalekhCheckTask
 import com.aalekh.aalekh.gradle.task.AalekhExtractTask
 import com.aalekh.aalekh.gradle.task.AalekhReportTask
@@ -21,9 +22,10 @@ import org.gradle.api.provider.Provider
  * ```kotlin
  * // settings.gradle.kts
  * plugins {
- *     id("io.github.shivathapaa.aalekh") version "0.1.1"
+ *     id("io.github.shivathapaa.aalekh") version "<latest>"
  * }
  * ```
+ * See the README for the current published version.
  *
  * Configure the extension on the **root project**, not on settings:
  * ```kotlin
@@ -142,7 +144,8 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
 
     // Data collection
     //
-    // Collects ALL configurations unconditionally. Filtering by
+    // Collects ALL configurations Aalekh considers architecturally significant
+    // ([ConfigurationClassifier.isCaptured]). Filtering by
     // includeTestDependencies / includeCompileOnlyDependencies happens
     // inside AalekhExtractTask, not here. This separation means:
     //   1. The task input is stable (changing a flag doesn't change the raw
@@ -156,21 +159,11 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
 
     private fun buildSubprojectData(
         rootProject: org.gradle.api.Project,
-    ): Map<String, List<String>> {
-        val productionConfigs = setOf(
-            "implementation", "api", "compileOnly", "runtimeOnly",
-        )
-        val testConfigs = setOf(
-            "testImplementation", "testRuntimeOnly", "testApi", "testCompileOnly",
-            "androidTestImplementation", "androidTestRuntimeOnly",
-            "debugImplementation", "releaseImplementation",
-        )
-        val allConfigs = productionConfigs + testConfigs
-
-        return rootProject.subprojects.associate { subproject ->
+    ): Map<String, List<String>> =
+        rootProject.subprojects.associate { subproject ->
             val deps = mutableListOf<String>()
             subproject.configurations
-                .filter { cfg -> allConfigs.contains(cfg.name) || isKmpConfig(cfg.name) }
+                .filter { cfg -> ConfigurationClassifier.isCaptured(cfg.name) }
                 .forEach { cfg ->
                     cfg.dependencies
                         .filterIsInstance<org.gradle.api.artifacts.ProjectDependency>()
@@ -181,7 +174,6 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
                 }
             subproject.path to deps
         }
-    }
 
     private fun buildPluginData(
         rootProject: org.gradle.api.Project,
@@ -189,20 +181,4 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
         rootProject.subprojects.associate { subproject ->
             subproject.path to subproject.plugins.map { it.javaClass.name }
         }
-
-    /**
-     * Returns true if [name] looks like a KMP source-set-scoped configuration,
-     * e.g. `commonMainImplementation`, `iosMainApi`.
-     *
-     * These are not in the standard config list but are architecturally
-     * significant for KMP projects.
-     */
-    private fun isKmpConfig(name: String): Boolean {
-        val kmpSuffixes = listOf("Implementation", "Api", "CompileOnly", "RuntimeOnly")
-        val standardConfigs = setOf(
-            "implementation", "api", "compileOnly", "runtimeOnly",
-            "testImplementation", "testRuntimeOnly", "testApi", "testCompileOnly",
-        )
-        return kmpSuffixes.any { name.endsWith(it) } && name !in standardConfigs
-    }
 }
