@@ -1,10 +1,10 @@
 [versions]
 plugin-version = "0.4.0"
-kotlin = "2.3.20"
-kotlinx-serialization = "1.10.0"
-gradle-plugin-publish = "2.1.0"
-junit5 = "5.13.4"
-kotest = "6.1.6"
+kotlin = "2.3.21"
+kotlinx-serialization = "1.11.0"
+gradle-plugin-publish = "2.1.1"
+junit5 = "5.14.4"
+kotest = "6.1.11"
 detekt = "1.23.8"
 vanniktech-publish = "0.36.0"
 
