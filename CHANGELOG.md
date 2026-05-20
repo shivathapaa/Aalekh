@@ -6,6 +6,8 @@ All notable changes to this project are documented here. Format based on
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-20
+
 ### Added
 - HTML report **blueprint redesign**. Light + dark themes (default tracks
   `prefers-color-scheme`, toggle via header button or `T`) with a drafting-table
@@ -138,7 +140,8 @@ All notable changes to this project are documented here. Format based on
 - Initial public preview: `aalekhExtract`, `aalekhReport`, `aalekhCheck` tasks;
   basic interactive HTML graph; cycle detection.
 
-[Unreleased]: https://github.com/shivathapaa/aalekh/compare/0.4.0...HEAD
+[Unreleased]: https://github.com/shivathapaa/aalekh/compare/0.5.0...HEAD
+[0.5.0]: https://github.com/shivathapaa/aalekh/compare/0.4.0...0.5.0
 [0.4.0]: https://github.com/shivathapaa/aalekh/compare/0.3.0...0.4.0
 [0.3.0]: https://github.com/shivathapaa/aalekh/compare/0.2.0...0.3.0
 [0.2.0]: https://github.com/shivathapaa/aalekh/compare/0.1.0...0.2.0
