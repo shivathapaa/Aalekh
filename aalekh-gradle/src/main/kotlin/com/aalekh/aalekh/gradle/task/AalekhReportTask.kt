@@ -20,7 +20,6 @@ import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
-import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.Internal
@@ -213,8 +212,14 @@ public abstract class AalekhReportTask : DefaultTask() {
  *
  * Run: `./gradlew aalekhCheck`
  * Also runs automatically as part of `./gradlew check`.
+ *
+ * **Caching is intentionally disabled.** `preventRegression` reads the prior run's
+ * `aalekh-results.json` to compare cycle counts; that file lives in this task's own
+ * `@OutputDirectory` and is not declared as an `@Input`. Caching the task would let
+ * Gradle restore a stale PASS and skip the regression check entirely, which is the
+ * exact failure mode this rule exists to catch.
  */
-@CacheableTask
+@DisableCachingByDefault(because = "regression detection compares against the previous run's output; caching could silently mask a newly introduced cycle")
 public abstract class AalekhCheckTask : DefaultTask() {
 
     @get:InputFile
