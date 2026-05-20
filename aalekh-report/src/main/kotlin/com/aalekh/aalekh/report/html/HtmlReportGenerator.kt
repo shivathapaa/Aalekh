@@ -12,9 +12,11 @@ import java.time.Instant
  * Generates the self-contained Aalekh HTML interactive report.
  *
  * The output is a single `.html` file with:
- * - D3.js v7 force-directed graph (loaded from CDN)
+ * - D3.js v7 force-directed graph inlined into a `<script>` tag from the bundled
+ *   `d3.min.js` resource - no CDN, no network request when the report is opened
  * - All graph data injected inline as typed `<script type="application/json">` tags
- * - Zero runtime server, zero external data dependencies beyond the browser
+ * - System font stack; no Google Fonts dependency
+ * - Zero runtime server, zero external dependencies once the file is generated
  *
  * ### Data injection
  * The template contains a stable HTML comment marker:
@@ -25,6 +27,11 @@ import java.time.Instant
  * then the marker itself is removed. This approach is robust to any whitespace
  * or formatting changes inside the template's JavaScript - it only depends on
  * one unique HTML comment, not on matching JS source text.
+ *
+ * ### D3 inlining
+ * The placeholder `{{D3_INLINE}}` is substituted with the contents of the
+ * bundled `d3.min.js` resource so the resulting HTML works offline. Update
+ * D3 by replacing `aalekh-report/src/main/resources/d3.min.js`.
  */
 public object HtmlReportGenerator {
 
@@ -36,6 +43,7 @@ public object HtmlReportGenerator {
     private const val NAME_PLACEHOLDER = "{{PROJECT_NAME}}"
     private const val TIME_PLACEHOLDER = "{{GENERATED_AT}}"
     private const val VERSION_PLACEHOLDER = "{{AALEKH_VERSION}}"
+    private const val D3_PLACEHOLDER = "{{D3_INLINE}}"
 
     /**
      * Stable anchor in the HTML template that marks where JSON data tags are
@@ -89,10 +97,17 @@ public object HtmlReportGenerator {
 
         return template
             .replace(DATA_INJECT_MARKER, dataScriptTags.trimEnd())
+            .replace(D3_PLACEHOLDER, loadD3())
             .replace(NAME_PLACEHOLDER, escapeHtml(projectName))
             .replace(TIME_PLACEHOLDER, Instant.now().toString())
             .replace(VERSION_PLACEHOLDER, AalekhBuildConfig.VERSION)
     }
+
+    private fun loadD3(): String = loadClasspathResource(
+        path = "d3.min.js",
+        missingMessage = "Aalekh: bundled D3.js (d3.min.js) is missing from JAR resources. " +
+                "This is a packaging bug.",
+    )
 
     private fun buildSummaryJson(
         summary: GraphSummary,
@@ -172,18 +187,20 @@ public object HtmlReportGenerator {
 }""".replace("\n", "")  // single line for embedding in HTML
     }
 
-    private fun loadTemplate(): String {
-        val resourcePath = "aalekh-report-template.html"
+    private fun loadTemplate(): String = loadClasspathResource(
+        path = "aalekh-report-template.html",
+        missingMessage = "Aalekh: HTML report template not found in JAR resources.",
+    )
+
+    private fun loadClasspathResource(path: String, missingMessage: String): String {
         val stream = HtmlReportGenerator::class.java.classLoader
-            ?.getResourceAsStream(resourcePath)
-            ?: HtmlReportGenerator::class.java
-                .getResourceAsStream(resourcePath)
+            ?.getResourceAsStream(path)
+            ?: HtmlReportGenerator::class.java.getResourceAsStream(path)
             ?: error(
-                "Aalekh: HTML report template not found in JAR resources.\n" +
-                        "Expected resource path: $resourcePath\n" +
+                "$missingMessage\n" +
+                        "Expected resource path: $path\n" +
                         "Classloader: ${HtmlReportGenerator::class.java.classLoader}\n" +
-                        "This is a packaging bug - please file an issue at " +
-                        "https://github.com/shivathapaa/aalekh/issues"
+                        "Please file an issue at https://github.com/shivathapaa/aalekh/issues"
             )
         return stream.bufferedReader().use { it.readText() }
     }
