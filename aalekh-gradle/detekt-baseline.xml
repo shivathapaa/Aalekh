@@ -1,0 +1,19 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>LongMethod:AalekhPlugin.kt$AalekhPlugin$override fun apply(project: Project)</ID>
+    <ID>LongMethod:AalekhSettingsPlugin.kt$AalekhSettingsPlugin$override fun apply(settings: Settings)</ID>
+    <ID>MagicNumber:AalekhReportTask.kt$AalekhReportTask$3</ID>
+    <ID>MagicNumber:AalekhReportTask.kt$AalekhReportTask$30</ID>
+    <ID>MaxLineLength:AalekhReportTask.kt$AalekhCheckTask$@DisableCachingByDefault(because = "regression detection compares against the previous run's output; caching could silently mask a newly introduced cycle")</ID>
+    <ID>MaxLineLength:AalekhReportTask.kt$AalekhReportTask$@DisableCachingByDefault(because = "HTML reports should always reflect the current project state; the task also opens a browser window")</ID>
+    <ID>NewLineAtEndOfFile:AalekhExtension.kt$com.aalekh.aalekh.gradle.AalekhExtension.kt</ID>
+    <ID>NewLineAtEndOfFile:AalekhExtractTask.kt$com.aalekh.aalekh.gradle.task.AalekhExtractTask.kt</ID>
+    <ID>NewLineAtEndOfFile:AalekhReportTask.kt$com.aalekh.aalekh.gradle.task.AalekhReportTask.kt</ID>
+    <ID>NewLineAtEndOfFile:FeatureIsolationConfig.kt$com.aalekh.aalekh.gradle.dsl.FeatureIsolationConfig.kt</ID>
+    <ID>NewLineAtEndOfFile:LayerConfig.kt$com.aalekh.aalekh.gradle.dsl.LayerConfig.kt</ID>
+    <ID>NewLineAtEndOfFile:RulesConfig.kt$com.aalekh.aalekh.gradle.dsl.RulesConfig.kt</ID>
+    <ID>ReturnCount:ConfigurationClassifier.kt$ConfigurationClassifier$fun kmpSourceSetName(name: String): String?</ID>
+  </CurrentIssues>
+</SmellBaseline>

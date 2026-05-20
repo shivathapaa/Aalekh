@@ -1,0 +1,18 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>CyclomaticComplexMethod:ModuleDependencyGraph.kt$ModuleDependencyGraph$public fun findCycles(): List&lt;List&lt;String&gt;&gt;</ID>
+    <ID>LoopWithTooManyJumpStatements:ModuleDependencyGraph.kt$ModuleDependencyGraph$while</ID>
+    <ID>NestedBlockDepth:ModuleDependencyGraph.kt$ModuleDependencyGraph$public fun findCycles(): List&lt;List&lt;String&gt;&gt;</ID>
+    <ID>NestedBlockDepth:ModuleDependencyGraph.kt$ModuleDependencyGraph$public fun hasCycle(): Boolean</ID>
+    <ID>NewLineAtEndOfFile:AalekhBuildConfig.kt$com.aalekh.aalekh.model.AalekhBuildConfig.kt</ID>
+    <ID>NewLineAtEndOfFile:DependencyEdge.kt$com.aalekh.aalekh.model.DependencyEdge.kt</ID>
+    <ID>NewLineAtEndOfFile:ModelSerializationTest.kt$com.aalekh.aalekh.model.ModelSerializationTest.kt</ID>
+    <ID>NewLineAtEndOfFile:ModuleDependencyGraph.kt$com.aalekh.aalekh.model.ModuleDependencyGraph.kt</ID>
+    <ID>NewLineAtEndOfFile:ModuleNode.kt$com.aalekh.aalekh.model.ModuleNode.kt</ID>
+    <ID>NewLineAtEndOfFile:ModuleType.kt$com.aalekh.aalekh.model.ModuleType.kt</ID>
+    <ID>NewLineAtEndOfFile:Violation.kt$com.aalekh.aalekh.model.Violation.kt</ID>
+    <ID>WildcardImport:ModuleDependencyGraphTest.kt$import kotlin.test.*</ID>
+  </CurrentIssues>
+</SmellBaseline>

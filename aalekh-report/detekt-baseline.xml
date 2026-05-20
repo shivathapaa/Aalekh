@@ -1,0 +1,22 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues/>
+  <CurrentIssues>
+    <ID>LongMethod:HtmlReportGenerator.kt$HtmlReportGenerator$private fun buildSummaryJson( summary: GraphSummary, violations: List&lt;Violation&gt;, graph: ModuleDependencyGraph, trendJson: String, ): String</ID>
+    <ID>MaxLineLength:CsvMetricsExporter.kt$CsvMetricsExporter$sb.appendLine("timestamp,module,type,fanIn,fanOut,instability,transitiveDepCount,healthScore,isGodModule,isOnCriticalPath,hasCycle")</ID>
+    <ID>MaxLineLength:CsvMetricsExporterTest.kt$CsvMetricsExporterTest$"timestamp,module,type,fanIn,fanOut,instability,transitiveDepCount,healthScore,isGodModule,isOnCriticalPath,hasCycle"</ID>
+    <ID>MaxLineLength:JUnitXmlWriter.kt$JUnitXmlWriter$appendLine(""" &lt;failure message="${xmlEscape(violation.message)}" type="${violation.severity}"&gt;""")</ID>
+    <ID>MaxLineLength:JUnitXmlWriter.kt$JUnitXmlWriter$appendLine(""" &lt;testcase name="${xmlEscape(violation.ruleId)}" classname="${xmlEscape(violation.source)}"&gt;""")</ID>
+    <ID>MaxLineLength:JUnitXmlWriter.kt$JUnitXmlWriter$appendLine("""&lt;testsuites name="Aalekh Architecture Check" tests="$total" failures="$failures" errors="0" timestamp="$timestamp"&gt;""")</ID>
+    <ID>NewLineAtEndOfFile:CsvMetricsExporter.kt$com.aalekh.aalekh.report.CsvMetricsExporter.kt</ID>
+    <ID>NewLineAtEndOfFile:CsvMetricsExporterTest.kt$com.aalekh.aalekh.report.CsvMetricsExporterTest.kt</ID>
+    <ID>NewLineAtEndOfFile:HtmlReportGenerator.kt$com.aalekh.aalekh.report.html.HtmlReportGenerator.kt</ID>
+    <ID>NewLineAtEndOfFile:HtmlReportGeneratorTest.kt$com.aalekh.aalekh.report.HtmlReportGeneratorTest.kt</ID>
+    <ID>NewLineAtEndOfFile:JUnitXmlWriter.kt$com.aalekh.aalekh.report.junit.JUnitXmlWriter.kt</ID>
+    <ID>NewLineAtEndOfFile:JsonReporter.kt$com.aalekh.aalekh.report.json.JsonReporter.kt</ID>
+    <ID>NewLineAtEndOfFile:JsonReporterTest.kt$com.aalekh.aalekh.report.JsonReporterTest.kt</ID>
+    <ID>NewLineAtEndOfFile:ReportCoordinator.kt$com.aalekh.aalekh.report.ReportCoordinator.kt</ID>
+    <ID>NewLineAtEndOfFile:SarifReporter.kt$com.aalekh.aalekh.report.sarif.SarifReporter.kt</ID>
+    <ID>NewLineAtEndOfFile:SarifReporterTest.kt$com.aalekh.aalekh.report.sarif.SarifReporterTest.kt</ID>
+  </CurrentIssues>
+</SmellBaseline>
