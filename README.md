@@ -64,8 +64,10 @@ plugin, with zero external dependencies beyond the browser.
     - [aalekhCheck](#aalekhcheck)
     - [aalekhExtract](#aalekhextract)
 - [The Report](#the-report)
-    - [Seven tabs](#seven-tabs)
+    - [Six panels](#six-panels)
     - [Header toolbar](#header-toolbar)
+    - [Command palette and keyboard shortcuts](#command-palette-and-keyboard-shortcuts)
+    - [Themes, density, and print](#themes-density-and-print)
     - [URL permalink](#url-permalink)
     - [Module Inspector sidebar](#module-inspector-sidebar)
     - [Cycle detection](#cycle-detection)
@@ -102,7 +104,7 @@ plugin, with zero external dependencies beyond the browser.
 
 ```kotlin
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.4.0"
+    id("io.github.shivathapaa.aalekh") version "0.5.0"
 }
 ```
 
@@ -124,7 +126,7 @@ across configuration cache entries, preventing cache misses on subsequent runs.
 ```kotlin
 // settings.gradle.kts
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.4.0"
+    id("io.github.shivathapaa.aalekh") version "0.5.0"
 }
 ```
 
@@ -143,7 +145,7 @@ time. To migrate: move the plugin declaration to `settings.gradle.kts` and remov
 ```kotlin
 // build.gradle.kts (root project only) - deprecated, migrate to settings plugin
 plugins {
-    id("io.github.shivathapaa.aalekh.project") version "0.4.0"
+    id("io.github.shivathapaa.aalekh.project") version "0.5.0"
 }
 ```
 
@@ -242,36 +244,43 @@ You rarely need to run this directly; both `aalekhReport` and `aalekhCheck` depe
 ## The Report
 
 `./gradlew aalekhReport` produces `build/reports/aalekh/index.html`. Open it in any browser - no
-server required, no internet connection needed.
+server required, no internet connection needed. 0.5.0 redesigned the report around a drafting-table
+visual identity (faint grid, ink + drafting-cyan palette, monospaced metadata, system font stack),
+collapsed the previous seven tabs into six panels, and added a command palette, a keyboard
+shortcuts overlay, a print stylesheet, a density toggle, an inspector rail, and dark + light
+themes.
 
-### Seven tabs
+### Six panels
 
-**⬡ Architecture** - Layer swimlane view. Modules are grouped by their declared `layers { }`
-configuration and rendered as swim lanes, making dependency direction violations immediately
-obvious.
-Edge crossings that violate the declared layer order are highlighted. This is the default tab when
-the report opens.
+**◧ Overview** - KPI landing. Health hero, plus compact lists of hotspot modules, cycles, the
+critical build path, and the module-type mix. Default tab when the report opens.
 
-**⊹ Explore** - Interactive force-directed graph powered by D3.js. Drag to reposition nodes, scroll
-to zoom, click any node to open the Module Inspector in the sidebar. Nodes are coloured by module
-type; cycle nodes pulse with a red ring; god modules glow orange. Filter edges by type: Impl, API,
-Test, CompileOnly, KMP source sets, Main Cycle, Test Cycle. Hovering a node animates traffic along
-its edges to make dependency direction obvious at a glance.
+**⬡ Map** - Topology view with two toggleable subpanels:
 
-**⊞ Explorer** - Hierarchical tree view mirroring your Gradle project structure. Expand and collapse
-groups, jump directly to cycle nodes, and see per-module dependency tables split by main vs test
-scope.
+- *Architecture* - layer swimlane. Modules grouped by their declared `layers { }` configuration and
+  rendered as swim lanes, making dependency direction violations immediately obvious. Edge
+  crossings that violate the declared layer order are highlighted.
+- *Force* - interactive force-directed graph powered by D3.js. Drag to reposition nodes, scroll to
+  zoom, click any node to open the Module Inspector in the sidebar. Nodes are coloured by module
+  type; cycle nodes pulse with a red ring; god modules glow orange. Filter edges by type: Impl,
+  API, Test, CompileOnly, KMP source sets, Main Cycle, Test Cycle. Hovering a node animates traffic
+  along its edges to make dependency direction obvious at a glance.
 
-**⊟ Matrix** - Adjacency matrix showing all inter-module dependencies at a glance. Sort by
-connectivity, topological order, A–Z, or module type. Hover a cell for details; click a row or
-column label to inspect the module. In topological order, any dependency appearing in the lower
-triangle is a potential layer violation.
+**⊞ Browse** - Structural views with two toggleable subpanels:
 
-**◎ Metrics** - KPI dashboard: fan-in, fan-out, instability index, critical build path, god module
-count, cycle counts (main and test-only separately). Each KPI card includes a trend sparkline from
-the last 30 `aalekhReport` runs. Includes a per-layer purity table (percentage of edges flowing in
-the correct declared direction) and a list of consolidation candidates - module pairs that share
-many dependents and may be worth merging. Per-module sortable table with inline bar charts.
+- *Tree* - hierarchical tree mirroring your Gradle project structure. Expand and collapse groups,
+  jump directly to cycle nodes, and see per-module dependency tables split by main vs test scope.
+- *Matrix* - adjacency matrix showing all inter-module dependencies at a glance. Sort by
+  connectivity, topological order, A–Z, or module type. Hover a cell for details; click a row or
+  column label to inspect the module. In topological order, any dependency appearing in the lower
+  triangle is a potential layer violation.
+
+**◎ Health** - KPI dashboard (formerly Metrics): fan-in, fan-out, instability index, critical build
+path, god module count, cycle counts (main and test-only separately). Each KPI card includes a
+trend sparkline from the last 30 `aalekhReport` runs. Includes a per-layer purity table (percentage
+of edges flowing in the correct declared direction) and a list of consolidation candidates - module
+pairs that share many dependents and may be worth merging. Per-module sortable table with inline
+bar charts.
 
 **⚑ Violations** - Structured violation cards for every `aalekhCheck` rule failure. Each card shows
 the rule ID, severity badge, the exact dependency edge to remove, a plain-language explanation of
@@ -289,22 +298,71 @@ request.
 
 ### Header toolbar
 
-The report header provides global tools available on every tab:
+The report header provides global tools available on every panel:
 
 | Control                     | Description                                                                                   |
 |-----------------------------|-----------------------------------------------------------------------------------------------|
 | **Architecture debt score** | 0–100 badge summarising technical debt across all evaluated rules                             |
 | **Module search**           | Search across all module paths; press `/` to focus                                            |
+| **⌘K Command palette**      | Fuzzy jump to any module or run an action. `⌘K` on macOS, `Ctrl+K` elsewhere                  |
+| **☀/☾ Theme toggle**        | Switch between dark and light themes; choice persists in `localStorage`                       |
 | **⊙ Heatmap**               | Toggle to colour all nodes from green (stable) to red (unstable) by instability index         |
 | **⟶ Path finder**           | Find the shortest dependency path between any two modules; result is highlighted in the graph |
+| **▤ Density**               | Toggle between *comfy* and *compact* row heights; choice persists in `localStorage`           |
+| **? Shortcuts**             | Open the keyboard shortcuts overlay                                                           |
 | **⬇ JSON**                  | Download the raw `graph.json` data                                                            |
 | **⬇ CSV**                   | Download per-module metrics as CSV                                                            |
-| **⬇ SVG**                   | Export the current view (Architecture, Explore, or Matrix) as an SVG file                     |
+| **⬇ SVG**                   | Export the current view (Architecture, Force, or Matrix) as an SVG file                       |
+
+### Command palette and keyboard shortcuts
+
+Press `⌘K` (macOS) or `Ctrl+K` (other platforms) to open the command palette. Type to fuzzy-match
+any module path or run an action - toggle theme, print, download JSON/CSV/SVG, open the path
+finder, switch panel. Navigate with `↑`/`↓`, confirm with `↵`, dismiss with `Esc`. Powered locally;
+no network.
+
+Press `?` at any time to open the keyboard shortcuts overlay:
+
+| Shortcut    | Action                                                |
+|-------------|-------------------------------------------------------|
+| `⌘K` / `Ctrl+K` | Open command palette                              |
+| `/`         | Focus module search                                   |
+| `1`–`6`     | Switch to panel by index                              |
+| `T`         | Toggle dark/light theme                               |
+| `D`         | Toggle comfy/compact density                          |
+| `I`         | Toggle inspector sidebar (collapses to a narrow rail) |
+| `F`         | Fit graph (Map panel)                                 |
+| `R`         | Re-layout graph (Map panel)                           |
+| `+` / `−`   | Zoom in / out (Map panel)                             |
+| `Esc`       | Clear selection / dismiss overlay                     |
+| `E` / `C`   | Expand / collapse all (Browse → Tree)                 |
+| `⌘P` / `Ctrl+P` | Print or save the report as PDF                   |
+| `J`         | Download `graph.json`                                 |
+| `?`         | Toggle this overlay                                   |
+
+### Themes, density, and print
+
+**Dark + light themes.** Default tracks `prefers-color-scheme`; toggle in the header (`T`). Choice
+persists in `localStorage`. Both themes share the drafting-table identity - faint grid background,
+ink + drafting-cyan palette, monospaced metadata - and use the OS system font stack, so the report
+stays fully offline.
+
+**Density toggle.** Press `D` (or use the density button) to switch between *comfy* and *compact*
+spacing across panels, KPI cards, violation cards, and tables. Choice persists in `localStorage`.
+
+**Inspector rail.** When no module is selected, press `I` to collapse the right sidebar to a narrow
+rail and reclaim the canvas. Selecting a module re-expands it.
+
+**Print stylesheet.** `⌘P` / `Ctrl+P` switches the report to a paper-tinted layout (chrome and
+floating overlays hidden, one panel per page) so the same HTML doubles as a deliverable PDF
+artefact.
 
 ### URL permalink
 
-The active tab and selected module are encoded in `location.hash`. Copy the browser URL to share a
-specific view - the recipient will land on exactly the same tab with the same module selected.
+The active panel, subpanel, and selected module are encoded into `location.hash` using the readable
+scheme `#tab=NAME&sub=NAME&m=:path` (e.g. `#tab=map&sub=graph&m=:feature:login:ui`). Copy the
+browser URL to share a specific view - the recipient lands on exactly the same panel with the same
+module selected.
 
 ### Module Inspector sidebar
 
@@ -331,8 +389,8 @@ Aalekh distinguishes between two kinds of cycles:
   `androidTestImplementation`. These are common, usually acceptable, and do **not** cause a build
   failure.
 
-Both kinds are visible in the Explore graph, the Explorer tree, and the Metrics panel. Main and
-test cycle counts are reported separately in the KPI dashboard.
+Both kinds are visible in the Map (Force) graph, the Browse (Tree) view, and the Health panel.
+Main and test cycle counts are reported separately in the KPI dashboard.
 
 ## Configuration
 
@@ -649,7 +707,7 @@ and cycle participation. Import into Datadog, Grafana, or a spreadsheet for exte
 Every `aalekhReport` run appends a metrics snapshot to `build/aalekh/trend.json` (rolling window
 of 30 entries). The snapshot records: timestamp, total module count, total edge count, cycle count,
 god module count, critical path length, and average instability. The data is embedded in the report
-and used to render the sparklines in each KPI card on the Metrics tab.
+and used to render the sparklines in each KPI card on the Health panel.
 
 Failure to read or write the trend file is always non-fatal and never breaks the build.
 
@@ -758,6 +816,7 @@ aalekh {
 
 | Aalekh | Gradle | Kotlin | AGP  | JDK        |
 |--------|--------|--------|------|------------|
+| 0.5.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
 | 0.4.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
 | 0.3.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
 | 0.2.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
