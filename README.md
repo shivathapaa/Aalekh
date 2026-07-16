@@ -34,9 +34,13 @@ plugin, with zero external dependencies beyond the browser.
     - [View locally](assets/report_samples/nowinandroid_withcyclic.html)
     - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_withcyclic.html)
 
-- Tallyo (KMP)
+- Tallyo (CMP)
     - [View locally](assets/report_samples/tallyo.html)
     - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/tallyo.html)
+
+- GeoKrishiFarm (CMP)
+    - [View locally](assets/report_samples/geokrishifarm.html)
+    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/geokrishifarm.html)
 
 ### Sample Report Demo
 
@@ -67,7 +71,7 @@ plugin, with zero external dependencies beyond the browser.
     - [Six panels](#six-panels)
     - [Header toolbar](#header-toolbar)
     - [Command palette and keyboard shortcuts](#command-palette-and-keyboard-shortcuts)
-    - [Themes, density, and print](#themes-density-and-print)
+    - [Themes and print](#themes-and-print)
     - [URL permalink](#url-permalink)
     - [Module Inspector sidebar](#module-inspector-sidebar)
     - [Cycle detection](#cycle-detection)
@@ -104,7 +108,7 @@ plugin, with zero external dependencies beyond the browser.
 
 ```kotlin
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.5.0"
+    id("io.github.shivathapaa.aalekh") version "0.5.1"
 }
 ```
 
@@ -126,7 +130,7 @@ across configuration cache entries, preventing cache misses on subsequent runs.
 ```kotlin
 // settings.gradle.kts
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.5.0"
+    id("io.github.shivathapaa.aalekh") version "0.5.1"
 }
 ```
 
@@ -145,7 +149,7 @@ time. To migrate: move the plugin declaration to `settings.gradle.kts` and remov
 ```kotlin
 // build.gradle.kts (root project only) - deprecated, migrate to settings plugin
 plugins {
-    id("io.github.shivathapaa.aalekh.project") version "0.5.0"
+    id("io.github.shivathapaa.aalekh.project") version "0.5.1"
 }
 ```
 
@@ -186,8 +190,9 @@ tasks.named("check") {
 ```
 
 Generates `build/reports/aalekh/index.html` - a fully self-contained HTML file. D3.js is inlined
-from the bundled `d3.min.js` resource and the UI falls back to the OS system font stack, so the
-report renders without a server, without any CDN, and without internet access at view time. The
+from the bundled `d3.min.js` resource and the Hanken Grotesk / Spline Sans Mono typefaces are
+base64-inlined as `woff2`, so the report renders without a server, without any CDN, and without
+internet access at view time. The
 report opens automatically in your default browser after the task completes. Disable auto-open with
 `openBrowserAfterReport.set(false)` for CI environments.
 
@@ -244,11 +249,12 @@ You rarely need to run this directly; both `aalekhReport` and `aalekhCheck` depe
 ## The Report
 
 `./gradlew aalekhReport` produces `build/reports/aalekh/index.html`. Open it in any browser - no
-server required, no internet connection needed. 0.5.0 redesigned the report around a drafting-table
-visual identity (faint grid, ink + drafting-cyan palette, monospaced metadata, system font stack),
-collapsed the previous seven tabs into six panels, and added a command palette, a keyboard
-shortcuts overlay, a print stylesheet, a density toggle, an inspector rail, and dark + light
-themes.
+server required, no internet connection needed. 0.5.1 rebuilt the report around a transit-map
+metaphor — architectural tiers render as coloured lines, modules as stops, god modules as
+interchange rings, and cycles as closed loops — with dark (*Night Terminal*) and light (*Map Paper*)
+themes, inlined Hanken Grotesk + Spline Sans Mono typefaces (fully offline), and a network-status
+Overview (health dial, route schematic, departures board, alerts, hotspots). It keeps the six-panel
+layout, command palette, keyboard shortcuts overlay, print stylesheet, and inspector rail.
 
 ### Six panels
 
@@ -300,19 +306,20 @@ request.
 
 The report header provides global tools available on every panel:
 
-| Control                     | Description                                                                                   |
-|-----------------------------|-----------------------------------------------------------------------------------------------|
-| **Architecture debt score** | 0–100 badge summarising technical debt across all evaluated rules                             |
-| **Module search**           | Search across all module paths; press `/` to focus                                            |
-| **⌘K Command palette**      | Fuzzy jump to any module or run an action. `⌘K` on macOS, `Ctrl+K` elsewhere                  |
-| **☀/☾ Theme toggle**        | Switch between dark and light themes; choice persists in `localStorage`                       |
-| **⊙ Heatmap**               | Toggle to colour all nodes from green (stable) to red (unstable) by instability index         |
-| **⟶ Path finder**           | Find the shortest dependency path between any two modules; result is highlighted in the graph |
-| **▤ Density**               | Toggle between *comfy* and *compact* row heights; choice persists in `localStorage`           |
-| **? Shortcuts**             | Open the keyboard shortcuts overlay                                                           |
-| **⬇ JSON**                  | Download the raw `graph.json` data                                                            |
-| **⬇ CSV**                   | Download per-module metrics as CSV                                                            |
-| **⬇ SVG**                   | Export the current view (Architecture, Force, or Matrix) as an SVG file                       |
+| Control                | Description                                                                                            |
+|------------------------|-------------------------------------------------------------------------------------------------------|
+| **Status chips**       | At-a-glance badges for cycles, blocking errors, and god modules; click to jump to the relevant panel  |
+| **Module search**      | Search across all module paths; press `/` to focus                                                    |
+| **⌘K Command palette** | Fuzzy jump to any module or run an action. `⌘K` on macOS, `Ctrl+K` elsewhere                           |
+| **Theme toggle**       | Switch between dark and light themes; choice persists in `localStorage`                                |
+| **? Shortcuts**        | Open the keyboard shortcuts overlay                                                                    |
+| **⬇ JSON**             | Download the raw `graph.json` data                                                                     |
+| **⬇ CSV**              | Download per-module metrics as CSV                                                                     |
+
+Contextual controls live on the panel they act on. The **Map** panel carries its own toolbar:
+*Heatmap* (colour nodes green → red by instability index), *Path* (shortest dependency path between
+two modules, highlighted in the graph), *Export* (save the current Architecture, Force, or Matrix
+view as SVG), and *Inspector* (toggle the inspector rail).
 
 ### Command palette and keyboard shortcuts
 
@@ -329,7 +336,6 @@ Press `?` at any time to open the keyboard shortcuts overlay:
 | `/`         | Focus module search                                   |
 | `1`–`6`     | Switch to panel by index                              |
 | `T`         | Toggle dark/light theme                               |
-| `D`         | Toggle comfy/compact density                          |
 | `I`         | Toggle inspector sidebar (collapses to a narrow rail) |
 | `F`         | Fit graph (Map panel)                                 |
 | `R`         | Re-layout graph (Map panel)                           |
@@ -340,15 +346,13 @@ Press `?` at any time to open the keyboard shortcuts overlay:
 | `J`         | Download `graph.json`                                 |
 | `?`         | Toggle this overlay                                   |
 
-### Themes, density, and print
+### Themes and print
 
 **Dark + light themes.** Default tracks `prefers-color-scheme`; toggle in the header (`T`). Choice
-persists in `localStorage`. Both themes share the drafting-table identity - faint grid background,
-ink + drafting-cyan palette, monospaced metadata - and use the OS system font stack, so the report
-stays fully offline.
-
-**Density toggle.** Press `D` (or use the density button) to switch between *comfy* and *compact*
-spacing across panels, KPI cards, violation cards, and tables. Choice persists in `localStorage`.
+persists in `localStorage`. Both themes share the transit-map identity - tiers as coloured lines,
+modules as stops, cycles as closed loops - as a warm graphite dark theme (*Night Terminal*) and a
+cool paper light theme (*Map Paper*). The Hanken Grotesk and Spline Sans Mono typefaces are
+base64-inlined as `woff2`, so the report stays fully offline with no web-font request.
 
 **Inspector rail.** When no module is selected, press `I` to collapse the right sidebar to a narrow
 rail and reclaim the canvas. Selecting a module re-expands it.

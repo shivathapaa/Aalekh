@@ -6,6 +6,14 @@ All notable changes to this project are documented here. Format based on
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-07-16
+
+### Changed
+- HTML report **Interchange redesign**. The report is rebuilt around a
+  transit-map metaphor. Only the report *template* changed -
+  every data, task, and output contract is unchanged.
+- Dependency and toolchain updates
+
 ## [0.5.0] - 2026-05-20
 
 ### Added
@@ -140,7 +148,8 @@ All notable changes to this project are documented here. Format based on
 - Initial public preview: `aalekhExtract`, `aalekhReport`, `aalekhCheck` tasks;
   basic interactive HTML graph; cycle detection.
 
-[Unreleased]: https://github.com/shivathapaa/aalekh/compare/0.5.0...HEAD
+[Unreleased]: https://github.com/shivathapaa/aalekh/compare/0.5.1...HEAD
+[0.5.1]: https://github.com/shivathapaa/aalekh/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/shivathapaa/aalekh/compare/0.4.0...0.5.0
 [0.4.0]: https://github.com/shivathapaa/aalekh/compare/0.3.0...0.4.0
 [0.3.0]: https://github.com/shivathapaa/aalekh/compare/0.2.0...0.3.0
