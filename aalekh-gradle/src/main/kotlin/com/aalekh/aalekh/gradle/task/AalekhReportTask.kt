@@ -78,6 +78,14 @@ public abstract class AalekhReportTask : DefaultTask() {
     public abstract val ruleEntries: ListProperty<String>
 
     /**
+     * Serialized team-ownership map from the `teams { }` DSL block.
+     * Format: `"team=pat1,pat2;team2=pat3"` (from `TeamOwnershipConfig.toInputString`).
+     * Empty string means no teams are declared and the ownership overlay stays off.
+     */
+    @get:Input
+    public abstract val teamEntries: Property<String>
+
+    /**
      * Path to the rolling trend history JSON file (`build/aalekh/trend.json`).
      * Marked `@Internal` so it is not a CC input/output - the file is written as a
      * side-effect and failure to read/write it is always non-fatal.
@@ -90,6 +98,7 @@ public abstract class AalekhReportTask : DefaultTask() {
         description = "Generates an interactive HTML module dependency graph. " +
                 "Run: ./gradlew aalekhReport"
         exportMetrics.convention(false)
+        teamEntries.convention("")
     }
 
     @TaskAction
@@ -107,9 +116,10 @@ public abstract class AalekhReportTask : DefaultTask() {
 
         // Collect trend history before writing the report so the current run is included.
         val trendJson = updateAndReadTrend(graph)
+        val teamOwners = parseTeamEntries(teamEntries.getOrElse(""))
 
         outputPath.parentFile.mkdirs()
-        outputPath.writeText(report.generateHtml(trendJson))
+        outputPath.writeText(report.generateHtml(trendJson, teamOwners))
 
         if (exportMetrics.getOrElse(false)) {
             val csvFile = outputPath.resolveSibling("aalekh-metrics.csv")
@@ -199,6 +209,27 @@ public abstract class AalekhReportTask : DefaultTask() {
 
     private fun readGraph(): ModuleDependencyGraph =
         taskJson.decodeFromString(graphJsonFile.get().asFile.readText())
+
+    /**
+     * Reconstructs the team → glob-pattern map from the serialized `teams { }` input.
+     * Inverse of `TeamOwnershipConfig.toInputString`. Entries without a name or with no
+     * patterns are dropped; a blank input yields an empty map (overlay disabled).
+     */
+    private fun parseTeamEntries(raw: String): Map<String, List<String>> {
+        if (raw.isBlank()) return emptyMap()
+        return raw.split(";")
+            .mapNotNull { entry ->
+                val separator = entry.indexOf('=')
+                if (separator <= 0) return@mapNotNull null
+                val name = entry.substring(0, separator)
+                val patterns = entry.substring(separator + 1)
+                    .split(",")
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                if (patterns.isEmpty()) null else name to patterns
+            }
+            .toMap()
+    }
 }
 
 /**

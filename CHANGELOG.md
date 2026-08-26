@@ -6,6 +6,15 @@ All notable changes to this project are documented here. Format based on
 
 ## [Unreleased]
 
+### Fixed
+- Team ownership overlay is now wired end-to-end. The `teams { }` DSL was fully
+  implemented (config, report JS, and docs) but never connected: `aalekhReport`
+  did not carry the configured teams into the report and the generator hardcoded an
+  empty `teamOwners` map, so the colour overlay and team legend never appeared. The
+  serialized team map now flows from the extension through a new `teamEntries` task
+  `@Input` (configuration-cache safe) into `summary.teamOwners`, and the report
+  resolves module→team client-side as designed.
+
 ## [0.5.1] - 2026-07-16
 
 ### Changed

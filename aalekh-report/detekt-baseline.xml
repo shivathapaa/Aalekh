@@ -2,7 +2,8 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>LongMethod:HtmlReportGenerator.kt$HtmlReportGenerator$private fun buildSummaryJson( summary: GraphSummary, violations: List&lt;Violation&gt;, graph: ModuleDependencyGraph, trendJson: String, ): String</ID>
+    <ID>LongMethod:HtmlReportGenerator.kt$HtmlReportGenerator$private fun buildSummaryJson( summary: GraphSummary, violations: List&lt;Violation&gt;, graph: ModuleDependencyGraph, trendJson: String, teamOwners: Map&lt;String, List&lt;String&gt;&gt;, ): String</ID>
+    <ID>LongParameterList:HtmlReportGenerator.kt$HtmlReportGenerator$( projectName: String, graph: ModuleDependencyGraph, summary: GraphSummary, violations: List&lt;Violation&gt; = emptyList(), trendJson: String = "[]", teamOwners: Map&lt;String, List&lt;String&gt;&gt; = emptyMap(), )</ID>
     <ID>MaxLineLength:CsvMetricsExporter.kt$CsvMetricsExporter$sb.appendLine("timestamp,module,type,fanIn,fanOut,instability,transitiveDepCount,healthScore,isGodModule,isOnCriticalPath,hasCycle")</ID>
     <ID>MaxLineLength:CsvMetricsExporterTest.kt$CsvMetricsExporterTest$"timestamp,module,type,fanIn,fanOut,instability,transitiveDepCount,healthScore,isGodModule,isOnCriticalPath,hasCycle"</ID>
     <ID>MaxLineLength:JUnitXmlWriter.kt$JUnitXmlWriter$appendLine(""" &lt;failure message="${xmlEscape(violation.message)}" type="${violation.severity}"&gt;""")</ID>

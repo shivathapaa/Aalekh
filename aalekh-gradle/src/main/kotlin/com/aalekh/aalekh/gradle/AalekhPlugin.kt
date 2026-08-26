@@ -104,6 +104,7 @@ public class AalekhPlugin : Plugin<Project> {
             task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
             task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
             task.ruleEntries.set(extension.rulesConfig.entries)
+            task.teamEntries.set(project.provider { extension.teamOwnership.toInputString() })
             task.trendFile.set(project.layout.buildDirectory.file("aalekh/trend.json"))
             task.dependsOn(extractTask)
         }

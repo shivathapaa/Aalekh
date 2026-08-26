@@ -26,14 +26,20 @@ public class ReportCoordinator(
      *
      * @param trendJson JSON array string of historical trend entries to embed in the report.
      *   Defaults to `"[]"` when no trend history is available.
+     * @param teamOwners Map of team name to the module path glob patterns it owns, from the
+     *   `teams { }` DSL. Drives the ownership colour overlay; empty (the default) disables it.
      */
-    public fun generateHtml(trendJson: String = "[]"): String =
+    public fun generateHtml(
+        trendJson: String = "[]",
+        teamOwners: Map<String, List<String>> = emptyMap(),
+    ): String =
         HtmlReportGenerator.generate(
             projectName = projectName,
             graph = graph,
             summary = summary,
             violations = ruleResult.violations,
             trendJson = trendJson,
+            teamOwners = teamOwners,
         )
 
     /** Generates JUnit XML output for CI test reporting systems. */

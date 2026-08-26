@@ -388,4 +388,38 @@ class HtmlReportGeneratorTest {
         assertTrue(html.contains(":core:ui:presentation:utils"), "Deeply nested path should be in report")
         assertTrue(html.contains(":feature:login:data:remote"), "Deeply nested path should be in report")
     }
+
+    // Team ownership overlay
+
+    @Test
+    fun `team owners map is embedded in the summary JSON`() {
+        val graph = sampleGraph()
+        val html = HtmlReportGenerator.generate(
+            projectName = graph.projectName,
+            graph = graph,
+            summary = GraphAnalyzer.summary(graph),
+            teamOwners = mapOf(
+                "auth-team" to listOf(":feature:login:**", ":core:auth"),
+                "data-team" to listOf(":core:domain"),
+            ),
+        )
+        assertTrue(
+            html.contains(""""auth-team":[":feature:login:**",":core:auth"]"""),
+            "teamOwners must embed each team with its glob patterns"
+        )
+        assertTrue(
+            html.contains(""""data-team":[":core:domain"]"""),
+            "Every declared team must appear in teamOwners"
+        )
+    }
+
+    @Test
+    fun `no teams declared yields an empty teamOwners object`() {
+        // Default generate() passes no teamOwners; the overlay stays disabled.
+        val html = generateHtml()
+        assertTrue(
+            html.contains(""""teamOwners":{}"""),
+            "An empty team map must serialize as an empty object so the overlay is off"
+        )
+    }
 }

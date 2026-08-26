@@ -183,6 +183,41 @@ class AalekhPluginFunctionalTest {
         )
     }
 
+    /**
+     * Multi-module project with a `teams { }` block so the ownership overlay has data to render.
+     */
+    private fun setupTeamOwnershipProject() {
+        listOf("core/domain", "feature/login").forEach { projectDir.resolve(it).mkdirs() }
+
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins { id("io.github.shivathapaa.aalekh") }
+            rootProject.name = "team-test"
+            include(":core:domain", ":feature:login")
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                teams {
+                    team("auth-team") { modules(":feature:login") }
+                    team("core-team") { modules(":core:**") }
+                }
+            }
+            """.trimIndent()
+        )
+        projectDir.resolve("core/domain/build.gradle.kts").writeText(
+            """plugins { kotlin("jvm") version "2.3.0" }"""
+        )
+        projectDir.resolve("feature/login/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies { implementation(project(":core:domain")) }
+            """.trimIndent()
+        )
+    }
+
     // Task registration
 
     @Test
@@ -250,6 +285,21 @@ class AalekhPluginFunctionalTest {
         gradleRunner("aalekhReport", "--no-configuration-cache").build()
         val html = projectDir.resolve("build/reports/aalekh/index.html").readText()
         assertFalse(html.contains("DATA INJECTED BY KOTLIN GENERATOR"))
+    }
+
+    @Test
+    fun `aalekhReport wires the teams DSL through to the report teamOwners map`() {
+        setupTeamOwnershipProject()
+        gradleRunner("aalekhReport", "--no-configuration-cache").build()
+        val html = projectDir.resolve("build/reports/aalekh/index.html").readText()
+        assertTrue(
+            html.contains(""""auth-team":[":feature:login"]"""),
+            "teams { } config must reach summary.teamOwners so the overlay can render"
+        )
+        assertTrue(
+            html.contains(""""core-team":[":core:**"]"""),
+            "Every declared team must appear in the report's teamOwners map"
+        )
     }
 
     // Graph extraction

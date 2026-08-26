@@ -63,6 +63,10 @@ public object HtmlReportGenerator {
      * @param trendJson   JSON array string of historical trend entries, injected into the report
      *                    so the client-side chart can plot module/edge counts over time.
      *                    Defaults to `"[]"` when no history is available yet.
+     * @param teamOwners  Map of team name to the module path glob patterns it owns, from the
+     *                    `teams { }` DSL. Injected as `summary.teamOwners`; the report resolves
+     *                    module→team client-side and draws the ownership colour overlay. Empty
+     *                    map (the default) leaves the overlay disabled.
      */
     public fun generate(
         projectName: String,
@@ -70,10 +74,11 @@ public object HtmlReportGenerator {
         summary: GraphSummary,
         violations: List<Violation> = emptyList(),
         trendJson: String = "[]",
+        teamOwners: Map<String, List<String>> = emptyMap(),
     ): String {
         val template = loadTemplate()
         val graphJson = json.encodeToString(graph)
-        val summaryJson = buildSummaryJson(summary, violations, graph, trendJson)
+        val summaryJson = buildSummaryJson(summary, violations, graph, trendJson, teamOwners)
 
         // Build the two data script tags that the template JS reads via
         // parseScriptJson('aalekh-graph-data') and parseScriptJson('aalekh-summary-data').
@@ -114,6 +119,7 @@ public object HtmlReportGenerator {
         violations: List<Violation>,
         graph: ModuleDependencyGraph,
         trendJson: String,
+        teamOwners: Map<String, List<String>>,
     ): String {
         val byType = summary.modulesByType.entries.joinToString(",") { (k, v) -> "\"$k\":$v" }
         val violationsJson = violations.joinToString(",") { v ->
@@ -159,6 +165,14 @@ public object HtmlReportGenerator {
                 "\"$key\":{\"reason\":$reasonValue,\"adrUrl\":$adrUrlValue}"
             }
 
+        // Team ownership: emit the raw team → glob-pattern map. The report's
+        // setupTeamOwnership() resolves each module to a team client-side via its
+        // own globMatch, so no server-side path matching is needed here.
+        val teamOwnersJson = teamOwners.entries.joinToString(",") { (team, patterns) ->
+            val pats = patterns.joinToString(",") { "\"${escapeJson(it)}\"" }
+            "\"${escapeJson(team)}\":[$pats]"
+        }
+
         return """{
 "totalModules":${summary.totalModules},
 "totalEdges":${summary.totalEdges},
@@ -182,7 +196,7 @@ public object HtmlReportGenerator {
 "mainCycleNodes":[$mainCycleNodesJson],
 "mainCycleEdges":[$mainCycleEdgesJson],
 "trendEntries":$trendJson,
-"teamOwners":{},
+"teamOwners":{$teamOwnersJson},
 "adrLinks":{$adrLinksJson}
 }""".replace("\n", "")  // single line for embedding in HTML
     }
