@@ -1,5 +1,6 @@
 package com.aalekh.aalekh.analysis.temporal
 
+import com.aalekh.aalekh.analysis.graph.ModuleFileIndex
 import com.aalekh.aalekh.model.CoChange
 import com.aalekh.aalekh.model.DeclaredEdgeRef
 import com.aalekh.aalekh.model.ModuleChurn
@@ -57,10 +58,10 @@ public object TemporalCouplingAnalyzer {
     ): TemporalCouplingReport {
         if (commits.isEmpty() || graph.modules.isEmpty()) return TemporalCouplingReport.EMPTY
 
-        val directories = moduleDirectories(graph)
+        val directories = ModuleFileIndex.directories(graph)
         // When no commit maps to a module, every list below is empty and the result equals EMPTY.
         val touchedPerCommit = commits
-            .map { commit -> modulesTouched(commit, directories) }
+            .map { commit -> ModuleFileIndex.modulesTouched(commit.changedFiles, directories) }
             .filter { it.isNotEmpty() }
 
         val churn = HashMap<String, Int>()
@@ -81,31 +82,6 @@ public object TemporalCouplingAnalyzer {
             deadStructure = deadStructure(graph, churn, shared),
         )
     }
-
-    /**
-     * Maps each module to its source directory (repo-relative, no trailing slash), sorted with the
-     * deepest directory first so [fileToModule] can match the most specific module by prefix. The
-     * root project (empty directory) is excluded: it owns no subproject files of its own.
-     */
-    private fun moduleDirectories(graph: ModuleDependencyGraph): List<ModuleDir> =
-        graph.modules
-            .map { module ->
-                val directory = module.buildFilePath?.substringBeforeLast('/', missingDelimiterValue = "")
-                    ?: module.path.trimStart(':').replace(':', '/')
-                ModuleDir(directory, module.path)
-            }
-            .filter { it.directory.isNotEmpty() }
-            .sortedWith(compareByDescending<ModuleDir> { it.directory.length }.thenBy { it.directory })
-
-    /** The distinct set of modules whose directory contains at least one of the commit's files. */
-    private fun modulesTouched(commit: CommitChange, directories: List<ModuleDir>): Set<String> =
-        commit.changedFiles.mapNotNullTo(LinkedHashSet()) { file -> fileToModule(file, directories) }
-
-    /** Longest-prefix match: the first (deepest) module directory that owns [file]. */
-    private fun fileToModule(file: String, directories: List<ModuleDir>): String? =
-        directories.firstOrNull { dir ->
-            file == dir.directory || file.startsWith(dir.directory + "/")
-        }?.path
 
     /** Increments the shared-commit count for every unordered module pair in one commit. */
     private fun accumulatePairs(modules: Set<String>, shared: MutableMap<PairKey, Int>) {
@@ -179,8 +155,6 @@ public object TemporalCouplingAnalyzer {
             .distinct()
             .sortedWith(compareBy<DeclaredEdgeRef> { it.from }.thenBy { it.to })
             .toList()
-
-    private data class ModuleDir(val directory: String, val path: String)
 
     /** An unordered pair of module paths, canonicalised so [a] <= [b]. */
     private data class PairKey(val a: String, val b: String) {
