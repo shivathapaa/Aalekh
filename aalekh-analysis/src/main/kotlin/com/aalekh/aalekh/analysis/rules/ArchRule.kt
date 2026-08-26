@@ -112,13 +112,20 @@ public class RuleEngine(
          *   `"custom:class:fully.qualified.ClassName"`.
          * @param previousCycleCount Main-code cycle count from the previous run's results JSON.
          *   Null when no prior results exist - regression check is skipped in that case.
+         * @param forbidEntries Serialized `forbid { }` predicate rules. Format per entry:
+         *   `"<fromKind>|<fromValue>|<toKind>|<toValue>|<severity>|<reason>"` where kind is
+         *   `path` or `type`.
          */
+        // Parameters are one cohesive set of serialized DSL channels reconstructed at execution
+        // time; bundling them into a holder adds indirection at every call site without any gain.
+        @Suppress("LongParameterList")
         public fun fromConfig(
             layerEntries: List<String>,
             featurePattern: String,
             featureAllowedPairs: List<String>,
             ruleEntries: List<String>,
             previousCycleCount: Int? = null,
+            forbidEntries: List<String> = emptyList(),
         ): RuleEngine {
             val parsed = parseRuleEntries(ruleEntries)
             val rules = mutableListOf<ArchRule>()
@@ -137,11 +144,35 @@ public class RuleEngine(
             parsed.maxTransitive?.let { rules += MaxTransitiveDependenciesRule(it) }
             parsed.maxGraphHeight?.let { rules += MaxGraphHeightRule(it) }
             if (parsed.forbidOrphans) rules += NoOrphanModulesRule()
+            rules += forbidEntries.mapNotNull { parsePredicateRule(it) }
 
             return RuleEngine(
                 rules = rules,
                 severityOverrides = parsed.severityOverrides,
                 suppressions = parsed.suppressions,
+            )
+        }
+
+        /**
+         * Rebuilds a [PredicateRule] from one serialized `forbid { }` entry, or null if it is
+         * malformed. Format: `"<fromKind>|<fromValue>|<toKind>|<toValue>|<severity>|<reason>"`; the
+         * reason is the final field and may itself contain no `|` (the DSL strips it).
+         */
+        private const val PREDICATE_FIELDS = 6
+        private const val PREDICATE_MIN_FIELDS = 5
+        private const val TO_VALUE_INDEX = 3
+        private const val SEVERITY_INDEX = 4
+        private const val REASON_INDEX = 5
+
+        private fun parsePredicateRule(entry: String): ArchRule? {
+            val parts = entry.split("|", limit = PREDICATE_FIELDS)
+            if (parts.size < PREDICATE_MIN_FIELDS) return null
+            val severity = Severity.entries.firstOrNull { it.name == parts[SEVERITY_INDEX] } ?: Severity.ERROR
+            return PredicateRule(
+                from = ModuleMatcher.fromSerialized(parts[0], parts[1]),
+                to = ModuleMatcher.fromSerialized(parts[2], parts[TO_VALUE_INDEX]),
+                reason = parts.getOrElse(REASON_INDEX) { "" },
+                defaultSeverity = severity,
             )
         }
 
