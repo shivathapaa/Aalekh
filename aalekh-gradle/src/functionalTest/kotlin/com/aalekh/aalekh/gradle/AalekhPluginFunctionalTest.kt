@@ -647,6 +647,78 @@ class AalekhPluginFunctionalTest {
         )
     }
 
+    // Quality gates (metric-delta regression)
+
+    /** Modules a -> b with c isolated, and quality gates forbidding ccd / critical-path regressions. */
+    private fun setupQualityGateProject() {
+        listOf("a", "b", "c").forEach { projectDir.resolve(it).mkdirs() }
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins { id("io.github.shivathapaa.aalekh") }
+            rootProject.name = "gate-test"
+            include(":a", ":b", ":c")
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                qualityGates {
+                    forbidRegression("ccd", "critical-path")
+                }
+            }
+            """.trimIndent()
+        )
+        projectDir.resolve("a/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies { implementation(project(":b")) }
+            """.trimIndent()
+        )
+        projectDir.resolve("b/build.gradle.kts").writeText(
+            """plugins { kotlin("jvm") version "2.3.0" }"""
+        )
+        projectDir.resolve("c/build.gradle.kts").writeText(
+            """plugins { kotlin("jvm") version "2.3.0" }"""
+        )
+    }
+
+    @Test
+    fun `quality gate fails the build when a metric regresses past the baseline`() {
+        setupQualityGateProject()
+        gradleRunner("aalekhBaseline", "--no-configuration-cache").build()
+        assertTrue(
+            projectDir.resolve("aalekh-baseline.json").readText().contains("\"metrics\""),
+            "the baseline must record a metrics snapshot for the gates to compare against",
+        )
+
+        // Deepen the graph: b now depends on c, lengthening the critical path and raising CCD.
+        projectDir.resolve("b/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies { implementation(project(":c")) }
+            """.trimIndent()
+        )
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        assertEquals(TaskOutcome.FAILED, result.task(":aalekhCheck")?.outcome)
+        assertTrue(
+            result.output.contains("metric-regression") || result.output.contains("regressed"),
+            "a metric regression past the baseline must fail aalekhCheck",
+        )
+    }
+
+    @Test
+    fun `quality gate passes when no metric regresses`() {
+        setupQualityGateProject()
+        gradleRunner("aalekhBaseline", "--no-configuration-cache").build()
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").build()
+        assertEquals(
+            TaskOutcome.SUCCESS,
+            result.task(":aalekhCheck")?.outcome,
+            "an unchanged graph must not trip any quality gate",
+        )
+    }
+
     // Temporal coupling
 
     private fun runGit(vararg args: String) {

@@ -1,14 +1,18 @@
 package com.aalekh.aalekh.gradle.task
 
 import com.aalekh.aalekh.analysis.baseline.ViolationBaseline
+import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
+import com.aalekh.aalekh.analysis.metrics.MetricGateEvaluator
 import com.aalekh.aalekh.analysis.rules.RuleEngine
 import com.aalekh.aalekh.model.AalekhBuildConfig
+import com.aalekh.aalekh.model.MetricSnapshot
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
@@ -78,11 +82,13 @@ public abstract class AalekhBaselineTask : DefaultTask() {
             ruleEntries = ruleEntries.get(),
         )
         val fingerprints = ViolationBaseline.toFingerprints(ruleEngine.evaluate(graph).violations)
+        val metrics = MetricGateEvaluator.snapshot(GraphAnalyzer.summary(graph))
 
         val envelope = buildJsonObject {
             put("version", AalekhBuildConfig.VERSION)
             put("generatedAt", Instant.now().toString())
             put("fingerprints", JsonArray(fingerprints.map { JsonPrimitive(it) }))
+            put("metrics", baselineJson.encodeToJsonElement(MetricSnapshot.serializer(), metrics))
         }
 
         val file = baselineOutputFile.get().asFile

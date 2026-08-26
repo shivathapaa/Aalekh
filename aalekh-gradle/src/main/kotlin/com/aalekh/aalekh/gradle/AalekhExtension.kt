@@ -2,6 +2,7 @@ package com.aalekh.aalekh.gradle
 
 import com.aalekh.aalekh.gradle.dsl.FeatureIsolationConfig
 import com.aalekh.aalekh.gradle.dsl.LayerConfig
+import com.aalekh.aalekh.gradle.dsl.QualityGatesConfig
 import com.aalekh.aalekh.gradle.dsl.RulesConfig
 import com.aalekh.aalekh.gradle.dsl.TeamOwnershipConfig
 import com.aalekh.aalekh.gradle.dsl.TemporalCouplingConfig
@@ -167,6 +168,18 @@ public abstract class AalekhExtension @Inject constructor(private val objects: O
     /** Configures git temporal-coupling analysis via the [TemporalCouplingConfig] DSL. */
     public fun temporalCoupling(configure: TemporalCouplingConfig.() -> Unit) {
         temporalCouplingConfig.configure()
+    }
+
+    /**
+     * Configures metric-delta quality gates that fail `aalekhCheck` when a structural metric
+     * regressed versus the committed baseline (`aalekh-baseline.json`).
+     */
+    public val qualityGatesConfig: QualityGatesConfig =
+        objects.newInstance(QualityGatesConfig::class.java)
+
+    /** Configures metric-delta quality gates via the [QualityGatesConfig] DSL. */
+    public fun qualityGates(configure: QualityGatesConfig.() -> Unit) {
+        qualityGatesConfig.configure()
     }
 
     public companion object {

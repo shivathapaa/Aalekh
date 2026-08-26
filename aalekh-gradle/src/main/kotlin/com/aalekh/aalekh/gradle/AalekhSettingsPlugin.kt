@@ -141,6 +141,8 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
                 task.baselineFile.set(
                     extension.baselineFile.map { rootProject.layout.projectDirectory.file(it) }
                 )
+                task.qualityGateMetrics.set(extension.qualityGatesConfig.metrics)
+                task.qualityGateSeverity.set(extension.qualityGatesConfig.severity.map { it.name })
 
                 task.dependsOn(extractTask)
             }

@@ -3,16 +3,21 @@ package com.aalekh.aalekh.gradle.task
 import com.aalekh.aalekh.analysis.baseline.ViolationBaseline
 import com.aalekh.aalekh.analysis.graph.CycleAdvisor
 import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
+import com.aalekh.aalekh.analysis.metrics.MetricGate
+import com.aalekh.aalekh.analysis.metrics.MetricGateEvaluator
 import com.aalekh.aalekh.analysis.rules.RuleEngine
 import com.aalekh.aalekh.analysis.rules.RuleEngineResult
+import com.aalekh.aalekh.model.MetricSnapshot
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.Severity
+import com.aalekh.aalekh.model.Violation
 import com.aalekh.aalekh.report.ReportCoordinator
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -309,10 +314,22 @@ public abstract class AalekhCheckTask : DefaultTask() {
     @get:Internal
     public abstract val baselineFile: RegularFileProperty
 
+    /**
+     * Metric keys enabled as quality gates via `qualityGates { forbidRegression(...) }`. Each names a
+     * structural metric that must not exceed its baseline value. Empty means no gates are enforced.
+     */
+    @get:Input
+    public abstract val qualityGateMetrics: ListProperty<String>
+
+    /** Severity name (`ERROR` / `WARNING` / `INFO`) assigned to a metric regression. */
+    @get:Input
+    public abstract val qualityGateSeverity: Property<String>
+
     init {
         group = "aalekh"
         description = "Evaluates architecture rules. Fails the build on ERROR-level violations. " +
                 "Run: ./gradlew aalekhCheck"
+        qualityGateSeverity.convention(Severity.ERROR.name)
     }
 
     @TaskAction
@@ -340,7 +357,11 @@ public abstract class AalekhCheckTask : DefaultTask() {
                         "(from ${baselineFile.orNull?.asFile?.name ?: "baseline"})."
             )
         }
-        val ruleResult = rawResult.copy(violations = baselined.newViolations)
+
+        // Metric-delta quality gates run on top of the baselined violations - a regression versus the
+        // committed baseline metrics is a fresh violation, never itself suppressed by the baseline.
+        val gateViolations = evaluateQualityGates(graph)
+        val ruleResult = rawResult.copy(violations = baselined.newViolations + gateViolations)
 
         val report = ReportCoordinator(graph, ruleResult, projectName.get())
 
@@ -371,6 +392,44 @@ public abstract class AalekhCheckTask : DefaultTask() {
                 ?.toSet()
                 .orEmpty()
         }.getOrElse { emptySet() }
+    }
+
+    /**
+     * Evaluates the configured metric-delta quality gates against the committed baseline metrics.
+     * Returns one violation per metric that regressed. No gates or no baseline metrics -> no
+     * violations (nothing to compare against), mirroring cycle `preventRegression`.
+     */
+    private fun evaluateQualityGates(graph: ModuleDependencyGraph): List<Violation> {
+        val gates = qualityGateMetrics.getOrElse(emptyList())
+            .mapNotNull { MetricGate.fromKey(it) }
+            .toSet()
+        if (gates.isEmpty()) return emptyList()
+
+        val baselineMetrics = readBaselineMetrics()
+        return when (baselineMetrics) {
+            null -> {
+                logger.lifecycle(
+                    "Aalekh: quality gates are configured but the baseline has no metrics snapshot - " +
+                            "run ./gradlew aalekhBaseline to record one."
+                )
+                emptyList()
+            }
+            else -> {
+                val severity = Severity.entries.firstOrNull { it.name == qualityGateSeverity.getOrElse("ERROR") }
+                    ?: Severity.ERROR
+                val current = MetricGateEvaluator.snapshot(GraphAnalyzer.summary(graph))
+                MetricGateEvaluator.evaluate(current, baselineMetrics, gates, severity)
+            }
+        }
+    }
+
+    /** Reads the metrics snapshot from the baseline file, or null when absent or unparseable. */
+    private fun readBaselineMetrics(): MetricSnapshot? {
+        val file = baselineFile.orNull?.asFile?.takeIf { it.exists() } ?: return null
+        return runCatching {
+            val root = taskJson.parseToJsonElement(file.readText()).jsonObject
+            root["metrics"]?.let { taskJson.decodeFromJsonElement(MetricSnapshot.serializer(), it) }
+        }.getOrNull()
     }
 
     private fun logResults(ruleResult: RuleEngineResult, outDir: java.io.File) {
