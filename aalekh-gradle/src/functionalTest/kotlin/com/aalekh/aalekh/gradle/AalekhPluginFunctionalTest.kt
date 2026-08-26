@@ -797,6 +797,45 @@ class AalekhPluginFunctionalTest {
     }
 
     @Test
+    fun `aalekhAffected reports the modules changed by a diff and their blast radius`() {
+        setupMultiModuleProject()
+        writeSource("core/domain/src/main/kotlin/D.kt", "object D { const val V = 0 }")
+        writeSource("core/data/src/main/kotlin/R.kt", "object R { const val V = 0 }")
+        writeSource("feature/login/src/main/kotlin/L.kt", "object L { const val V = 0 }")
+        runGit("init", "-q")
+        gitCommitAll("init")
+        // Change only core:domain; core:data and feature:login depend on it (blast radius).
+        writeSource("core/domain/src/main/kotlin/D.kt", "object D { const val V = 1 }")
+        gitCommitAll("touch domain")
+
+        val result = gradleRunner("aalekhAffected", "--no-configuration-cache").build()
+        assertEquals(TaskOutcome.SUCCESS, result.task(":aalekhAffected")?.outcome)
+
+        val md = projectDir.resolve("build/reports/aalekh/aalekh-affected.md").readText()
+        assertTrue(md.contains("### Changed"), "the report must have a changed-modules section")
+        assertTrue(md.contains(":core:domain"), "the changed module must be listed")
+        assertTrue(md.contains(":feature:login"), "a downstream dependent must be in the affected set")
+
+        val json = projectDir.resolve("build/reports/aalekh/aalekh-affected.json")
+        assertTrue(json.exists(), "aalekhAffected must write the JSON artefact")
+        assertTrue(json.readText().contains("\"affected\""), "JSON must carry the affected set")
+    }
+
+    @Test
+    fun `aalekhAffected degrades gracefully when there is no git history`() {
+        setupMultiModuleProject()
+        val result = gradleRunner("aalekhAffected", "--no-configuration-cache").build()
+        assertEquals(
+            TaskOutcome.SUCCESS,
+            result.task(":aalekhAffected")?.outcome,
+            "a missing git history must not fail the build",
+        )
+        val md = projectDir.resolve("build/reports/aalekh/aalekh-affected.md")
+        assertTrue(md.exists(), "an affected report file must still be written")
+        assertTrue(md.readText().contains("No module sources changed"))
+    }
+
+    @Test
     fun `aalekhTemporal is configuration cache compatible on second run`() {
         // Single java-library module, mirroring the aalekhReport CC test, to avoid the
         // Kotlin-Gradle-plugin build-service-across-sibling-projects quirk that breaks CC store.

@@ -1,5 +1,6 @@
 package com.aalekh.aalekh.gradle
 
+import com.aalekh.aalekh.gradle.dsl.AffectedGraphConfig
 import com.aalekh.aalekh.gradle.dsl.FeatureIsolationConfig
 import com.aalekh.aalekh.gradle.dsl.LayerConfig
 import com.aalekh.aalekh.gradle.dsl.QualityGatesConfig
@@ -180,6 +181,18 @@ public abstract class AalekhExtension @Inject constructor(private val objects: O
     /** Configures metric-delta quality gates via the [QualityGatesConfig] DSL. */
     public fun qualityGates(configure: QualityGatesConfig.() -> Unit) {
         qualityGatesConfig.configure()
+    }
+
+    /**
+     * Configures the affected-graph analysis run by `aalekhAffected` - the git refs to diff for the
+     * "what does this change rebuild?" pull-request artefact.
+     */
+    public val affectedGraphConfig: AffectedGraphConfig =
+        objects.newInstance(AffectedGraphConfig::class.java)
+
+    /** Configures the affected-graph diff range via the [AffectedGraphConfig] DSL. */
+    public fun affected(configure: AffectedGraphConfig.() -> Unit) {
+        affectedGraphConfig.configure()
     }
 
     public companion object {

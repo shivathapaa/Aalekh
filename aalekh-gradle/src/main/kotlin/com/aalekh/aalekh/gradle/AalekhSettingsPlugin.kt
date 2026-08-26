@@ -1,6 +1,7 @@
 package com.aalekh.aalekh.gradle
 
 import com.aalekh.aalekh.gradle.extractor.ConfigurationClassifier
+import com.aalekh.aalekh.gradle.task.AalekhAffectedTask
 import com.aalekh.aalekh.gradle.task.AalekhBaselineTask
 import com.aalekh.aalekh.gradle.task.AalekhCheckTask
 import com.aalekh.aalekh.gradle.task.AalekhExtractTask
@@ -195,6 +196,21 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
                 val reportsDir = rootProject.layout.buildDirectory.dir(extension.outputDir)
                 task.jsonFile.set(reportsDir.map { it.file("aalekh-temporal.json") })
                 task.markdownFile.set(reportsDir.map { it.file("aalekh-temporal.md") })
+                task.dependsOn(extractTask)
+            }
+
+            rootProject.tasks.register(
+                "aalekhAffected",
+                AalekhAffectedTask::class.java,
+            ) { task ->
+                task.graphJsonFile.set(graphJsonFile)
+                task.projectName.set(rootProject.name)
+                task.rootDir.set(rootProject.rootDir.absolutePath)
+                task.baseRef.set(extension.affectedGraphConfig.baseRef)
+                task.headRef.set(extension.affectedGraphConfig.headRef)
+                val reportsDir = rootProject.layout.buildDirectory.dir(extension.outputDir)
+                task.jsonFile.set(reportsDir.map { it.file("aalekh-affected.json") })
+                task.markdownFile.set(reportsDir.map { it.file("aalekh-affected.md") })
                 task.dependsOn(extractTask)
             }
 
