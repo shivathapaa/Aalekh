@@ -1,6 +1,7 @@
 package com.aalekh.aalekh.gradle.task
 
 import com.aalekh.aalekh.analysis.baseline.ViolationBaseline
+import com.aalekh.aalekh.analysis.graph.CycleAdvisor
 import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
 import com.aalekh.aalekh.analysis.rules.RuleEngine
 import com.aalekh.aalekh.analysis.rules.RuleEngineResult
@@ -348,6 +349,7 @@ public abstract class AalekhCheckTask : DefaultTask() {
         outDir.resolve("aalekh-results.sarif").writeText(report.generateSarif())
 
         logResults(ruleResult, outDir)
+        logCycleAdvice(graph, ruleResult)
 
         check(!ruleResult.hasBuildFailure) {
             "\nAalekh: ${ruleResult.errorCount} violation(s) found. " +
@@ -417,6 +419,25 @@ public abstract class AalekhCheckTask : DefaultTask() {
             "\nAalekh: $summary found across ${ruleResult.rulesEvaluated} rule(s). " +
                     "Report: ${outDir.absolutePath}/index.html"
         )
+    }
+
+    /**
+     * When the run reported any cycle, prints the specific edges to remove to break it - the
+     * feedback-arc-set advice from [CycleAdvisor]. Turns a red `no-cyclic-dependencies` failure into
+     * a concrete to-do rather than just a diagnosis.
+     */
+    private fun logCycleAdvice(graph: ModuleDependencyGraph, ruleResult: RuleEngineResult) {
+        if (ruleResult.violations.none { it.ruleId == "no-cyclic-dependencies" }) return
+        val advice = CycleAdvisor.suggestBreaks(graph)
+        if (advice.isEmpty()) return
+
+        logger.lifecycle("\nAalekh: to break the detected cycle(s), consider removing:")
+        advice.forEach { suggestion ->
+            val location = suggestion.buildFilePath?.let { path ->
+                suggestion.declarationLine?.let { line -> "$path:$line" } ?: path
+            } ?: "${suggestion.from}'s build file"
+            logger.lifecycle("  • ${suggestion.configuration}(project(\"${suggestion.to}\")) in $location")
+        }
     }
 
     /**

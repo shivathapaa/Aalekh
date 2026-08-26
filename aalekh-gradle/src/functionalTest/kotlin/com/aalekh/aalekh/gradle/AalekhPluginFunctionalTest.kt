@@ -440,6 +440,21 @@ class AalekhPluginFunctionalTest {
     }
 
     @Test
+    fun `aalekhCheck prints cycle break advice naming the edge to remove`() {
+        setupCyclicProject()
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        assertEquals(TaskOutcome.FAILED, result.task(":aalekhCheck")?.outcome)
+        assertTrue(
+            result.output.contains("to break the detected cycle"),
+            "aalekhCheck must print break-up advice when a cycle is detected",
+        )
+        assertTrue(
+            result.output.contains("project(\":module-a\")") || result.output.contains("project(\":module-b\")"),
+            "the advice must name the specific project dependency to remove",
+        )
+    }
+
+    @Test
     fun `aalekhCheck fails build when layer violation is detected`() {
         setupLayerViolationProject()
         val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
