@@ -2,12 +2,16 @@ package com.aalekh.aalekh.report
 
 import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
 import com.aalekh.aalekh.analysis.rules.RuleEngineResult
+import com.aalekh.aalekh.analysis.temporal.CommitChange
+import com.aalekh.aalekh.analysis.temporal.TemporalCouplingAnalyzer
 import com.aalekh.aalekh.model.ModuleDependencyGraph
+import com.aalekh.aalekh.model.TemporalCouplingReport
 import com.aalekh.aalekh.report.html.HtmlReportGenerator
 import com.aalekh.aalekh.report.json.JsonReporter
 import com.aalekh.aalekh.report.junit.JUnitXmlWriter
 import com.aalekh.aalekh.report.mermaid.MermaidGraphGenerator
 import com.aalekh.aalekh.report.sarif.SarifReporter
+import com.aalekh.aalekh.report.temporal.TemporalReportGenerator
 
 /**
  * Facade that drives all report generation from a single call site.
@@ -87,4 +91,30 @@ public class ReportCoordinator(
      */
     public fun generateMermaidMarkdown(): String =
         MermaidGraphGenerator.generateMarkdown(graph, projectName)
+
+    /**
+     * Computes temporal (change) coupling for this graph from a window of recent commits.
+     *
+     * The [commits] come from `git log`, read by the Gradle plugin at execution time; this facade
+     * keeps all git I/O out of the report module. Returns [TemporalCouplingReport.EMPTY] when there
+     * is no history to analyse. Format the result with [temporalMarkdown] / [temporalJson].
+     *
+     * @param minSharedCommits Pairs sharing fewer commits than this are dropped as noise.
+     * @param hiddenCouplingThreshold Undeclared pairs at or above this coupling degree are flagged
+     *   as hidden coupling.
+     */
+    public fun analyzeTemporal(
+        commits: List<CommitChange>,
+        minSharedCommits: Int = TemporalCouplingAnalyzer.DEFAULT_MIN_SHARED_COMMITS,
+        hiddenCouplingThreshold: Double = TemporalCouplingAnalyzer.DEFAULT_HIDDEN_COUPLING_THRESHOLD,
+    ): TemporalCouplingReport =
+        TemporalCouplingAnalyzer.analyze(graph, commits, minSharedCommits, hiddenCouplingThreshold)
+
+    /** Renders a [TemporalCouplingReport] as a reviewable Markdown document. */
+    public fun temporalMarkdown(report: TemporalCouplingReport): String =
+        TemporalReportGenerator.markdown(report, projectName)
+
+    /** Renders a [TemporalCouplingReport] as machine-readable JSON. */
+    public fun temporalJson(report: TemporalCouplingReport): String =
+        TemporalReportGenerator.json(report)
 }
