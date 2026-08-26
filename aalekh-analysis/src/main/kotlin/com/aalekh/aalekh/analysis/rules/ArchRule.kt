@@ -120,64 +120,83 @@ public class RuleEngine(
             ruleEntries: List<String>,
             previousCycleCount: Int? = null,
         ): RuleEngine {
+            val parsed = parseRuleEntries(ruleEntries)
             val rules = mutableListOf<ArchRule>()
 
+            rules += parsed.customRules
+            rules += NoCyclicDependenciesRule(
+                previousCycleCount = if (parsed.preventCycleRegression) previousCycleCount else null,
+                preventRegression = parsed.preventCycleRegression,
+            )
+            if (layerEntries.isNotEmpty()) {
+                rules += LayerDependencyRule.fromSerializedLayers(layerEntries)
+            }
+            if (featurePattern.isNotBlank()) {
+                rules += NoFeatureToFeatureDependencyRule(featurePattern, featureAllowedPairs)
+            }
+            parsed.maxTransitive?.let { rules += MaxTransitiveDependenciesRule(it) }
+            parsed.maxGraphHeight?.let { rules += MaxGraphHeightRule(it) }
+            if (parsed.forbidOrphans) rules += NoOrphanModulesRule()
+
+            return RuleEngine(
+                rules = rules,
+                severityOverrides = parsed.severityOverrides,
+                suppressions = parsed.suppressions,
+            )
+        }
+
+        /** Accumulated result of parsing the serialized `ruleEntries` strings. */
+        private class ParsedRuleEntries {
             val severityOverrides = mutableMapOf<String, Severity>()
             val suppressions = mutableMapOf<String, MutableList<String>>()
+            val customRules = mutableListOf<ArchRule>()
             var preventCycleRegression = false
             var maxTransitive: Int? = null
+            var maxGraphHeight: Int? = null
+            var forbidOrphans = false
+        }
 
+        /** Parses the delimited `ruleId:kind:value` entries into a [ParsedRuleEntries] accumulator. */
+        private fun parseRuleEntries(ruleEntries: List<String>): ParsedRuleEntries {
+            val parsed = ParsedRuleEntries()
             for (entry in ruleEntries) {
                 val parts = entry.split(":")
                 if (parts.size < 3) continue
                 val ruleId = parts[0]
                 when (parts[1]) {
-                    "severity" -> severityOverrides[ruleId] =
-                        Severity.entries.firstOrNull { it.name == parts[2] } ?: continue
+                    "severity" -> Severity.entries.firstOrNull { it.name == parts[2] }
+                        ?.let { parsed.severityOverrides[ruleId] = it }
 
-                    "suppress" -> suppressions.getOrPut(ruleId) { mutableListOf() }
+                    "suppress" -> parsed.suppressions.getOrPut(ruleId) { mutableListOf() }
                         .add(parts.drop(2).joinToString(":"))
 
-                    "option" -> if (ruleId == "no-cyclic-dependencies" && parts[2] == "preventRegression") {
-                        preventCycleRegression = true
-                    }
+                    "option" -> applyOption(parsed, ruleId, parts[2])
 
-                    "threshold" -> if (ruleId == "max-transitive-dependencies") {
-                        maxTransitive = parts[2].toIntOrNull()
-                    }
+                    "threshold" -> applyThreshold(parsed, ruleId, parts[2])
 
                     "class" -> if (ruleId == "custom") {
-                        val className = parts.drop(2).joinToString(":")
-                        rules += loadCustomRule(className)
+                        parsed.customRules += loadCustomRule(parts.drop(2).joinToString(":"))
                     }
                 }
             }
+            return parsed
+        }
 
-            rules += NoCyclicDependenciesRule(
-                previousCycleCount = if (preventCycleRegression) previousCycleCount else null,
-                preventRegression = preventCycleRegression,
-            )
+        private fun applyOption(parsed: ParsedRuleEntries, ruleId: String, value: String) {
+            when {
+                ruleId == "no-cyclic-dependencies" && value == "preventRegression" ->
+                    parsed.preventCycleRegression = true
 
-            if (layerEntries.isNotEmpty()) {
-                rules += LayerDependencyRule.fromSerializedLayers(layerEntries)
+                ruleId == "no-orphan-modules" && value == "enabled" ->
+                    parsed.forbidOrphans = true
             }
+        }
 
-            if (featurePattern.isNotBlank()) {
-                rules += NoFeatureToFeatureDependencyRule(
-                    featurePattern = featurePattern,
-                    allowedPairs = featureAllowedPairs,
-                )
+        private fun applyThreshold(parsed: ParsedRuleEntries, ruleId: String, value: String) {
+            when (ruleId) {
+                "max-transitive-dependencies" -> parsed.maxTransitive = value.toIntOrNull()
+                "max-graph-height" -> parsed.maxGraphHeight = value.toIntOrNull()
             }
-
-            if (maxTransitive != null) {
-                rules += MaxTransitiveDependenciesRule(maxTransitive)
-            }
-
-            return RuleEngine(
-                rules = rules,
-                severityOverrides = severityOverrides,
-                suppressions = suppressions,
-            )
         }
 
         /** Builds an engine with no rules - useful in tests. */

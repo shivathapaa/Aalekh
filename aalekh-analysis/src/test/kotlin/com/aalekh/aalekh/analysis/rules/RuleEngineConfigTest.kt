@@ -219,6 +219,71 @@ class RuleEngineConfigTest {
         assertTrue(engine.evaluate(graph).violations.any { it.ruleId == "layer-dependency" })
     }
 
+    @Test
+    fun `fromConfig activates max-graph-height rule from a threshold entry`() {
+        val engine = RuleEngine.fromConfig(
+            layerEntries = emptyList(),
+            featurePattern = "",
+            featureAllowedPairs = emptyList(),
+            ruleEntries = listOf("max-graph-height:threshold:2"),
+        )
+        // :a -> :b -> :c is a height-3 chain, over the limit of 2.
+        val chain = ModuleDependencyGraph(
+            projectName = "chain",
+            modules = listOf(node(":a"), node(":b"), node(":c")),
+            edges = listOf(edge(":a", ":b"), edge(":b", ":c")),
+        )
+        assertTrue(engine.evaluate(chain).violations.any { it.ruleId == "max-graph-height" })
+    }
+
+    @Test
+    fun `fromConfig max-graph-height inactive when no threshold entry`() {
+        val engine = RuleEngine.fromConfig(
+            layerEntries = emptyList(),
+            featurePattern = "",
+            featureAllowedPairs = emptyList(),
+            ruleEntries = emptyList(),
+        )
+        val chain = ModuleDependencyGraph(
+            projectName = "chain",
+            modules = listOf(node(":a"), node(":b"), node(":c")),
+            edges = listOf(edge(":a", ":b"), edge(":b", ":c")),
+        )
+        assertFalse(engine.evaluate(chain).violations.any { it.ruleId == "max-graph-height" })
+    }
+
+    @Test
+    fun `fromConfig activates no-orphan-modules rule from an option entry`() {
+        val engine = RuleEngine.fromConfig(
+            layerEntries = emptyList(),
+            featurePattern = "",
+            featureAllowedPairs = emptyList(),
+            ruleEntries = listOf("no-orphan-modules:option:enabled"),
+        )
+        val graph = ModuleDependencyGraph(
+            projectName = "orphan",
+            modules = listOf(node(":a"), node(":b"), node(":orphan")),
+            edges = listOf(edge(":a", ":b")),
+        )
+        assertTrue(engine.evaluate(graph).violations.any { it.ruleId == "no-orphan-modules" })
+    }
+
+    @Test
+    fun `fromConfig no-orphan-modules inactive when not enabled`() {
+        val engine = RuleEngine.fromConfig(
+            layerEntries = emptyList(),
+            featurePattern = "",
+            featureAllowedPairs = emptyList(),
+            ruleEntries = emptyList(),
+        )
+        val graph = ModuleDependencyGraph(
+            projectName = "orphan",
+            modules = listOf(node(":a"), node(":b"), node(":orphan")),
+            edges = listOf(edge(":a", ":b")),
+        )
+        assertFalse(engine.evaluate(graph).violations.any { it.ruleId == "no-orphan-modules" })
+    }
+
     // rulesEvaluated count
 
     @Test

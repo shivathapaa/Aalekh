@@ -161,6 +161,7 @@ public object GraphAnalyzer {
      */
     public fun summary(graph: ModuleDependencyGraph): GraphSummary {
         val mainOnlyCycles = findMainOnlyCycles(graph)
+        val coupling = CouplingAnalyzer.systemCoupling(graph)
         return GraphSummary(
             totalModules = graph.modules.size,
             totalEdges = graph.edges.size,
@@ -176,8 +177,21 @@ public object GraphAnalyzer {
             criticalPathLength = criticalPath(graph).size,
             godModuleCount = godModules(graph).size,
             isolatedModuleCount = isolatedModules(graph).size,
+            ccd = coupling.ccd,
+            acd = coupling.acd,
+            nccd = coupling.nccd,
+            tanglePercent = coupling.tanglePercent,
+            cyclicComponentCount = coupling.cyclicComponentCount,
         )
     }
+
+    /**
+     * Computes the longest chain of production dependencies as a count of modules.
+     * This is the graph *height* used by the `max-graph-height` rule and is the
+     * primary constraint on build parallelism. Returns 0 when a cycle prevents a
+     * topological ordering. Only **main** edges are considered.
+     */
+    public fun graphHeight(graph: ModuleDependencyGraph): Int = criticalPath(graph).size
 
     /**
      * Finds cycles using only main (non-test) edges.
@@ -242,4 +256,11 @@ data class GraphSummary(
     val criticalPathLength: Int,
     val godModuleCount: Int,
     val isolatedModuleCount: Int,
+    // Lakos system-coupling metrics. Defaulted so graph/summary JSON written by older
+    // plugin versions still deserializes cleanly (see JsonReporter, ignoreUnknownKeys).
+    val ccd: Long = 0,
+    val acd: Double = 0.0,
+    val nccd: Double = 0.0,
+    val tanglePercent: Double = 0.0,
+    val cyclicComponentCount: Int = 0,
 )
