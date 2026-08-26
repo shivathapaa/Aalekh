@@ -1,7 +1,9 @@
 package com.aalekh.aalekh.report.json
 
+import com.aalekh.aalekh.analysis.graph.CycleAdvisor
 import com.aalekh.aalekh.analysis.graph.GraphSummary
 import com.aalekh.aalekh.model.AalekhBuildConfig
+import com.aalekh.aalekh.model.CycleBreakSuggestion
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.Violation
 import kotlinx.serialization.Serializable
@@ -40,6 +42,7 @@ public object JsonReporter {
             graph = graph,
             summary = summary,
             violations = violations,
+            cycleBreakSuggestions = CycleAdvisor.suggestBreaks(graph),
             generatedAt = Instant.now().toString(),
             aalekhVersion = AalekhBuildConfig.VERSION,
         )
@@ -66,6 +69,12 @@ public data class AalekhJsonReport(
      * (ERROR first, then WARNING, then INFO).
      */
     val violations: List<Violation>,
+
+    /**
+     * Suggested edges to remove to break each detected cycle, strongest first.
+     * Empty for an acyclic graph. Defaulted so reports from older versions still deserialize.
+     */
+    val cycleBreakSuggestions: List<CycleBreakSuggestion> = emptyList(),
 
     /** ISO-8601 timestamp of when this report was generated. */
     val generatedAt: String,

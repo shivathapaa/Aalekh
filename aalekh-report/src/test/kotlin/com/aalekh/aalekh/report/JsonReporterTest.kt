@@ -157,6 +157,37 @@ class JsonReporterTest {
         assertTrue(output.contains('\n'), "JSON output should be pretty-printed")
     }
 
+    // Cycle break advice
+
+    @Test
+    fun `an acyclic graph carries no cycle break suggestions`() {
+        val graph = sampleGraph()
+        val report = json.decodeFromString<AalekhJsonReport>(
+            JsonReporter.generate(graph, GraphAnalyzer.summary(graph))
+        )
+        assertTrue(report.cycleBreakSuggestions.isEmpty())
+    }
+
+    @Test
+    fun `a cyclic graph carries a cycle break suggestion`() {
+        val cyclic = ModuleDependencyGraph(
+            projectName = "cyclic",
+            modules = listOf(
+                ModuleNode(":a", "a", ModuleType.JVM_LIBRARY, buildFilePath = "a/build.gradle.kts"),
+                ModuleNode(":b", "b", ModuleType.JVM_LIBRARY, buildFilePath = "b/build.gradle.kts"),
+            ),
+            edges = listOf(
+                DependencyEdge(":a", ":b", "implementation"),
+                DependencyEdge(":b", ":a", "implementation"),
+            ),
+        )
+        val report = json.decodeFromString<AalekhJsonReport>(
+            JsonReporter.generate(cyclic, GraphAnalyzer.summary(cyclic))
+        )
+        assertEquals(1, report.cycleBreakSuggestions.size)
+        assertEquals(2, report.cycleBreakSuggestions.single().cycleSize)
+    }
+
     // Multiple violations
 
     @Test
