@@ -1,0 +1,122 @@
+name: Dogfood
+
+# Aalekh enforcing Aalekh. Builds the plugin from source, applies it to Aalekh's OWN module
+# graph, and runs extract/report/check. This proves the tool on a real Kotlin/JVM multi-module
+# project and - via a layers { } rule mirroring the strict one-way boundary - fails if anyone ever
+# lets the model <- analysis <- report <- gradle layering slip (e.g. a Gradle import leaking down).
+#
+# The committed sources are never changed: the settings/build files are patched only on the CI
+# checkout, after the plugin has already been published to Maven Local.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  dogfood:
+    name: Aalekh on Aalekh
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Aalekh
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 21
+
+      - name: Build and publish the plugin to Maven Local
+        run: ./gradlew publishToMavenLocal --no-configuration-cache
+
+      - name: Read Aalekh version
+        id: version
+        run: |
+          VERSION=$(grep 'plugin-version' gradle/libs.versions.toml | sed 's/.*= *"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Self-apply the plugin (CI checkout only)
+        env:
+          AALEKH_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Add mavenLocal() to settings pluginManagement and apply the settings plugin.
+          python3 << 'PYEOF'
+          import os
+          version = os.environ["AALEKH_VERSION"]
+          settings = "settings.gradle.kts"
+          content = open(settings).read()
+          content = content.replace(
+              "pluginManagement {",
+              "pluginManagement {\n    repositories { mavenLocal() }",
+              1,
+          )
+          content = content.replace(
+              "plugins {",
+              f'plugins {{\n    id("io.github.shivathapaa.aalekh") version "{version}"',
+              1,
+          )
+          open(settings, "w").write(content)
+          print(f"Patched {settings}")
+          PYEOF
+
+          # Enforce the real one-way layering on Aalekh's own modules.
+          cat >> build.gradle.kts << 'KTS'
+
+          aalekh {
+              openBrowserAfterReport.set(false)
+              layers {
+                  layer("model") { modules(":aalekh-model") }
+                  layer("analysis") {
+                      modules(":aalekh-analysis")
+                      canOnlyDependOn("model")
+                  }
+                  layer("report") {
+                      modules(":aalekh-report")
+                      canOnlyDependOn("model", "analysis")
+                  }
+                  layer("gradle") {
+                      modules(":aalekh-gradle")
+                      canOnlyDependOn("model", "analysis", "report")
+                  }
+              }
+          }
+          KTS
+
+      - name: Extract Aalekh's own module graph
+        run: ./gradlew aalekhExtract --no-configuration-cache --stacktrace
+
+      - name: Verify the graph has the four Aalekh modules
+        run: |
+          GRAPH_FILE=$(find build -name "graph.json" | head -1)
+          if [ -z "$GRAPH_FILE" ]; then
+            echo "::error::graph.json was not produced"
+            exit 1
+          fi
+          python3 - "$GRAPH_FILE" << 'PYEOF'
+          import json, sys
+          data = json.load(open(sys.argv[1]))
+          paths = {m["path"] for m in data.get("modules", [])}
+          expected = {":aalekh-model", ":aalekh-analysis", ":aalekh-report", ":aalekh-gradle"}
+          missing = expected - paths
+          if missing:
+              print(f"::error::graph is missing modules: {sorted(missing)}")
+              sys.exit(1)
+          print(f"Extracted {len(paths)} modules: {sorted(paths)}")
+          PYEOF
+
+      - name: Generate the report and the Mermaid graph
+        run: ./gradlew aalekhReport aalekhMermaid --no-configuration-cache --stacktrace
+
+      - name: Enforce the architecture on Aalekh itself
+        # A failure here means Aalekh's own layering regressed - exactly what this job guards.
+        run: ./gradlew aalekhCheck --no-configuration-cache --stacktrace
+
+      - name: Upload the self-report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aalekh-self-report
+          path: build/reports/aalekh/
+          retention-days: 7
