@@ -6,6 +6,31 @@ All notable changes to this project are documented here. Format based on
 
 ## [Unreleased]
 
+### Added
+- **Mermaid export** (`aalekhMermaid`). Writes the module graph as diffable Mermaid text -
+  `build/reports/aalekh/aalekh-graph.mmd` (raw) and `aalekh-graph.md` (a fenced ` ```mermaid `
+  block that renders as a diagram directly on GitHub). Production edges are solid, test-only edges
+  dashed, and nodes are colour-coded by module type. Unlike the binary SVG export, the output diffs
+  cleanly in pull requests.
+- **Committed baseline / freeze** (`aalekhBaseline`). Records current violations to a committed
+  `aalekh-baseline.json`; from then on `aalekhCheck` suppresses everything in the baseline and fails
+  only on new violations. Lets a team turn on strict rules against an existing codebase immediately -
+  the debt is frozen, regressions are blocked. Delete the file to stop applying it. Configure the
+  path with `baselineFile` (default `"aalekh-baseline.json"`).
+- **Lakos system-coupling metrics** - CCD (Cumulative Component Dependency), ACD, NCCD (normalized
+  against a balanced binary tree), and **%Tangle** (share of modules inside a dependency cycle).
+  Computed over main edges via `GraphAnalyzer` / `CouplingAnalyzer` and embedded in the report
+  summary JSON and `aalekh-results.json`. One number for "how tangled is this graph".
+- **`max-graph-height` rule** (`rules { maxGraphHeight(n) }`). Warns when the longest dependency
+  chain exceeds `n` modules - the floor on build parallelism. Default `WARNING`.
+- **`no-orphan-modules` rule** (`rules { noOrphanModules() }`). Warns about isolated modules that
+  neither depend on anything nor are depended on. Default `WARNING`.
+- **`aalekhMermaid`** and **`aalekhBaseline`** are `@CacheableTask` / regeneration-on-demand
+  respectively and are registered by both the settings and (deprecated) project plugins.
+- **Dogfood CI** (`.github/workflows/dogfood.yml`). Builds the plugin and applies it to Aalekh's own
+  module graph, enforcing the `model ← analysis ← report ← gradle` layering so any regression of the
+  one-way boundary fails the build.
+
 ### Fixed
 - Team ownership overlay is now wired end-to-end. The `teams { }` DSL was fully
   implemented (config, report JS, and docs) but never connected: `aalekhReport`
