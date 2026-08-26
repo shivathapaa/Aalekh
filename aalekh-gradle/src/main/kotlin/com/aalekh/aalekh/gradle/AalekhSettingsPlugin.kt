@@ -6,6 +6,7 @@ import com.aalekh.aalekh.gradle.task.AalekhCheckTask
 import com.aalekh.aalekh.gradle.task.AalekhExtractTask
 import com.aalekh.aalekh.gradle.task.AalekhMermaidTask
 import com.aalekh.aalekh.gradle.task.AalekhReportTask
+import com.aalekh.aalekh.gradle.task.AalekhTemporalTask
 import org.gradle.api.Plugin
 import org.gradle.api.file.RegularFile
 import org.gradle.api.initialization.Settings
@@ -176,6 +177,22 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
                 task.baselineOutputFile.set(
                     extension.baselineFile.map { rootProject.layout.projectDirectory.file(it) }
                 )
+                task.dependsOn(extractTask)
+            }
+
+            rootProject.tasks.register(
+                "aalekhTemporal",
+                AalekhTemporalTask::class.java,
+            ) { task ->
+                task.graphJsonFile.set(graphJsonFile)
+                task.projectName.set(rootProject.name)
+                task.rootDir.set(rootProject.rootDir.absolutePath)
+                task.commitWindow.set(extension.temporalCouplingConfig.commitWindow)
+                task.minSharedCommits.set(extension.temporalCouplingConfig.minSharedCommits)
+                task.hiddenCouplingThreshold.set(extension.temporalCouplingConfig.hiddenCouplingThreshold)
+                val reportsDir = rootProject.layout.buildDirectory.dir(extension.outputDir)
+                task.jsonFile.set(reportsDir.map { it.file("aalekh-temporal.json") })
+                task.markdownFile.set(reportsDir.map { it.file("aalekh-temporal.md") })
                 task.dependsOn(extractTask)
             }
 

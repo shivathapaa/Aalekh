@@ -4,6 +4,7 @@ import com.aalekh.aalekh.gradle.dsl.FeatureIsolationConfig
 import com.aalekh.aalekh.gradle.dsl.LayerConfig
 import com.aalekh.aalekh.gradle.dsl.RulesConfig
 import com.aalekh.aalekh.gradle.dsl.TeamOwnershipConfig
+import com.aalekh.aalekh.gradle.dsl.TemporalCouplingConfig
 import org.gradle.api.Action
 import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.model.ObjectFactory
@@ -154,6 +155,18 @@ public abstract class AalekhExtension @Inject constructor(private val objects: O
     /** Configures team ownership mappings via the [TeamOwnershipConfig] DSL. */
     public fun teams(configure: TeamOwnershipConfig.() -> Unit) {
         teamOwnership.configure()
+    }
+
+    /**
+     * Configures the git temporal-coupling analysis run by `aalekhTemporal` - the commit window
+     * and the thresholds for reporting co-change and flagging hidden coupling.
+     */
+    public val temporalCouplingConfig: TemporalCouplingConfig =
+        objects.newInstance(TemporalCouplingConfig::class.java)
+
+    /** Configures git temporal-coupling analysis via the [TemporalCouplingConfig] DSL. */
+    public fun temporalCoupling(configure: TemporalCouplingConfig.() -> Unit) {
+        temporalCouplingConfig.configure()
     }
 
     public companion object {

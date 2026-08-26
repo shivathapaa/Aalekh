@@ -4,6 +4,7 @@ import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
+import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -628,6 +629,97 @@ class AalekhPluginFunctionalTest {
         assertTrue(
             result.output.contains("max-graph-height") || result.output.contains("height is"),
             "A violation absent from the baseline must still fail the build"
+        )
+    }
+
+    // Temporal coupling
+
+    private fun runGit(vararg args: String) {
+        val process = ProcessBuilder(listOf("git", "-C", projectDir.absolutePath) + args)
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().use { it.readText() }
+        val finished = process.waitFor(30, TimeUnit.SECONDS)
+        require(finished && process.exitValue() == 0) {
+            "git ${args.joinToString(" ")} failed: $output"
+        }
+    }
+
+    private fun gitCommitAll(message: String) {
+        runGit("add", "-A")
+        runGit(
+            "-c", "user.email=test@aalekh.dev",
+            "-c", "user.name=Aalekh Test",
+            "-c", "commit.gpgsign=false",
+            "commit", "-m", message, "--no-gpg-sign",
+        )
+    }
+
+    private fun writeSource(relativePath: String, contents: String) {
+        val file = projectDir.resolve(relativePath)
+        file.parentFile.mkdirs()
+        file.writeText(contents)
+    }
+
+    @Test
+    fun `aalekhTemporal writes a temporal report from git history`() {
+        setupMultiModuleProject()
+        writeSource("core/domain/src/main/kotlin/D.kt", "object D { const val V = 0 }")
+        writeSource("core/data/src/main/kotlin/R.kt", "object R { const val V = 0 }")
+        writeSource("feature/login/src/main/kotlin/L.kt", "object L { const val V = 0 }")
+
+        runGit("init", "-q")
+        gitCommitAll("init")
+        // core:domain and core:data change together across two more commits.
+        writeSource("core/domain/src/main/kotlin/D.kt", "object D { const val V = 1 }")
+        writeSource("core/data/src/main/kotlin/R.kt", "object R { const val V = 1 }")
+        gitCommitAll("change 1")
+        writeSource("core/domain/src/main/kotlin/D.kt", "object D { const val V = 2 }")
+        writeSource("core/data/src/main/kotlin/R.kt", "object R { const val V = 2 }")
+        gitCommitAll("change 2")
+
+        val result = gradleRunner("aalekhTemporal", "--no-configuration-cache").build()
+        assertEquals(TaskOutcome.SUCCESS, result.task(":aalekhTemporal")?.outcome)
+
+        val md = projectDir.resolve("build/reports/aalekh/aalekh-temporal.md")
+        assertTrue(md.exists(), "aalekhTemporal must write the Markdown report")
+        val mdText = md.readText()
+        assertTrue(mdText.contains("## Change hotspots"), "report must include the hotspots section")
+        assertTrue(mdText.contains("## Top co-changing pairs"), "report must include co-changing pairs")
+        assertTrue(mdText.contains(":core:domain"), "co-changing modules must be named")
+        assertTrue(mdText.contains(":core:data"))
+
+        val json = projectDir.resolve("build/reports/aalekh/aalekh-temporal.json")
+        assertTrue(json.exists(), "aalekhTemporal must write the JSON report")
+        assertTrue(json.readText().contains("\"commitsAnalyzed\""), "JSON must carry the analysed commit count")
+    }
+
+    @Test
+    fun `aalekhTemporal degrades gracefully when there is no git history`() {
+        setupMultiModuleProject()
+        // No `git init` - the project directory is not a repository.
+        val result = gradleRunner("aalekhTemporal", "--no-configuration-cache").build()
+        assertEquals(
+            TaskOutcome.SUCCESS,
+            result.task(":aalekhTemporal")?.outcome,
+            "a missing git history must not fail the build",
+        )
+        val md = projectDir.resolve("build/reports/aalekh/aalekh-temporal.md")
+        assertTrue(md.exists(), "an empty report file must still be written")
+        assertTrue(md.readText().contains("No git history"), "the empty report must explain why it is empty")
+    }
+
+    @Test
+    fun `aalekhTemporal is configuration cache compatible on second run`() {
+        // Single java-library module, mirroring the aalekhReport CC test, to avoid the
+        // Kotlin-Gradle-plugin build-service-across-sibling-projects quirk that breaks CC store.
+        setupJavaModuleProject()
+        gradleRunner("aalekhTemporal", "--configuration-cache").build()
+        val secondRun = gradleRunner("aalekhTemporal", "--configuration-cache").build()
+        assertTrue(
+            secondRun.output.contains("Reusing configuration cache") ||
+                    secondRun.output.contains("Configuration cache entry reused"),
+            "Second aalekhTemporal run should reuse the configuration cache",
         )
     }
 
