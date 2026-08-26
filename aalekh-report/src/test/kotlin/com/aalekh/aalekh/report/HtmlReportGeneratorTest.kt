@@ -422,4 +422,15 @@ class HtmlReportGeneratorTest {
             "An empty team map must serialize as an empty object so the overlay is off"
         )
     }
+
+    // System-coupling (Lakos) metrics
+
+    @Test
+    fun `summary JSON embeds the Lakos coupling metrics`() {
+        // :app -> :feature:login -> :core:domain : dependency sets 3 + 2 + 1 = CCD 6.
+        val html = generateHtml()
+        assertTrue(html.contains("\"ccd\":6"), "CCD must be embedded in the summary JSON")
+        assertTrue(html.contains("\"tanglePercent\":0"), "A clean DAG must report zero tangle")
+        assertTrue(html.contains("\"nccd\":"), "NCCD must be present in the summary JSON")
+    }
 }

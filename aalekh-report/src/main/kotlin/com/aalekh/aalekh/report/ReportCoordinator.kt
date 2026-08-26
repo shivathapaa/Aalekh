@@ -6,6 +6,7 @@ import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.report.html.HtmlReportGenerator
 import com.aalekh.aalekh.report.json.JsonReporter
 import com.aalekh.aalekh.report.junit.JUnitXmlWriter
+import com.aalekh.aalekh.report.mermaid.MermaidGraphGenerator
 import com.aalekh.aalekh.report.sarif.SarifReporter
 
 /**
@@ -73,4 +74,17 @@ public class ReportCoordinator(
      * transitive dep count, health score, and boolean flags.
      */
     public fun generateCsv(): String = CsvMetricsExporter.export(graph)
+
+    /**
+     * Generates the module graph as a raw Mermaid `graph` definition (no code fence).
+     * Diffable plain text that renders inline on GitHub and in most IDEs.
+     */
+    public fun generateMermaid(): String = MermaidGraphGenerator.generate(graph)
+
+    /**
+     * Generates a Markdown document embedding the graph in a ` ```mermaid ` fenced block,
+     * ready to commit as a rendered diagram.
+     */
+    public fun generateMermaidMarkdown(): String =
+        MermaidGraphGenerator.generateMarkdown(graph, projectName)
 }
