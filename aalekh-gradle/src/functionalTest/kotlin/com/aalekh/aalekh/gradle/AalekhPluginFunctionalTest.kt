@@ -647,6 +647,67 @@ class AalekhPluginFunctionalTest {
         )
     }
 
+    // Predicate rule DSL (forbid { })
+
+    private fun setupForbiddenDependencyProject(severityLine: String = "") {
+        listOf("feature/a", "feature/b").forEach { projectDir.resolve(it).mkdirs() }
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins { id("io.github.shivathapaa.aalekh") }
+            rootProject.name = "forbid-test"
+            include(":feature:a", ":feature:b")
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                forbid {
+                    from(":feature:**")
+                    to(":feature:**")
+                    because("features must not depend on each other")
+                    $severityLine
+                }
+            }
+            """.trimIndent()
+        )
+        projectDir.resolve("feature/a/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies { implementation(project(":feature:b")) }
+            """.trimIndent()
+        )
+        projectDir.resolve("feature/b/build.gradle.kts").writeText(
+            """plugins { kotlin("jvm") version "2.3.0" }"""
+        )
+    }
+
+    @Test
+    fun `forbid predicate rule fails the build on a matching dependency`() {
+        setupForbiddenDependencyProject()
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        assertEquals(TaskOutcome.FAILED, result.task(":aalekhCheck")?.outcome)
+        assertTrue(
+            result.output.contains("forbidden-dependency") || result.output.contains("must not depend"),
+            "a forbid { } predicate must fail aalekhCheck and name the violation",
+        )
+        assertTrue(
+            result.output.contains("features must not depend on each other"),
+            "the because(...) reason must appear in the violation message",
+        )
+    }
+
+    @Test
+    fun `forbid predicate downgraded to WARNING does not fail the build`() {
+        setupForbiddenDependencyProject("severity(com.aalekh.aalekh.model.Severity.WARNING)")
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").build()
+        assertEquals(
+            TaskOutcome.SUCCESS,
+            result.task(":aalekhCheck")?.outcome,
+            "a WARNING-severity forbid rule reports but must not fail the build",
+        )
+    }
+
     // Quality gates (metric-delta regression)
 
     /** Modules a -> b with c isolated, and quality gates forbidding ccd / critical-path regressions. */

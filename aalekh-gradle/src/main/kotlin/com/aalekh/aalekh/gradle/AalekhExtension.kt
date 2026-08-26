@@ -2,6 +2,7 @@ package com.aalekh.aalekh.gradle
 
 import com.aalekh.aalekh.gradle.dsl.AffectedGraphConfig
 import com.aalekh.aalekh.gradle.dsl.FeatureIsolationConfig
+import com.aalekh.aalekh.gradle.dsl.ForbiddenDependencySpec
 import com.aalekh.aalekh.gradle.dsl.LayerConfig
 import com.aalekh.aalekh.gradle.dsl.QualityGatesConfig
 import com.aalekh.aalekh.gradle.dsl.RulesConfig
@@ -10,6 +11,7 @@ import com.aalekh.aalekh.gradle.dsl.TemporalCouplingConfig
 import org.gradle.api.Action
 import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.model.ObjectFactory
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import javax.inject.Inject
 
@@ -193,6 +195,31 @@ public abstract class AalekhExtension @Inject constructor(private val objects: O
     /** Configures the affected-graph diff range via the [AffectedGraphConfig] DSL. */
     public fun affected(configure: AffectedGraphConfig.() -> Unit) {
         affectedGraphConfig.configure()
+    }
+
+    /** Serialized `forbid { }` predicate rules, one delimited string per rule. */
+    internal val forbiddenEntries: ListProperty<String> =
+        objects.listProperty(String::class.java).convention(emptyList())
+
+    /**
+     * Declares a one-off structural rule inline: modules matching *from* must not depend on modules
+     * matching *to*. A lightweight alternative to a custom [com.aalekh.aalekh.analysis.rules.ArchRule]
+     * jar for the common "X must not depend on Y" case.
+     *
+     * ```kotlin
+     * aalekh {
+     *     forbid {
+     *         from(":core:domain")
+     *         toModuleType(ModuleType.ANDROID_LIBRARY)
+     *         because("the domain layer stays platform-agnostic")
+     *     }
+     * }
+     * ```
+     */
+    public fun forbid(configure: ForbiddenDependencySpec.() -> Unit) {
+        val spec = ForbiddenDependencySpec()
+        spec.configure()
+        forbiddenEntries.add(spec.serialize())
     }
 
     public companion object {

@@ -85,6 +85,10 @@ public abstract class AalekhReportTask : DefaultTask() {
     @get:Input
     public abstract val ruleEntries: ListProperty<String>
 
+    /** Serialized `forbid { }` predicate rules; mirrors [AalekhCheckTask.forbidEntries]. */
+    @get:Input
+    public abstract val forbidEntries: ListProperty<String>
+
     /**
      * Serialized team-ownership map from the `teams { }` DSL block.
      * Format: `"team=pat1,pat2;team2=pat3"` (from `TeamOwnershipConfig.toInputString`).
@@ -117,6 +121,7 @@ public abstract class AalekhReportTask : DefaultTask() {
             featurePattern = featurePattern.getOrElse(""),
             featureAllowedPairs = featureAllowedPairs.get(),
             ruleEntries = ruleEntries.get(),
+            forbidEntries = forbidEntries.get(),
         )
         val ruleResult = ruleEngine.evaluate(graph)
         val report = ReportCoordinator(graph, ruleResult, projectName.get())
@@ -304,6 +309,13 @@ public abstract class AalekhCheckTask : DefaultTask() {
     public abstract val ruleEntries: ListProperty<String>
 
     /**
+     * Serialized `forbid { }` predicate rules. Format per entry:
+     * `"<fromKind>|<fromValue>|<toKind>|<toValue>|<severity>|<reason>"`. CC-safe plain strings.
+     */
+    @get:Input
+    public abstract val forbidEntries: ListProperty<String>
+
+    /**
      * The committed baseline file (`aalekh-baseline.json`) written by `aalekhBaseline`.
      * When present, violations recorded in it are suppressed and only new ones fail the build.
      *
@@ -346,6 +358,7 @@ public abstract class AalekhCheckTask : DefaultTask() {
             featureAllowedPairs = featureAllowedPairs.get(),
             ruleEntries = ruleEntries.get(),
             previousCycleCount = previousCycleCount,
+            forbidEntries = forbidEntries.get(),
         )
         val rawResult = ruleEngine.evaluate(graph)
 
