@@ -218,6 +218,46 @@ class AalekhPluginFunctionalTest {
         )
     }
 
+    /**
+     * Multi-module project with an isolated (`:orphan`) module and the `no-orphan-modules`
+     * rule promoted to ERROR so the orphan fails the build.
+     */
+    private fun setupOrphanProject() {
+        listOf("core/domain", "feature/login", "orphan").forEach { projectDir.resolve(it).mkdirs() }
+
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins { id("io.github.shivathapaa.aalekh") }
+            rootProject.name = "orphan-test"
+            include(":core:domain", ":feature:login", ":orphan")
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                rules {
+                    noOrphanModules()
+                    rule("no-orphan-modules") { severity = com.aalekh.aalekh.model.Severity.ERROR }
+                }
+            }
+            """.trimIndent()
+        )
+        projectDir.resolve("core/domain/build.gradle.kts").writeText(
+            """plugins { kotlin("jvm") version "2.3.0" }"""
+        )
+        projectDir.resolve("feature/login/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies { implementation(project(":core:domain")) }
+            """.trimIndent()
+        )
+        // No dependencies in or out - an orphan.
+        projectDir.resolve("orphan/build.gradle.kts").writeText(
+            """plugins { kotlin("jvm") version "2.3.0" }"""
+        )
+    }
+
     // Task registration
 
     @Test
@@ -453,6 +493,141 @@ class AalekhPluginFunctionalTest {
         assertTrue(
             sarif.contains("build.gradle.kts"),
             "SARIF should reference the build file of the offending module"
+        )
+    }
+
+    // Mermaid export
+
+    @Test
+    fun `aalekhMermaid writes a diffable mmd and md graph`() {
+        setupMultiModuleProject()
+        val result = gradleRunner("aalekhMermaid", "--no-configuration-cache").build()
+        assertEquals(TaskOutcome.SUCCESS, result.task(":aalekhMermaid")?.outcome)
+
+        val mmd = projectDir.resolve("build/reports/aalekh/aalekh-graph.mmd")
+        assertTrue(mmd.exists(), "aalekhMermaid must write the .mmd file")
+        val mmdText = mmd.readText()
+        assertTrue(mmdText.contains("graph TD"), "Mermaid output must declare a graph")
+        assertTrue(mmdText.contains(":core:domain"), "Mermaid output must label modules by path")
+
+        val md = projectDir.resolve("build/reports/aalekh/aalekh-graph.md")
+        assertTrue(md.exists(), "aalekhMermaid must write the Markdown wrapper")
+        assertTrue(md.readText().contains("```mermaid"), "Markdown wrapper must fence a mermaid block")
+    }
+
+    @Test
+    fun `aalekhMermaid is configuration cache compatible on second run`() {
+        // Single java-library module, mirroring the aalekhReport CC test - this avoids the
+        // Kotlin-Gradle-plugin build-service-across-sibling-projects quirk that breaks CC store
+        // in a multi-module TestKit build, which is orthogonal to Aalekh's own CC safety.
+        setupJavaModuleProject()
+        gradleRunner("aalekhMermaid", "--configuration-cache").build()
+        val secondRun = gradleRunner("aalekhMermaid", "--configuration-cache").build()
+        assertTrue(
+            secondRun.output.contains("Reusing configuration cache") ||
+                    secondRun.output.contains("Configuration cache entry reused"),
+            "Second aalekhMermaid run should reuse the configuration cache"
+        )
+    }
+
+    // New rules
+
+    @Test
+    fun `maxGraphHeight promoted to ERROR fails the build on a tall graph`() {
+        setupMultiModuleProject()
+        // Critical path :feature:login -> :core:data -> :core:domain has height 3.
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                rules {
+                    maxGraphHeight(2)
+                    rule("max-graph-height") { severity = com.aalekh.aalekh.model.Severity.ERROR }
+                }
+            }
+            """.trimIndent()
+        )
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        assertEquals(TaskOutcome.FAILED, result.task(":aalekhCheck")?.outcome)
+        assertTrue(
+            result.output.contains("max-graph-height") || result.output.contains("height is"),
+            "Build failure should mention the graph-height rule"
+        )
+    }
+
+    @Test
+    fun `noOrphanModules promoted to ERROR fails the build on an isolated module`() {
+        setupOrphanProject()
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        assertEquals(TaskOutcome.FAILED, result.task(":aalekhCheck")?.outcome)
+        assertTrue(
+            result.output.contains("no-orphan-modules") || result.output.contains(":orphan"),
+            "Build failure should mention the isolated module"
+        )
+    }
+
+    // Baseline / freeze
+
+    @Test
+    fun `aalekhBaseline freezes an existing violation so aalekhCheck passes`() {
+        setupLayerViolationProject()
+        // Sanity: without a baseline the layer violation fails the build.
+        gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+
+        val baselineResult = gradleRunner("aalekhBaseline", "--no-configuration-cache").build()
+        assertEquals(TaskOutcome.SUCCESS, baselineResult.task(":aalekhBaseline")?.outcome)
+        val baselineFile = projectDir.resolve("aalekh-baseline.json")
+        assertTrue(baselineFile.exists(), "aalekhBaseline must write the baseline file")
+        assertTrue(
+            baselineFile.readText().contains("layer-dependency"),
+            "The baseline must record the existing layer violation"
+        )
+
+        val checkResult = gradleRunner("aalekhCheck", "--no-configuration-cache").build()
+        assertEquals(
+            TaskOutcome.SUCCESS,
+            checkResult.task(":aalekhCheck")?.outcome,
+            "Once baselined, the known violation must no longer fail the build"
+        )
+        assertTrue(
+            checkResult.output.contains("baselined"),
+            "aalekhCheck should report how many violations the baseline suppressed"
+        )
+    }
+
+    @Test
+    fun `a new violation still fails aalekhCheck even with a baseline present`() {
+        setupLayerViolationProject()
+        gradleRunner("aalekhBaseline", "--no-configuration-cache").build()
+
+        // Add a brand-new rule (as ERROR) that the baseline never captured.
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                layers {
+                    layer("domain") { modules(":core:domain") }
+                    layer("data") {
+                        modules(":feature:*:data")
+                        canOnlyDependOn("domain")
+                    }
+                    layer("presentation") {
+                        modules(":feature:*:ui")
+                        canOnlyDependOn("domain", "data")
+                    }
+                }
+                rules {
+                    maxGraphHeight(1)
+                    rule("max-graph-height") { severity = com.aalekh.aalekh.model.Severity.ERROR }
+                }
+            }
+            """.trimIndent()
+        )
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        assertEquals(TaskOutcome.FAILED, result.task(":aalekhCheck")?.outcome)
+        assertTrue(
+            result.output.contains("max-graph-height") || result.output.contains("height is"),
+            "A violation absent from the baseline must still fail the build"
         )
     }
 

@@ -43,6 +43,25 @@ public abstract class RulesConfig @Inject constructor(objects: ObjectFactory) {
     }
 
     /**
+     * Adds a rule that warns when the module graph's longest dependency chain (its *height*)
+     * exceeds [max] modules. Graph height is the floor on build parallelism - a tall graph forces
+     * long sequential compile chains. Default severity is WARNING. Override with
+     * `rule("max-graph-height") { severity = ERROR }`.
+     */
+    public fun maxGraphHeight(max: Int) {
+        entries.add("max-graph-height:threshold:$max")
+    }
+
+    /**
+     * Adds a rule that warns about "orphan" modules - modules that neither depend on anything nor
+     * are depended on by anything over production edges. Orphans are dead weight in the build.
+     * Default severity is WARNING. Override with `rule("no-orphan-modules") { severity = ERROR }`.
+     */
+    public fun noOrphanModules() {
+        entries.add("no-orphan-modules:option:enabled")
+    }
+
+    /**
      * Registers a user-defined [com.aalekh.aalekh.analysis.rules.ArchRule] implementation
      * by its fully qualified class name.
      *

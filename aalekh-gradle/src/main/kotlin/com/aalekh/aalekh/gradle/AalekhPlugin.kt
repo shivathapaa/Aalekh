@@ -1,8 +1,10 @@
 package com.aalekh.aalekh.gradle
 
 import com.aalekh.aalekh.gradle.extractor.ConfigurationClassifier
+import com.aalekh.aalekh.gradle.task.AalekhBaselineTask
 import com.aalekh.aalekh.gradle.task.AalekhCheckTask
 import com.aalekh.aalekh.gradle.task.AalekhExtractTask
+import com.aalekh.aalekh.gradle.task.AalekhMermaidTask
 import com.aalekh.aalekh.gradle.task.AalekhReportTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -125,7 +127,39 @@ public class AalekhPlugin : Plugin<Project> {
             task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
             task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
             task.ruleEntries.set(extension.rulesConfig.entries)
+            task.baselineFile.set(
+                extension.baselineFile.map { project.layout.projectDirectory.file(it) }
+            )
 
+            task.dependsOn(extractTask)
+        }
+
+        project.tasks.register("aalekhMermaid", AalekhMermaidTask::class.java) { task ->
+            task.graphJsonFile.set(graphJsonFile)
+            task.projectName.set(project.name)
+            val reportsDir = project.layout.buildDirectory.dir(extension.outputDir)
+            task.mermaidFile.set(reportsDir.map { it.file("aalekh-graph.mmd") })
+            task.markdownFile.set(reportsDir.map { it.file("aalekh-graph.md") })
+            task.dependsOn(extractTask)
+        }
+
+        project.tasks.register("aalekhBaseline", AalekhBaselineTask::class.java) { task ->
+            task.graphJsonFile.set(graphJsonFile)
+            task.projectName.set(project.name)
+            task.layerEntries.set(project.provider {
+                extension.layerContainer.map { layer ->
+                    val patterns = layer.modulePatterns.get().joinToString(",")
+                    val allowed = layer.allowedDependencyLayers.get().joinToString(",")
+                    val restricted = layer.hasRestriction.get()
+                    "${layer.name}|$patterns|$allowed|$restricted"
+                }
+            })
+            task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
+            task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
+            task.ruleEntries.set(extension.rulesConfig.entries)
+            task.baselineOutputFile.set(
+                extension.baselineFile.map { project.layout.projectDirectory.file(it) }
+            )
             task.dependsOn(extractTask)
         }
 

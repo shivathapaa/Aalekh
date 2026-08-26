@@ -75,6 +75,18 @@ public abstract class AalekhExtension @Inject constructor(private val objects: O
     public val exportMetrics: Property<Boolean> = objects.property(Boolean::class.java)
         .convention(false)
 
+    /**
+     * Path (relative to the root project) of the committed violation baseline file.
+     * Default: `"aalekh-baseline.json"`.
+     *
+     * Run `./gradlew aalekhBaseline` to write it, then commit it. When the file exists,
+     * `aalekhCheck` suppresses every violation already recorded in it and fails only on new
+     * ones - letting a team freeze existing debt and block regressions. Delete the file to
+     * stop applying the baseline.
+     */
+    public val baselineFile: Property<String> = objects.property(String::class.java)
+        .convention("aalekh-baseline.json")
+
     // Rule DSL
 
     /**

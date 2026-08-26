@@ -1,5 +1,6 @@
 package com.aalekh.aalekh.gradle.task
 
+import com.aalekh.aalekh.analysis.baseline.ViolationBaseline
 import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
 import com.aalekh.aalekh.analysis.rules.RuleEngine
 import com.aalekh.aalekh.analysis.rules.RuleEngineResult
@@ -10,6 +11,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -295,6 +297,17 @@ public abstract class AalekhCheckTask : DefaultTask() {
     @get:Input
     public abstract val ruleEntries: ListProperty<String>
 
+    /**
+     * The committed baseline file (`aalekh-baseline.json`) written by `aalekhBaseline`.
+     * When present, violations recorded in it are suppressed and only new ones fail the build.
+     *
+     * Read manually rather than declared as an `@InputFile` because it is optional (absent until
+     * the first `aalekhBaseline` run), lives in the source tree, and this task never caches - so
+     * fingerprinting it as an input would add nothing.
+     */
+    @get:Internal
+    public abstract val baselineFile: RegularFileProperty
+
     init {
         group = "aalekh"
         description = "Evaluates architecture rules. Fails the build on ERROR-level violations. " +
@@ -316,7 +329,18 @@ public abstract class AalekhCheckTask : DefaultTask() {
             ruleEntries = ruleEntries.get(),
             previousCycleCount = previousCycleCount,
         )
-        val ruleResult = ruleEngine.evaluate(graph)
+        val rawResult = ruleEngine.evaluate(graph)
+
+        // Apply the committed baseline (if any): known violations are frozen, only new ones remain.
+        val baselined = ViolationBaseline.apply(rawResult.violations, readBaselineFingerprints())
+        if (baselined.baselinedCount > 0) {
+            logger.lifecycle(
+                "Aalekh: ${baselined.baselinedCount} baselined violation(s) suppressed " +
+                        "(from ${baselineFile.orNull?.asFile?.name ?: "baseline"})."
+            )
+        }
+        val ruleResult = rawResult.copy(violations = baselined.newViolations)
+
         val report = ReportCoordinator(graph, ruleResult, projectName.get())
 
         outDir.resolve("aalekh-results.xml").writeText(report.generateJUnitXml())
@@ -329,6 +353,22 @@ public abstract class AalekhCheckTask : DefaultTask() {
             "\nAalekh: ${ruleResult.errorCount} violation(s) found. " +
                     "Run ./gradlew aalekhReport to see the full interactive report."
         }
+    }
+
+    /**
+     * Reads the fingerprint set from the baseline file. Returns an empty set when no baseline is
+     * configured, the file does not exist, or it cannot be parsed - so a missing or malformed
+     * baseline simply disables the freeze rather than failing the build.
+     */
+    private fun readBaselineFingerprints(): Set<String> {
+        val file = baselineFile.orNull?.asFile?.takeIf { it.exists() } ?: return emptySet()
+        return runCatching {
+            taskJson.parseToJsonElement(file.readText())
+                .jsonObject["fingerprints"]?.jsonArray
+                ?.mapNotNull { it.jsonPrimitive.contentOrNull }
+                ?.toSet()
+                .orEmpty()
+        }.getOrElse { emptySet() }
     }
 
     private fun logResults(ruleResult: RuleEngineResult, outDir: java.io.File) {
