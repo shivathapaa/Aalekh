@@ -149,6 +149,7 @@ public class AalekhPlugin : Plugin<Project> {
             val reportsDir = project.layout.buildDirectory.dir(extension.outputDir)
             task.mermaidFile.set(reportsDir.map { it.file("aalekh-graph.mmd") })
             task.markdownFile.set(reportsDir.map { it.file("aalekh-graph.md") })
+            task.dotFile.set(reportsDir.map { it.file("aalekh-graph.dot") })
             task.dependsOn(extractTask)
         }
 

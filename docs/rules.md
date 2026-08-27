@@ -317,6 +317,25 @@ workflow and violations appear as inline annotations directly on the pull reques
 
 No token, no custom reporter, no extra setup.
 
+## Code Climate output for GitLab Code Quality
+
+`aalekhCheck` also writes `aalekh-codeclimate.json` on every run - the
+[Code Climate](https://docs.gitlab.com/ee/ci/testing/code_quality.html) format GitLab's **Code
+Quality** widget consumes. Point a `codequality` report artifact at it and every violation shows up
+on the merge-request diff:
+
+```yaml
+aalekh:
+  script: ./gradlew aalekhCheck
+  artifacts:
+    reports:
+      codequality: build/reports/aalekh/aalekh-codeclimate.json
+```
+
+Severities map `ERROR → critical`, `WARNING → minor`, `INFO → info`; each issue carries a stable
+fingerprint so GitLab can track it across pipelines. It is the GitLab counterpart to the SARIF report
+Aalekh writes for GitHub.
+
 ## Predicate rules (`forbid { }`)
 
 For the common "X must not depend on Y" case you don't need a custom rule class - declare it inline

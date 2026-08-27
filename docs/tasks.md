@@ -63,6 +63,7 @@ writes three output files:
 - `build/reports/aalekh/aalekh-results.json` - full machine-readable report: graph, summary,
   violations, version, and timestamp
 - `build/reports/aalekh/aalekh-results.sarif` - SARIF 2.1 for GitHub code scanning PR annotations
+- `build/reports/aalekh/aalekh-codeclimate.json` - Code Climate JSON for GitLab Code Quality MR annotations
 
 If any `ERROR`-severity violation is found, the task fails with a summary message and exit code 1:
 
@@ -111,10 +112,12 @@ inline on GitHub, GitLab, and most IDEs. Two files are written next to the HTML 
   embedding.
 - `build/reports/aalekh/aalekh-graph.md` - the same graph inside a ` ```mermaid ` fenced block.
   Commit it next to your code to keep a versioned, reviewable diagram of the architecture.
+- `build/reports/aalekh/aalekh-graph.dot` - the same graph as a [Graphviz](https://graphviz.org) DOT
+  `digraph`, for `dot -Tsvg`/`dot -Tpng`, Gephi, and the wider graph-tooling ecosystem.
 
 Production dependencies render as solid arrows, test-only dependencies as dashed arrows, and nodes
-are colour-coded by module type. Output is deterministic, so the file only changes when the graph
-does - it diffs cleanly in pull requests, unlike the binary SVG export. The task is `@CacheableTask`.
+are colour-coded by module type. Output is deterministic, so the files only change when the graph
+does - they diff cleanly in pull requests, unlike the binary SVG export. The task is `@CacheableTask`.
 
 ## aalekhBaseline
 

@@ -415,6 +415,18 @@ class AalekhPluginFunctionalTest {
     }
 
     @Test
+    fun `aalekhCheck generates Code Climate output for GitLab`() {
+        setupLayerViolationProject()
+        gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        val ccFile = projectDir.resolve("build/reports/aalekh/aalekh-codeclimate.json")
+        assertTrue(ccFile.exists(), "Code Climate report was not generated")
+        val cc = ccFile.readText()
+        assertTrue(cc.contains("\"check_name\""), "Code Climate issues must carry a check_name")
+        assertTrue(cc.contains("\"fingerprint\""), "Code Climate issues must carry a fingerprint")
+        assertTrue(cc.contains("\"severity\""), "Code Climate issues must carry a severity")
+    }
+
+    @Test
     fun `aalekhCheck JSON output contains envelope structure`() {
         setupSingleModuleProject()
         gradleRunner("aalekhCheck", "--no-configuration-cache").build()
@@ -529,6 +541,12 @@ class AalekhPluginFunctionalTest {
         val md = projectDir.resolve("build/reports/aalekh/aalekh-graph.md")
         assertTrue(md.exists(), "aalekhMermaid must write the Markdown wrapper")
         assertTrue(md.readText().contains("```mermaid"), "Markdown wrapper must fence a mermaid block")
+
+        val dot = projectDir.resolve("build/reports/aalekh/aalekh-graph.dot")
+        assertTrue(dot.exists(), "aalekhMermaid must also write the Graphviz DOT file")
+        val dotText = dot.readText()
+        assertTrue(dotText.contains("digraph Aalekh {"), "DOT output must declare a digraph")
+        assertTrue(dotText.contains("\":core:domain\""), "DOT output must name modules by path")
     }
 
     @Test

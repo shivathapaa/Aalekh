@@ -3,6 +3,7 @@ package com.aalekh.aalekh.gradle.task
 import com.aalekh.aalekh.analysis.rules.RuleEngineResult
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.report.ReportCoordinator
+import com.aalekh.aalekh.report.dot.DotGraphGenerator
 import kotlinx.serialization.json.Json
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
@@ -18,10 +19,12 @@ import org.gradle.api.tasks.TaskAction
 /**
  * Exports the module dependency graph as [Mermaid](https://mermaid.js.org) text.
  *
- * Two files are written next to the HTML report:
+ * Three files are written next to the HTML report:
  * - `aalekh-graph.mmd` - the raw Mermaid definition, for `mermaid-cli` or manual embedding.
  * - `aalekh-graph.md` - the same graph inside a ` ```mermaid ` fenced block, which renders as a
  *   diagram directly on GitHub. Commit it next to your code to keep a diffable, versioned graph.
+ * - `aalekh-graph.dot` - the same graph as a Graphviz DOT `digraph`, for `dot -Tsvg`, Gephi, and the
+ *   wider graph-tooling ecosystem.
  *
  * Run: `./gradlew aalekhMermaid`
  *
@@ -46,10 +49,14 @@ public abstract class AalekhMermaidTask : DefaultTask() {
     @get:OutputFile
     public abstract val markdownFile: RegularFileProperty
 
+    /** Graphviz DOT `digraph` definition, written to `aalekh-graph.dot`. */
+    @get:OutputFile
+    public abstract val dotFile: RegularFileProperty
+
     init {
         group = "aalekh"
-        description = "Exports the module graph as diffable Mermaid text (.mmd + .md). " +
-                "Run: ./gradlew aalekhMermaid"
+        description = "Exports the module graph as diffable Mermaid and Graphviz DOT text " +
+                "(.mmd + .md + .dot). Run: ./gradlew aalekhMermaid"
     }
 
     @TaskAction
@@ -67,8 +74,13 @@ public abstract class AalekhMermaidTask : DefaultTask() {
         md.parentFile.mkdirs()
         md.writeText(coordinator.generateMermaidMarkdown())
 
+        val dot = dotFile.get().asFile
+        dot.parentFile.mkdirs()
+        dot.writeText(DotGraphGenerator.generate(graph))
+
         logger.lifecycle("Aalekh Mermaid → file://${mmd.absolutePath}")
         logger.lifecycle("Aalekh Mermaid (Markdown) → file://${md.absolutePath}")
+        logger.lifecycle("Aalekh Graphviz DOT → file://${dot.absolutePath}")
     }
 
     private fun readGraph(): ModuleDependencyGraph =

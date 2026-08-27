@@ -75,8 +75,10 @@ countable types are omitted.
 | `build/reports/aalekh/aalekh-results.xml`   | `aalekhCheck`   | JUnit XML for CI test reporters.                                                                                               |
 | `build/reports/aalekh/aalekh-results.json`  | `aalekhCheck`   | Full machine-readable report: graph summary, all violations, version, timestamp. Read by regression detection on the next run. |
 | `build/reports/aalekh/aalekh-results.sarif` | `aalekhCheck`   | SARIF 2.1 for GitHub code scanning PR annotations.                                                                             |
+| `build/reports/aalekh/aalekh-codeclimate.json` | `aalekhCheck` | Code Climate JSON for GitLab Code Quality merge-request annotations.                                                        |
 | `build/reports/aalekh/aalekh-graph.mmd`     | `aalekhMermaid` | Raw Mermaid graph definition.                                                                                                  |
 | `build/reports/aalekh/aalekh-graph.md`      | `aalekhMermaid` | Mermaid graph inside a fenced block, renders on GitHub.                                                                        |
+| `build/reports/aalekh/aalekh-graph.dot`     | `aalekhMermaid` | Graphviz DOT `digraph`, for `dot`, Gephi, and other graph tools.                                                             |
 | `build/reports/aalekh/aalekh-temporal.md`   | `aalekhTemporal`| Change-coupling report: hotspots, hidden coupling, dead structure.                                                            |
 | `build/reports/aalekh/aalekh-temporal.json` | `aalekhTemporal`| The same temporal data, machine-readable.                                                                                     |
 | `build/reports/aalekh/aalekh-affected.md`   | `aalekhAffected`| Affected-modules PR comment: changed modules and downstream blast radius for a git diff.                                     |

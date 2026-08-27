@@ -7,6 +7,14 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **Graphviz DOT export.** `aalekhMermaid` now also writes `aalekh-graph.dot` - the same deterministic
+  module graph as a Graphviz `digraph`, for `dot -Tsvg`/`-Tpng`, Gephi, and the wider graph-tooling
+  ecosystem. Solid edges are production, dashed are test-only, nodes are coloured by module type.
+- **Code Climate report for GitLab.** `aalekhCheck` now also writes `aalekh-codeclimate.json`, the
+  format GitLab's Code Quality widget consumes. Point a `codequality` report artifact at it and every
+  architecture violation annotates the merge-request diff - the GitLab counterpart to the SARIF report
+  Aalekh already writes for GitHub. Severities map `ERROR → critical`, `WARNING → minor`, `INFO → info`
+  with a stable per-issue fingerprint.
 - **Main-sequence metrics** (`aalekhMainSequence`). Computes each module's distance from Robert
   Martin's main sequence `D = |A + I - 1|`, writing a local `aalekh-main-sequence.md` (a
   worst-distance-first table with zone-of-pain / zone-of-uselessness call-outs) and `.json`.

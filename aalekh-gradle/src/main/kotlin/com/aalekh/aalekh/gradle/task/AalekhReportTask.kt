@@ -12,6 +12,7 @@ import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.Severity
 import com.aalekh.aalekh.model.Violation
 import com.aalekh.aalekh.report.ReportCoordinator
+import com.aalekh.aalekh.report.codeclimate.CodeClimateReporter
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -394,6 +395,7 @@ public abstract class AalekhCheckTask : DefaultTask() {
         outDir.resolve("aalekh-results.xml").writeText(report.generateJUnitXml())
         outDir.resolve("aalekh-results.json").writeText(report.generateJson())
         outDir.resolve("aalekh-results.sarif").writeText(report.generateSarif())
+        outDir.resolve("aalekh-codeclimate.json").writeText(CodeClimateReporter.generate(graph, ruleResult))
 
         logResults(ruleResult, outDir)
         logCycleAdvice(graph, ruleResult)
