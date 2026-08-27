@@ -43,6 +43,19 @@ cd aalekh
 Unit tests run in milliseconds because `aalekh-analysis` and `aalekh-model` have no Gradle
 dependency. Only the functional tests in `aalekh-gradle` are slow.
 
+## Trying your change against a real project
+
+The in-repo [`sample/`](sample/README.md) project applies Aalekh to a small four-module build via
+`includeBuild("..")`, so you can exercise the whole plugin without publishing anything - edit the
+plugin, re-run a task, see the effect:
+
+```bash
+./gradlew -p sample aalekhReport   # then open sample/build/reports/aalekh/index.html
+./gradlew -p sample aalekhCheck
+```
+
+`sample/` is not part of the root build, so `./gradlew build` at the repo root does not touch it.
+
 ## Submitting a built-in rule
 
 Built-in rules live in `aalekh-analysis/src/main/kotlin/.../analysis/rules/`.

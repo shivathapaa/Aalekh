@@ -188,8 +188,15 @@ cd aalekh
 ./gradlew :aalekh-gradle:functionalTest   # GradleRunner tests (slower)
 ```
 
-To dogfood a change against a real project, run `./gradlew publishToMavenLocal`, then add
-`mavenLocal()` to the consumer project's `settings.gradle.kts` repository list.
+To try a change without publishing, use the in-repo [`sample/`](sample/README.md) consumer project -
+it applies the plugin via `includeBuild("..")`:
+
+```bash
+./gradlew -p sample aalekhReport   # then open sample/build/reports/aalekh/index.html
+```
+
+To dogfood against a real external project instead, run `./gradlew publishToMavenLocal`, then add
+`mavenLocal()` to that project's `settings.gradle.kts` repository list.
 
 ## License
 
