@@ -144,6 +144,12 @@ public object GraphAnalyzer {
      * Returns all pairs of modules that share a significant number of common dependents,
      * suggesting they might be tightly coupled and should be merged or extracted.
      *
+     * This is a **coarse O(V²) heuristic** - it compares every module pair's dependent sets and is
+     * only meant as a hint, not a coupling metric. For the principled system-wide coupling numbers
+     * (Lakos CCD/ACD/NCCD, %Tangle) use [CouplingAnalyzer.systemCoupling]; for change coupling use the
+     * temporal analysis. On very large graphs (thousands of modules) prefer those over calling this in
+     * a hot path.
+     *
      * @param sharedDependentThreshold Minimum shared dependents to flag as coupled
      */
     public fun potentiallyCoupledModules(
