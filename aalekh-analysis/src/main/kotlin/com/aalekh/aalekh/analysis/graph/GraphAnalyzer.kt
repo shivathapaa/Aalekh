@@ -12,6 +12,19 @@ import kotlinx.serialization.Serializable
  * every rule evaluation starts here.
  */
 public object GraphAnalyzer {
+
+    /**
+     * Default minimum fan-in for a [godModules] classification - a module depended on by at least
+     * this many others. Shared with `HealthScoreCalculator` so the two never drift apart.
+     */
+    public const val DEFAULT_GOD_FAN_IN_THRESHOLD: Int = 5
+
+    /**
+     * Default minimum fan-out for a [godModules] classification - a module depending on at least
+     * this many others. Shared with `HealthScoreCalculator` so the two never drift apart.
+     */
+    public const val DEFAULT_GOD_FAN_OUT_THRESHOLD: Int = 5
+
     /**
      * Returns modules in topological order (dependencies before dependents).
      * Throws [IllegalStateException] if the graph contains cycles.
@@ -99,8 +112,8 @@ public object GraphAnalyzer {
      */
     public fun godModules(
         graph: ModuleDependencyGraph,
-        fanInThreshold: Int = 5,
-        fanOutThreshold: Int = 5,
+        fanInThreshold: Int = DEFAULT_GOD_FAN_IN_THRESHOLD,
+        fanOutThreshold: Int = DEFAULT_GOD_FAN_OUT_THRESHOLD,
     ): List<ModuleNode> = graph.modules.filter { module ->
         graph.fanIn(module.path) >= fanInThreshold &&
                 graph.fanOut(module.path) >= fanOutThreshold

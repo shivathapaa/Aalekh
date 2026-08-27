@@ -1,5 +1,6 @@
 package com.aalekh.aalekh.analysis.metrics
 
+import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 
 /**
@@ -22,10 +23,6 @@ import com.aalekh.aalekh.model.ModuleDependencyGraph
  */
 public object HealthScoreCalculator {
 
-    // God module thresholds - same as GraphAnalyzer.godModules() defaults
-    private const val GOD_FAN_IN_THRESHOLD = 5
-    private const val GOD_FAN_OUT_THRESHOLD = 5
-
     // Transitive dep count where the score component hits zero
     private const val TRANSITIVE_MAX = 50
 
@@ -43,6 +40,8 @@ public object HealthScoreCalculator {
         return (100 - totalPenalty).toInt().coerceIn(0, 100)
     }
 
+    // Uses the same god-module thresholds as GraphAnalyzer.godModules() - single-sourced there.
     private fun isGodModule(path: String, graph: ModuleDependencyGraph): Boolean =
-        graph.fanIn(path) >= GOD_FAN_IN_THRESHOLD && graph.fanOut(path) >= GOD_FAN_OUT_THRESHOLD
+        graph.fanIn(path) >= GraphAnalyzer.DEFAULT_GOD_FAN_IN_THRESHOLD &&
+                graph.fanOut(path) >= GraphAnalyzer.DEFAULT_GOD_FAN_OUT_THRESHOLD
 }
