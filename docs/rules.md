@@ -14,6 +14,7 @@
 | `no-orphan-modules`           | `WARNING` | Modules must not be isolated (zero fan-in and zero fan-out)          |
 | `uncovered-module`            | `WARNING` | Every module must belong to a declared `layers { }` layer            |
 | `kmp-common-main-platform-dependency` | `ERROR` | A KMP module's `commonMain` must not depend on a platform-only (JVM/Android) module |
+| `source-set-dependency`       | `ERROR`   | A `forbidSourceSetDependency(...)` rule: a named source set must not depend on the selected modules |
 | `forbidden-dependency`        | `ERROR`   | A `forbid { }` predicate rule: the *from* modules must not depend on the *to* modules |
 | `forbidden-transitive-dependency` | `ERROR` | A `forbidReachable(...)` rule: *from* must not **transitively** reach *to* |
 | `unreachable-module`          | `ERROR`   | A `mustBeReachableFrom(...)` rule: *module* must be reachable from a declared root |
@@ -21,9 +22,10 @@
 
 `max-transitive-dependencies`, `max-graph-height`, `no-orphan-modules`, and `uncovered-module` are
 inactive until you opt in from the `rules { }` block (`kmp-common-main-platform-dependency` too);
-`forbidden-dependency`, `forbidden-transitive-dependency`, `unreachable-module`, and
-`metric-regression` are active only when you declare the corresponding `forbid { }`,
-`forbidReachable(...)`, `mustBeReachableFrom(...)`, or `qualityGates { }` rule. The first three rules
+`forbidden-dependency`, `forbidden-transitive-dependency`, `unreachable-module`, `source-set-dependency`,
+and `metric-regression` are active only when you declare the corresponding `forbid { }`,
+`forbidReachable(...)`, `mustBeReachableFrom(...)`, `forbidSourceSetDependency(...)`, or
+`qualityGates { }` rule. The first three rules
 (`no-cyclic-dependencies`, `layer-dependency`, `no-feature-to-feature`) are always on.
 
 ## Violation severity levels
@@ -278,6 +280,33 @@ Reports `kmp-common-main-platform-dependency` at `ERROR` (promote/demote with
 `rule("kmp-common-main-platform-dependency") { severity = Severity.WARNING }`). The fix is to move the
 dependency to the matching platform source set (e.g. `androidMain`) or make the target module
 multiplatform.
+
+### Per-source-set direction rules
+
+`noCommonMainPlatformDependencies()` is the built-in special case of a more general rule:
+`forbidSourceSetDependency(...)` forbids dependencies declared in **any** named source set from
+targeting a selected set of modules. Because every edge records its owning source set, this enforces
+arbitrary per-source-set direction constraints with no compiler:
+
+```kotlin
+aalekh {
+    rules {
+        // iOS code must never pull in an Android module.
+        forbidSourceSetDependencyOnType(sourceSet = "iosMain", moduleType = ModuleType.ANDROID_LIBRARY)
+
+        // androidMain must not reach the desktop-only platform modules.
+        forbidSourceSetDependency(sourceSet = "androidMain", to = ":platform:desktop:**")
+    }
+}
+```
+
+Use `forbidSourceSetDependency(sourceSet, to)` for a path glob and
+`forbidSourceSetDependencyOnType(sourceSet, moduleType)` for a module-type target. Only production
+edges owned by the given source set are checked (a self-loop never counts). All instances report the
+stable `source-set-dependency` id at `ERROR` by default; pass `severity = Severity.WARNING` (or
+`because = "..."`) to adjust. Note that expect/actual *matching* itself stays the Kotlin compiler's
+job - Aalekh operates at the module-graph level, so it enforces *direction*, not type-level
+expect/actual resolution.
 
 ## Cycle regression prevention
 

@@ -130,6 +130,7 @@ public class RuleEngine(
             previousCycleCount: Int? = null,
             forbidEntries: List<String> = emptyList(),
             reachabilityEntries: List<String> = emptyList(),
+            sourceSetEntries: List<String> = emptyList(),
         ): RuleEngine {
             val parsed = parseRuleEntries(ruleEntries)
             val rules = mutableListOf<ArchRule>()
@@ -154,6 +155,7 @@ public class RuleEngine(
             }
             rules += forbidEntries.mapNotNull { parsePredicateRule(it) }
             rules += reachabilityEntries.mapNotNull { parseReachabilityRule(it) }
+            rules += sourceSetEntries.mapNotNull { parseSourceSetRule(it) }
 
             return RuleEngine(
                 rules = rules,
@@ -217,6 +219,31 @@ public class RuleEngine(
                 )
                 else -> null
             }
+        }
+
+        /**
+         * Rebuilds a [SourceSetDependencyRule] from one serialized `forbidSourceSetDependency` /
+         * `forbidSourceSetDependencyOnType` entry, or null if malformed. Format:
+         * `"<sourceSet>|<toKind>|<toValue>|<severity>|<reason>"`, where `toKind` is `path` or `type`.
+         */
+        private const val SS_FIELDS = 5
+        private const val SS_MIN_FIELDS = 4
+        private const val SS_VALUE_INDEX = 2
+        private const val SS_SEVERITY_INDEX = 3
+        private const val SS_REASON_INDEX = 4
+
+        private fun parseSourceSetRule(entry: String): ArchRule? {
+            val parts = entry.split("|", limit = SS_FIELDS)
+            if (parts.size < SS_MIN_FIELDS || parts[0].isBlank()) return null
+            val to = ModuleMatcher.fromSerialized(parts[1], parts[SS_VALUE_INDEX])
+            val severity = Severity.entries.firstOrNull { it.name == parts[SS_SEVERITY_INDEX] }
+                ?: Severity.ERROR
+            return SourceSetDependencyRule(
+                sourceSet = parts[0],
+                to = to,
+                reason = parts.getOrElse(SS_REASON_INDEX) { "" },
+                defaultSeverity = severity,
+            )
         }
 
         /** Accumulated result of parsing the serialized `ruleEntries` strings. */

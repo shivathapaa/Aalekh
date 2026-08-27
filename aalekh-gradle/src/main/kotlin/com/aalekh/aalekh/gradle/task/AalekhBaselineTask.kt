@@ -70,6 +70,10 @@ public abstract class AalekhBaselineTask : DefaultTask() {
     @get:Input
     public abstract val reachabilityEntries: ListProperty<String>
 
+    /** Serialized per-source-set rules, so the baseline covers them too. */
+    @get:Input
+    public abstract val sourceSetEntries: ListProperty<String>
+
     /** The baseline file to write, e.g. `<rootDir>/aalekh-baseline.json`. */
     @get:OutputFile
     public abstract val baselineOutputFile: RegularFileProperty
@@ -90,6 +94,7 @@ public abstract class AalekhBaselineTask : DefaultTask() {
             ruleEntries = ruleEntries.get(),
             forbidEntries = forbidEntries.get(),
             reachabilityEntries = reachabilityEntries.get(),
+            sourceSetEntries = sourceSetEntries.get(),
         )
         val fingerprints = ViolationBaseline.toFingerprints(ruleEngine.evaluate(graph).violations)
         val metrics = MetricGateEvaluator.snapshot(GraphAnalyzer.summary(graph))

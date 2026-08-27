@@ -1,5 +1,6 @@
 package com.aalekh.aalekh.gradle.dsl
 
+import com.aalekh.aalekh.model.ModuleType
 import com.aalekh.aalekh.model.Severity
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
@@ -23,6 +24,10 @@ import javax.inject.Inject
  * }
  * ```
  */
+// A DSL configuration surface: each function is one independent rule builder (rule, forbidReachable,
+// forbidSourceSetDependency, ...). The count grows with the rule catalogue, not with class complexity,
+// so the TooManyFunctions structural rule does not apply here.
+@Suppress("TooManyFunctions")
 public abstract class RulesConfig @Inject constructor(objects: ObjectFactory) {
 
     internal val entries: ListProperty<String> =
@@ -35,6 +40,15 @@ public abstract class RulesConfig @Inject constructor(objects: ObjectFactory) {
      * `"<kind>|<fromGlob>|<toGlob>|<severity>|<reason>"`, kind = `forbid` or `require`.
      */
     internal val reachabilityEntries: ListProperty<String> =
+        objects.listProperty(String::class.java).convention(emptyList())
+
+    /**
+     * Serialized per-source-set dependency rules from [forbidSourceSetDependency] /
+     * [forbidSourceSetDependencyOnType]. Separate channel from [entries] because the target glob
+     * contains `:`. Format per entry: `"<sourceSet>|<toKind>|<toValue>|<severity>|<reason>"`, where
+     * `toKind` is `path` or `type`.
+     */
+    internal val sourceSetEntries: ListProperty<String> =
         objects.listProperty(String::class.java).convention(emptyList())
 
     public fun rule(id: String, configure: RuleOverride.() -> Unit) {
@@ -128,6 +142,55 @@ public abstract class RulesConfig @Inject constructor(objects: ObjectFactory) {
         severity: Severity = Severity.ERROR,
     ) {
         reachabilityEntries.add(serializeReachability("require", from, module, severity, because))
+    }
+
+    /**
+     * Forbids dependencies declared in the [sourceSet] source set (e.g. `"iosMain"`, `"androidMain"`)
+     * from targeting modules matching [to] - the general form of [noCommonMainPlatformDependencies].
+     * Every graph edge records its owning source set, so this enforces per-source-set direction with
+     * no compiler. Reports `source-set-dependency` at [severity] (default ERROR).
+     *
+     * ```kotlin
+     * rules { forbidSourceSetDependency(sourceSet = "androidMain", to = ":platform:desktop:**") }
+     * ```
+     */
+    public fun forbidSourceSetDependency(
+        sourceSet: String,
+        to: String,
+        because: String = "",
+        severity: Severity = Severity.ERROR,
+    ) {
+        sourceSetEntries.add(serializeSourceSet(sourceSet, "path", to, severity, because))
+    }
+
+    /**
+     * Forbids dependencies declared in the [sourceSet] source set from targeting any module of
+     * [moduleType] - e.g. `iosMain` must not depend on any `ANDROID_LIBRARY`. Reports
+     * `source-set-dependency` at [severity] (default ERROR).
+     *
+     * ```kotlin
+     * rules { forbidSourceSetDependencyOnType(sourceSet = "iosMain", moduleType = ModuleType.ANDROID_LIBRARY) }
+     * ```
+     */
+    public fun forbidSourceSetDependencyOnType(
+        sourceSet: String,
+        moduleType: ModuleType,
+        because: String = "",
+        severity: Severity = Severity.ERROR,
+    ) {
+        sourceSetEntries.add(serializeSourceSet(sourceSet, "type", moduleType.name, severity, because))
+    }
+
+    /** Serializes one source-set rule to `"<sourceSet>|<toKind>|<toValue>|<severity>|<reason>"`. */
+    private fun serializeSourceSet(
+        sourceSet: String,
+        toKind: String,
+        toValue: String,
+        severity: Severity,
+        reason: String,
+    ): String {
+        val safeReason = reason.replace('|', '/').replace('\n', ' ').trim()
+        return "$sourceSet|$toKind|$toValue|${severity.name}|$safeReason"
     }
 
     /** Serializes one reachability rule to `"<kind>|<from>|<to>|<severity>|<reason>"`. */

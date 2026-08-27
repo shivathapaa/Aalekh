@@ -7,6 +7,13 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **Per-source-set dependency rules** (`forbidSourceSetDependency(...)` /
+  `forbidSourceSetDependencyOnType(...)`). The general form of the `commonMain` rule: forbid
+  dependencies declared in any named source set (e.g. `iosMain`, `androidMain`) from targeting a
+  chosen path glob or module type - for example, `iosMain` must not depend on any `ANDROID_LIBRARY`.
+  Uses the source set already recorded on each edge, so it needs no compiler; reports the stable
+  `source-set-dependency` rule at `ERROR`. (Expect/actual *matching* stays the compiler's job - Aalekh
+  enforces source-set direction at the module-graph level.)
 - **Signed build provenance for published artifacts.** The publish workflow now attaches a signed
   provenance attestation (via GitHub OIDC, `actions/attest-build-provenance`) to every published jar,
   and a post-publish smoke test applies the freshly published plugin end to end. A tag-triggered
