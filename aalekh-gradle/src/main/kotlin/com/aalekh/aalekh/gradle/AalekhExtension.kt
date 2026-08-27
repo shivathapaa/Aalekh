@@ -4,6 +4,7 @@ import com.aalekh.aalekh.gradle.dsl.AffectedGraphConfig
 import com.aalekh.aalekh.gradle.dsl.FeatureIsolationConfig
 import com.aalekh.aalekh.gradle.dsl.ForbiddenDependencySpec
 import com.aalekh.aalekh.gradle.dsl.LayerConfig
+import com.aalekh.aalekh.gradle.dsl.MermaidConfig
 import com.aalekh.aalekh.gradle.dsl.QualityGatesConfig
 import com.aalekh.aalekh.gradle.dsl.RulesConfig
 import com.aalekh.aalekh.gradle.dsl.TeamOwnershipConfig
@@ -51,6 +52,10 @@ import javax.inject.Inject
  * }
  * ```
  */
+// This is the top-level DSL facade: each function is one independent configuration block (layers,
+// rules, teams, forbid, mermaid, ...). The method count is an inherent property of the DSL surface,
+// not a sign of a class doing too much, so the TooManyFunctions structural rule does not apply here.
+@Suppress("TooManyFunctions")
 public abstract class AalekhExtension @Inject constructor(private val objects: ObjectFactory) {
 
     /** Output directory for report files, relative to `build/`. Default: `"reports/aalekh"`. */
@@ -195,6 +200,18 @@ public abstract class AalekhExtension @Inject constructor(private val objects: O
     /** Configures the affected-graph diff range via the [AffectedGraphConfig] DSL. */
     public fun affected(configure: AffectedGraphConfig.() -> Unit) {
         affectedGraphConfig.configure()
+    }
+
+    /**
+     * Configures the graph export run by `aalekhMermaid` - the focus/exclude filters that keep a
+     * large graph's Mermaid and DOT diagrams readable.
+     */
+    public val mermaidConfig: MermaidConfig =
+        objects.newInstance(MermaidConfig::class.java)
+
+    /** Configures the Mermaid/DOT export focus and exclude filters via the [MermaidConfig] DSL. */
+    public fun mermaid(configure: MermaidConfig.() -> Unit) {
+        mermaidConfig.configure()
     }
 
     /** Serialized `forbid { }` predicate rules, one delimited string per rule. */

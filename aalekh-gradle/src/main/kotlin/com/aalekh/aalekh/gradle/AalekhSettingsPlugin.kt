@@ -160,6 +160,9 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
             ) { task ->
                 task.graphJsonFile.set(graphJsonFile)
                 task.projectName.set(rootProject.name)
+                task.focusPatterns.set(extension.mermaidConfig.focusEntries)
+                task.excludePatterns.set(extension.mermaidConfig.excludeEntries)
+                task.neighborDepth.set(extension.mermaidConfig.depthValue)
                 val reportsDir = rootProject.layout.buildDirectory.dir(extension.outputDir)
                 task.mermaidFile.set(reportsDir.map { it.file("aalekh-graph.mmd") })
                 task.markdownFile.set(reportsDir.map { it.file("aalekh-graph.md") })

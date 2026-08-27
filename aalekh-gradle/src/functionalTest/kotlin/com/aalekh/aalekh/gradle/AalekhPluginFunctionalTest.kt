@@ -564,6 +564,38 @@ class AalekhPluginFunctionalTest {
         )
     }
 
+    @Test
+    fun `aalekhMermaid honours the focus and exclude filters`() {
+        setupMultiModuleProject()
+        // exclude: :core:data must not appear in the diagram.
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                mermaid { exclude(":core:data") }
+            }
+            """.trimIndent()
+        )
+        gradleRunner("aalekhMermaid", "--no-configuration-cache").build()
+        val excluded = projectDir.resolve("build/reports/aalekh/aalekh-graph.mmd").readText()
+        assertTrue(excluded.contains(":core:domain"), "unfiltered modules must remain in the diagram")
+        assertFalse(excluded.contains(":core:data"), "an excluded module must be gone from the diagram")
+
+        // focus at depth 0: keep only :core:domain.
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                mermaid { focus(":core:domain"); depth(0) }
+            }
+            """.trimIndent()
+        )
+        gradleRunner("aalekhMermaid", "--no-configuration-cache").build()
+        val focused = projectDir.resolve("build/reports/aalekh/aalekh-graph.mmd").readText()
+        assertTrue(focused.contains(":core:domain"), "the focused module must be present")
+        assertFalse(focused.contains(":feature:login"), "a module outside the focus must be absent")
+    }
+
     // New rules
 
     @Test

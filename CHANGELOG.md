@@ -7,6 +7,13 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **Mermaid/DOT focus and exclude filters** (`mermaid { }`). Keep a large graph's exported diagram
+  readable: `focus(...)` restricts it to chosen modules plus their neighbourhood (grown `depth(n)`
+  hops in either direction, default 1), and `exclude(...)` drops modules after focus. The filters
+  apply to all three `aalekhMermaid` outputs (`.mmd`, `.md`, `.dot`); with none declared the full
+  graph is exported exactly as before. Subsetting is a pure function (`GraphFilter` in
+  `aalekh-analysis`, unit-tested); the diagram generators are unchanged. Filter selectors are plain
+  `@Input` lists, so `aalekhMermaid` stays `@CacheableTask` and configuration-cache safe.
 - **Custom metric SPI** (`aalekhMetrics`). A `ServiceLoader`-based extension point for measuring the
   graph, the counterpart to the custom-rule SPI. Implement
   `com.aalekh.aalekh.analysis.spi.MetricProvider` (a pure function of the graph returning a

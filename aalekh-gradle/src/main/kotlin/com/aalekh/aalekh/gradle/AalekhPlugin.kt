@@ -147,6 +147,9 @@ public class AalekhPlugin : Plugin<Project> {
         project.tasks.register("aalekhMermaid", AalekhMermaidTask::class.java) { task ->
             task.graphJsonFile.set(graphJsonFile)
             task.projectName.set(project.name)
+            task.focusPatterns.set(extension.mermaidConfig.focusEntries)
+            task.excludePatterns.set(extension.mermaidConfig.excludeEntries)
+            task.neighborDepth.set(extension.mermaidConfig.depthValue)
             val reportsDir = project.layout.buildDirectory.dir(extension.outputDir)
             task.mermaidFile.set(reportsDir.map { it.file("aalekh-graph.mmd") })
             task.markdownFile.set(reportsDir.map { it.file("aalekh-graph.md") })

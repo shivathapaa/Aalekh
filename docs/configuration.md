@@ -51,6 +51,13 @@ aalekh {
         headRef.set("")         // blank diffs against the working tree
     }
 
+    // Focus/exclude filters for the aalekhMermaid diagram exports (.mmd/.md/.dot).
+    mermaid {
+        focus(":feature:checkout")   // keep this module and its neighbourhood
+        depth(1)                     // neighbourhood hops to grow the focus set (default 1)
+        exclude(":test:**")          // drop matching modules after focus
+    }
+
     layers { /* see Architecture rules → Layer enforcement */ }
     featureIsolation { /* see Architecture rules → Feature isolation */ }
     teams { /* see Architecture rules → Team ownership */ }
@@ -61,7 +68,8 @@ aalekh {
 The `layers`, `featureIsolation`, `teams`, and `rules` blocks are documented in
 [Architecture rules](rules.md). The `temporalCoupling` block is documented under
 [Gradle tasks → aalekhTemporal](tasks.md#aalekhtemporal), and `qualityGates` under
-[Architecture rules → Quality gates](rules.md#quality-gates).
+[Architecture rules → Quality gates](rules.md#quality-gates). The `mermaid` focus/exclude filters
+are documented under [Gradle tasks → aalekhMermaid](tasks.md#focus-and-exclude-filters).
 
 Quality gates compare the current graph against the `metrics` snapshot recorded in
 `aalekh-baseline.json`. They only fire once you have run `aalekhBaseline`; a regression on any

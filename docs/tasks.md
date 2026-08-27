@@ -120,6 +120,34 @@ Production dependencies render as solid arrows, test-only dependencies as dashed
 are colour-coded by module type. Output is deterministic, so the files only change when the graph
 does - they diff cleanly in pull requests, unlike the binary SVG export. The task is `@CacheableTask`.
 
+### Focus and exclude filters
+
+A whole-repo diagram becomes unreadable past a few dozen modules. Narrow it with the `mermaid { }`
+block - the filters apply to all three outputs (`.mmd`, `.md`, `.dot`):
+
+```kotlin
+aalekh {
+    mermaid {
+        focus(":feature:checkout")   // keep :feature:checkout and its neighbours
+        depth(2)                     // ...grow the neighbourhood 2 hops (default 1)
+        exclude(":test:**")          // then drop test-only modules
+    }
+}
+```
+
+- **`focus(vararg globs)`** - restrict the diagram to the modules matching any glob plus their
+  neighbourhood. Growth follows dependency edges in *both* directions (dependencies and dependents),
+  so a focused module keeps its context. With no `focus`, every module is exported.
+- **`depth(hops)`** - how far to grow the focus set: `0` keeps only the focused modules, `1` (the
+  default) adds their direct neighbours. Ignored when no `focus` is set.
+- **`exclude(vararg globs)`** - remove matching modules, applied *after* focus. An edge survives only
+  when both of its endpoints do.
+
+Globs use the same syntax as the rest of Aalekh (`*` within a path segment, `**` across segments).
+With no filters declared the full graph is exported exactly as before. The subsetting is a pure
+function (`GraphFilter` in `aalekh-analysis`), so it is fully unit-tested and the diagram generators
+are unchanged.
+
 ## aalekhBaseline
 
 ```bash

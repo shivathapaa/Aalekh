@@ -1,5 +1,6 @@
 package com.aalekh.aalekh.gradle.task
 
+import com.aalekh.aalekh.analysis.graph.GraphFilter
 import com.aalekh.aalekh.analysis.rules.RuleEngineResult
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.report.ReportCoordinator
@@ -7,6 +8,7 @@ import com.aalekh.aalekh.report.dot.DotGraphGenerator
 import kotlinx.serialization.json.Json
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Input
@@ -41,6 +43,18 @@ public abstract class AalekhMermaidTask : DefaultTask() {
     @get:Input
     public abstract val projectName: Property<String>
 
+    /** Focus globs from `mermaid { focus(...) }`; empty exports every module. */
+    @get:Input
+    public abstract val focusPatterns: ListProperty<String>
+
+    /** Exclude globs from `mermaid { exclude(...) }`, applied after focus. */
+    @get:Input
+    public abstract val excludePatterns: ListProperty<String>
+
+    /** Neighbourhood hops to grow the focus set by, from `mermaid { depth(...) }`. Default `1`. */
+    @get:Input
+    public abstract val neighborDepth: Property<Int>
+
     /** Raw Mermaid graph definition, written to `aalekh-graph.mmd`. */
     @get:OutputFile
     public abstract val mermaidFile: RegularFileProperty
@@ -61,7 +75,12 @@ public abstract class AalekhMermaidTask : DefaultTask() {
 
     @TaskAction
     public fun generate() {
-        val graph = readGraph()
+        val graph = GraphFilter.filter(
+            readGraph(),
+            focusPatterns.get(),
+            excludePatterns.get(),
+            neighborDepth.get(),
+        )
         // No rules are needed for a pure graph export; drive the same report facade the other
         // tasks use rather than reaching into the generator directly.
         val coordinator = ReportCoordinator(graph, RuleEngineResult(emptyList(), 0), projectName.get())
