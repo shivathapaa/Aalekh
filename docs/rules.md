@@ -13,17 +13,18 @@
 | `max-graph-height`            | `WARNING` | The longest dependency chain must not exceed the configured height   |
 | `no-orphan-modules`           | `WARNING` | Modules must not be isolated (zero fan-in and zero fan-out)          |
 | `uncovered-module`            | `WARNING` | Every module must belong to a declared `layers { }` layer            |
+| `kmp-common-main-platform-dependency` | `ERROR` | A KMP module's `commonMain` must not depend on a platform-only (JVM/Android) module |
 | `forbidden-dependency`        | `ERROR`   | A `forbid { }` predicate rule: the *from* modules must not depend on the *to* modules |
 | `forbidden-transitive-dependency` | `ERROR` | A `forbidReachable(...)` rule: *from* must not **transitively** reach *to* |
 | `unreachable-module`          | `ERROR`   | A `mustBeReachableFrom(...)` rule: *module* must be reachable from a declared root |
 | `metric-regression`           | `ERROR`   | A quality-gated metric must not exceed the committed baseline value  |
 
 `max-transitive-dependencies`, `max-graph-height`, `no-orphan-modules`, and `uncovered-module` are
-inactive until you opt in from the `rules { }` block; `forbidden-dependency`,
-`forbidden-transitive-dependency`, `unreachable-module`, and `metric-regression` are active only when
-you declare the corresponding `forbid { }`, `forbidReachable(...)`, `mustBeReachableFrom(...)`, or
-`qualityGates { }` rule. The first three rules (`no-cyclic-dependencies`, `layer-dependency`,
-`no-feature-to-feature`) are always on.
+inactive until you opt in from the `rules { }` block (`kmp-common-main-platform-dependency` too);
+`forbidden-dependency`, `forbidden-transitive-dependency`, `unreachable-module`, and
+`metric-regression` are active only when you declare the corresponding `forbid { }`,
+`forbidReachable(...)`, `mustBeReachableFrom(...)`, or `qualityGates { }` rule. The first three rules
+(`no-cyclic-dependencies`, `layer-dependency`, `no-feature-to-feature`) are always on.
 
 ## Violation severity levels
 
@@ -249,6 +250,34 @@ Both default to `ERROR`; pass `severity = Severity.WARNING` to only report. Both
 edges only - a `testImplementation`-only path does not count as reachable. The `from`/`to`/`module`
 selectors are path globs (`*`, `**`); like every rule, they are serialized to a
 configuration-cache-safe string, never captured as a lambda.
+
+## KMP source-set rules
+
+Aalekh knows the owning source set of each dependency edge (from the Kotlin Multiplatform
+configuration name, e.g. `commonMainImplementation` → `commonMain`), so it can enforce
+multiplatform-safety rules at the module-graph level without a compiler.
+
+`noCommonMainPlatformDependencies()` forbids a KMP module's **`commonMain`** from depending on a
+platform-only module. `commonMain` is compiled for *every* target the module declares, so it can only
+reference dependencies that exist on all of them - a `commonMain` dependency on a JVM-only or
+Android-only module does not compile for the other targets and silently locks the module to one
+platform.
+
+```kotlin
+aalekh {
+    rules {
+        noCommonMainPlatformDependencies()
+    }
+}
+```
+
+Only `commonMain`-owned edges are checked, and only when the target is genuinely single-platform
+(`ANDROID_APP`, `ANDROID_LIBRARY`, `JVM_LIBRARY`); depending on another multiplatform module (`KMP`,
+`KMP_ANDROID_LIBRARY`) is allowed, and `UNKNOWN`-typed targets are skipped to avoid false positives.
+Reports `kmp-common-main-platform-dependency` at `ERROR` (promote/demote with
+`rule("kmp-common-main-platform-dependency") { severity = Severity.WARNING }`). The fix is to move the
+dependency to the matching platform source set (e.g. `androidMain`) or make the target module
+multiplatform.
 
 ## Cycle regression prevention
 

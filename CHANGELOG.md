@@ -7,6 +7,13 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **KMP source-set rule** (`noCommonMainPlatformDependencies()`). Forbids a Kotlin Multiplatform
+  module's `commonMain` from depending on a platform-only (JVM- or Android-only) module - a dependency
+  that does not compile for the module's other targets. Aalekh already records the owning source set of
+  each edge (from the KMP configuration name), so the rule works at the module-graph level with no
+  compiler. Only `commonMain` edges to genuinely single-platform targets fire; other multiplatform
+  modules and `UNKNOWN`-typed targets are allowed. Opt-in, reports
+  `kmp-common-main-platform-dependency` at `ERROR`.
 - **Graphviz DOT export.** `aalekhMermaid` now also writes `aalekh-graph.dot` - the same deterministic
   module graph as a Graphviz `digraph`, for `dot -Tsvg`/`-Tpng`, Gephi, and the wider graph-tooling
   ecosystem. Solid edges are production, dashed are test-only, nodes are coloured by module type.

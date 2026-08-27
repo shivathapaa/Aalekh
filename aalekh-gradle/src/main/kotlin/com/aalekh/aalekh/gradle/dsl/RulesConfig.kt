@@ -71,6 +71,17 @@ public abstract class RulesConfig @Inject constructor(objects: ObjectFactory) {
     }
 
     /**
+     * Forbids a KMP module's `commonMain` source set from depending on a platform-only (JVM- or
+     * Android-only) module - such a dependency does not compile for the module's other targets.
+     * Reports `kmp-common-main-platform-dependency` at ERROR (override with
+     * `rule("kmp-common-main-platform-dependency") { severity = WARNING }`). No-op on projects with no
+     * KMP source-set dependencies.
+     */
+    public fun noCommonMainPlatformDependencies() {
+        entries.add("kmp-common-main-platform-dependency:option:enabled")
+    }
+
+    /**
      * Requires every module to belong to a declared `layers { }` layer. A module matched by no layer
      * pattern is invisible to [layer enforcement][com.aalekh.aalekh.analysis.rules.LayerDependencyRule]
      * and can depend on anything; this makes layer coverage exhaustive. Reports the `uncovered-module`

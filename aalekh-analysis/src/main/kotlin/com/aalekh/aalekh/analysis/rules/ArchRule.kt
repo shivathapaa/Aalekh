@@ -148,6 +148,7 @@ public class RuleEngine(
             parsed.maxTransitive?.let { rules += MaxTransitiveDependenciesRule(it) }
             parsed.maxGraphHeight?.let { rules += MaxGraphHeightRule(it) }
             if (parsed.forbidOrphans) rules += NoOrphanModulesRule()
+            if (parsed.forbidCommonMainPlatform) rules += KmpCommonMainRule()
             if (parsed.requireLayerCoverage && layerEntries.isNotEmpty()) {
                 rules += UncoveredModuleRule.fromSerializedLayers(layerEntries)
             }
@@ -227,6 +228,7 @@ public class RuleEngine(
             var maxTransitive: Int? = null
             var maxGraphHeight: Int? = null
             var forbidOrphans = false
+            var forbidCommonMainPlatform = false
             var requireLayerCoverage = false
         }
 
@@ -266,6 +268,9 @@ public class RuleEngine(
 
                 ruleId == "uncovered-module" && value == "enabled" ->
                     parsed.requireLayerCoverage = true
+
+                ruleId == "kmp-common-main-platform-dependency" && value == "enabled" ->
+                    parsed.forbidCommonMainPlatform = true
             }
         }
 
