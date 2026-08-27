@@ -5467,6 +5467,24 @@
                 hint: 'No deps in or out - candidates for removal',
                 c: summary.isolatedModuleCount > 0 ? 'var(--c-warn)' : 'var(--c-ok)'
             },
+            {
+                v: summary.ccd || 0,
+                l: 'CCD',
+                hint: 'Cumulative Dependency (Lakos) - sum of every module\'s reachable set',
+                c: 'var(--c-main)'
+            },
+            {
+                v: (summary.nccd || 0).toFixed(2),
+                l: 'NCCD',
+                hint: 'Normalized CCD - >1.00 is more tangled than a balanced tree',
+                c: (summary.nccd || 0) > 1 ? 'var(--c-warn)' : 'var(--c-ok)'
+            },
+            {
+                v: (summary.tanglePercent || 0).toFixed(0) + '%',
+                l: '% Tangled',
+                hint: 'Share of modules inside a dependency cycle',
+                c: (summary.tanglePercent || 0) > 0 ? 'var(--c-cycle)' : 'var(--c-ok)'
+            },
         ];
 
         var kpiHtml = '<div class="kpi-row">'

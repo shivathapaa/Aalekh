@@ -64,6 +64,21 @@ class HtmlReportGeneratorTest {
     }
 
     @Test
+    fun `summary JSON carries the Lakos system-coupling metrics`() {
+        val html = generateHtml()
+        assertTrue(html.contains("\"ccd\":"), "summary must inject CCD for the KPI board")
+        assertTrue(html.contains("\"nccd\":"), "summary must inject NCCD")
+        assertTrue(html.contains("\"tanglePercent\":"), "summary must inject %Tangle")
+    }
+
+    @Test
+    fun `report renders the coupling KPI cards`() {
+        val html = generateHtml()
+        assertTrue(html.contains("% Tangled"), "the KPI board must include the %Tangle card")
+        assertTrue(html.contains("NCCD"), "the KPI board must include the NCCD card")
+    }
+
+    @Test
     fun `generated HTML contains module paths from graph`() {
         val html = generateHtml()
         assertTrue(html.contains(":app"), "HTML should embed :app module path")

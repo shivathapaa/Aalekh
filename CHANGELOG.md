@@ -7,6 +7,10 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **Coupling KPI cards in the HTML report.** The Metrics/Health board now shows the Lakos
+  **CCD**, **NCCD**, and **% Tangled** figures alongside the existing KPIs. The numbers were already
+  computed and injected into the report's summary data; this surfaces them as cards using the same
+  layout as every other KPI (no new markup, no new assets - the report stays fully offline).
 - **Mermaid/DOT focus and exclude filters** (`mermaid { }`). Keep a large graph's exported diagram
   readable: `focus(...)` restricts it to chosen modules plus their neighbourhood (grown `depth(n)`
   hops in either direction, default 1), and `exclude(...)` drops modules after focus. The filters
