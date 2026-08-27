@@ -7,12 +7,16 @@ import com.aalekh.aalekh.analysis.metrics.MetricGate
 import com.aalekh.aalekh.analysis.metrics.MetricGateEvaluator
 import com.aalekh.aalekh.analysis.rules.RuleEngine
 import com.aalekh.aalekh.analysis.rules.RuleEngineResult
+import com.aalekh.aalekh.model.MainSequenceReport
 import com.aalekh.aalekh.model.MetricSnapshot
 import com.aalekh.aalekh.model.ModuleDependencyGraph
+import com.aalekh.aalekh.model.ModuleMainSequence
+import com.aalekh.aalekh.model.TemporalCouplingReport
 import com.aalekh.aalekh.model.Severity
 import com.aalekh.aalekh.model.Violation
 import com.aalekh.aalekh.report.ReportCoordinator
 import com.aalekh.aalekh.report.codeclimate.CodeClimateReporter
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -141,9 +145,19 @@ public abstract class AalekhReportTask : DefaultTask() {
         // Collect trend history before writing the report so the current run is included.
         val trendJson = updateAndReadTrend(graph)
         val teamOwners = parseTeamEntries(teamEntries.getOrElse(""))
+        val mainSequence = readMainSequence(outputPath.resolveSibling("aalekh-main-sequence.json"))
+        val temporal = readTemporalReport(outputPath.resolveSibling("aalekh-temporal.json"))
 
         outputPath.parentFile.mkdirs()
-        outputPath.writeText(report.generateHtml(trendJson, teamOwners))
+        outputPath.writeText(
+            report.generateHtml(
+                trendJson = trendJson,
+                teamOwners = teamOwners,
+                mainSequence = mainSequence,
+                hiddenCoupling = temporal?.hiddenCoupling?.take(MAX_HIDDEN_COUPLING) ?: emptyList(),
+                churn = temporal?.churn ?: emptyList(),
+            )
+        )
 
         if (exportMetrics.getOrElse(false)) {
             val csvFile = outputPath.resolveSibling("aalekh-metrics.csv")
@@ -233,6 +247,41 @@ public abstract class AalekhReportTask : DefaultTask() {
 
     private fun readGraph(): ModuleDependencyGraph =
         taskJson.decodeFromString(graphJsonFile.get().asFile.readText())
+
+    /**
+     * Reads the abstractness/instability points written by `aalekhMainSequence` from the sibling
+     * `aalekh-main-sequence.json`, so the report can draw the A/I scatter. Returns an empty list when
+     * the file is absent (the task was not run) or unreadable - the scatter panel then stays hidden.
+     * Never fatal: the report must render whether or not main-sequence data exists.
+     */
+    private fun readMainSequence(file: java.io.File): List<ModuleMainSequence> =
+        if (!file.exists()) {
+            emptyList()
+        } else {
+            runCatching {
+                taskJson.decodeFromString<MainSequenceReport>(file.readText()).modules
+            }.getOrElse {
+                logger.info("Aalekh: could not read main-sequence data for the scatter - ${it.message}")
+                emptyList()
+            }
+        }
+
+    /**
+     * Reads the temporal-coupling report written by `aalekhTemporal` from the sibling
+     * `aalekh-temporal.json`, so the report can surface hidden coupling and per-module churn. Returns
+     * null when the file is absent or unreadable; never fatal - the report renders regardless.
+     */
+    private fun readTemporalReport(file: java.io.File): TemporalCouplingReport? =
+        if (!file.exists()) {
+            null
+        } else {
+            runCatching {
+                taskJson.decodeFromString<TemporalCouplingReport>(file.readText())
+            }.getOrElse {
+                logger.info("Aalekh: could not read temporal data for the report - ${it.message}")
+                null
+            }
+        }
 
     /**
      * Reconstructs the team → glob-pattern map from the serialized `teams { }` input.
@@ -559,3 +608,6 @@ public abstract class AalekhCheckTask : DefaultTask() {
 }
 
 private val taskJson = Json { ignoreUnknownKeys = true }
+
+/** Cap on hidden-coupling pairs surfaced in the report card, keeping the alert scannable. */
+private const val MAX_HIDDEN_COUPLING = 8

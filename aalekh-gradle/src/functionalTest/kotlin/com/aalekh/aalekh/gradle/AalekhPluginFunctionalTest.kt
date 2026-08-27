@@ -388,6 +388,21 @@ class AalekhPluginFunctionalTest {
         )
     }
 
+    @Test
+    fun `aalekhReport lists the applied rules in the report summary`() {
+        setupLayerViolationProject()
+        gradleRunner("aalekhReport", "--no-configuration-cache").build()
+        val html = projectDir.resolve("build/reports/aalekh/index.html").readText()
+        assertTrue(
+            html.contains(""""id":"layer-dependency""""),
+            "the configured layer rule must reach summary.rules so the Rules panel can list it"
+        )
+        assertTrue(
+            html.contains("""data-p="rules""""),
+            "the report shell must ship the Rules tab"
+        )
+    }
+
     // Graph extraction
 
     @Test
@@ -398,6 +413,57 @@ class AalekhPluginFunctionalTest {
         assertTrue(html.contains(":core:domain"))
         assertTrue(html.contains(":core:data"))
         assertTrue(html.contains(":feature:login"))
+    }
+
+    // Extraction walks rootProject.subprojects, so the external dep must be declared in a
+    // subproject (not the root). [aalekhBlock] is the root build.gradle.kts content.
+    private fun setupExternalDepProject(aalekhBlock: String) {
+        projectDir.resolve("app").mkdirs()
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins { id("io.github.shivathapaa.aalekh") }
+            rootProject.name = "ext-dep-test"
+            include(":app")
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(aalekhBlock)
+        projectDir.resolve("app/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies {
+                implementation("com.squareup.okhttp3:okhttp:4.12.0")
+            }
+            """.trimIndent()
+        )
+    }
+
+    @Test
+    fun `graph extraction captures external dependency coordinates`() {
+        setupExternalDepProject("""aalekh { openBrowserAfterReport.set(false) }""")
+        gradleRunner("aalekhExtract", "--no-configuration-cache").build()
+        val graph = projectDir.resolve("build/tmp/aalekh/graph.json").readText()
+        assertTrue(graph.contains("com.squareup.okhttp3"), "external dep group must be captured")
+        assertTrue(graph.contains("okhttp"), "external dep name must be captured")
+        assertTrue(graph.contains("4.12.0"), "external dep version must be captured")
+    }
+
+    @Test
+    fun `includeExternalDependencies false excludes external dependencies`() {
+        setupExternalDepProject(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                includeExternalDependencies.set(false)
+            }
+            """.trimIndent()
+        )
+        gradleRunner("aalekhExtract", "--no-configuration-cache").build()
+        val graph = projectDir.resolve("build/tmp/aalekh/graph.json").readText()
+        assertFalse(graph.contains("okhttp"), "external deps must be excluded when the flag is off")
+        assertTrue(
+            graph.contains("\"externalDependencies\":[]"),
+            "the external list must be empty when opted out",
+        )
     }
 
     @Test
@@ -985,6 +1051,44 @@ class AalekhPluginFunctionalTest {
         val json = projectDir.resolve("build/reports/aalekh/aalekh-temporal.json")
         assertTrue(json.exists(), "aalekhTemporal must write the JSON report")
         assertTrue(json.readText().contains("\"commitsAnalyzed\""), "JSON must carry the analysed commit count")
+    }
+
+    @Test
+    fun `aalekhReport surfaces hidden coupling from the temporal analysis`() {
+        // :a and :b declare no dependency on each other but always change together -> hidden coupling.
+        listOf("a", "b").forEach { projectDir.resolve(it).mkdirs() }
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins { id("io.github.shivathapaa.aalekh") }
+            rootProject.name = "hidden-test"
+            include(":a", ":b")
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText("""aalekh { openBrowserAfterReport.set(false) }""")
+        projectDir.resolve("a/build.gradle.kts").writeText("""plugins { kotlin("jvm") version "2.3.0" }""")
+        projectDir.resolve("b/build.gradle.kts").writeText("""plugins { kotlin("jvm") version "2.3.0" }""")
+        writeSource("a/src/main/kotlin/A.kt", "object A { const val V = 0 }")
+        writeSource("b/src/main/kotlin/B.kt", "object B { const val V = 0 }")
+        runGit("init", "-q")
+        gitCommitAll("init")
+        for (i in 1..3) {
+            writeSource("a/src/main/kotlin/A.kt", "object A { const val V = $i }")
+            writeSource("b/src/main/kotlin/B.kt", "object B { const val V = $i }")
+            gitCommitAll("change $i")
+        }
+
+        gradleRunner("aalekhTemporal", "--no-configuration-cache").build()
+        gradleRunner("aalekhReport", "--no-configuration-cache").build()
+
+        val html = projectDir.resolve("build/reports/aalekh/index.html").readText()
+        assertTrue(
+            html.contains("\"hiddenCoupling\":[{\"a\":\":a\",\"b\":\":b\""),
+            "the report must inject the hidden-coupling pair produced by aalekhTemporal",
+        )
+        assertTrue(
+            Regex("\"churn\":\\{[^}]*\":a\":").containsMatchIn(html),
+            "the report must inject per-module churn for the inspector",
+        )
     }
 
     @Test

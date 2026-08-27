@@ -2,6 +2,10 @@
 
 [← Documentation index](README.md) · [Project README](../README.md)
 
+Every rule you configure - built-in or custom - is listed in the report's **Rules** panel, passing
+and failing alike, with its effective severity and violation count. See
+[The report → Panels](report.md#panels).
+
 ## Built-in rules
 
 | Rule ID                       | Severity  | Description                                                          |

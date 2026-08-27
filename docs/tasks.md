@@ -46,6 +46,12 @@ completes. Disable auto-open with `openBrowserAfterReport.set(false)` for CI env
 
 When `exportMetrics` is enabled, also writes `build/reports/aalekh/aalekh-metrics.csv`.
 
+If `aalekh-main-sequence.json` is present next to the report (i.e. you ran
+[`aalekhMainSequence`](#aalekhmainsequence) first), the report's Metrics panel additionally draws the
+**Abstractness vs Instability scatter** from it. Likewise, if `aalekh-temporal.json` is present (from
+[`aalekhTemporal`](#aalekhtemporal)), the panel shows a **Hidden Coupling** card - pairs that
+co-change in git history without a declared dependency. Both are omitted when their file is absent.
+
 Every run appends a snapshot to `build/aalekh/trend.json` (rolling window of 30 entries) to power
 the KPI trend sparklines.
 

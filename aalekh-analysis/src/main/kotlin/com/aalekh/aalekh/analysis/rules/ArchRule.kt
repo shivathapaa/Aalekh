@@ -80,7 +80,47 @@ public class RuleEngine(
                     } else v
                 }
         }
-        return RuleEngineResult(violations = violations, rulesEvaluated = rules.size)
+        return RuleEngineResult(
+            violations = violations,
+            rulesEvaluated = rules.size,
+            appliedRules = buildAppliedRules(violations),
+        )
+    }
+
+    /**
+     * The effective severity of [rule] once configured overrides are applied. Mirrors the
+     * per-violation mapping in [evaluate]: an override never promotes or demotes an INFO rule.
+     */
+    private fun effectiveSeverity(rule: ArchRule): Severity {
+        val override = severityOverrides[rule.id]
+        return if (override != null && rule.defaultSeverity != Severity.INFO) override
+        else rule.defaultSeverity
+    }
+
+    /**
+     * Summarises the active rule set, one entry per distinct rule [id], for the report's Rules
+     * panel. Several instances can share an id (e.g. multiple `forbid { }` predicates); they are
+     * folded into one row whose severity is the strictest across the group (ERROR outranks WARNING
+     * outranks INFO - the lowest [Severity] ordinal) and whose [AppliedRule.violationCount] is the
+     * post-suppression count already attributed to that id in [violations].
+     */
+    private fun buildAppliedRules(violations: List<Violation>): List<AppliedRule> {
+        val countsById = violations.groupingBy { it.ruleId }.eachCount()
+        return rules
+            .groupBy { it.id }
+            .map { (id, group) ->
+                val strictest = group.map { effectiveSeverity(it) }
+                    .minByOrNull { it.ordinal } ?: group.first().defaultSeverity
+                AppliedRule(
+                    id = id,
+                    description = group.first().description,
+                    severity = strictest,
+                    explanation = group.first().plainLanguageExplanation,
+                    ruleCount = group.size,
+                    violationCount = countsById[id] ?: 0,
+                )
+            }
+            .sortedBy { it.id }
     }
 
     private fun isSuppressed(violation: Violation, patterns: List<String>): Boolean {
@@ -356,14 +396,39 @@ internal class FailedToLoadCustomRule(
 }
 
 /**
+ * One row of the active rule set, summarising a single rule [id] as enforced against the project.
+ *
+ * Produced by [RuleEngine.evaluate] so the report can list *which* rules are applied - not only the
+ * ones that failed. Instances sharing an id are folded into one entry; see
+ * [RuleEngine] `buildAppliedRules` for the severity and count semantics.
+ *
+ * @param id Stable kebab-case rule id (the public contract also used in SARIF and suppressions).
+ * @param description Human-readable rule description.
+ * @param severity Strictest effective severity across all instances of this id, overrides applied.
+ * @param explanation Plain-language "what and why" for the rule.
+ * @param ruleCount Number of configured rule instances folded under this id (usually 1).
+ * @param violationCount Violations attributed to this id after suppression - 0 means the rule passed.
+ */
+public data class AppliedRule(
+    val id: String,
+    val description: String,
+    val severity: Severity,
+    val explanation: String,
+    val ruleCount: Int,
+    val violationCount: Int,
+)
+
+/**
  * The result of a [RuleEngine.evaluate] call.
  *
  * @param violations All violations found, across all rules.
  * @param rulesEvaluated The number of rules that were run.
+ * @param appliedRules The active rule set, one entry per distinct rule id, for the Rules panel.
  */
 public data class RuleEngineResult(
     val violations: List<Violation>,
     val rulesEvaluated: Int,
+    val appliedRules: List<AppliedRule> = emptyList(),
 ) {
     /** Number of ERROR-severity violations. */
     val errorCount: Int get() = violations.count { it.severity == Severity.ERROR }

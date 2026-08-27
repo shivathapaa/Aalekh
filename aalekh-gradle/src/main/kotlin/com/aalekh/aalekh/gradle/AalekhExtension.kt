@@ -76,6 +76,18 @@ public abstract class AalekhExtension @Inject constructor(private val objects: O
             .convention(false)
 
     /**
+     * Capture external (third-party) dependencies - their `group:name:version` coordinates and
+     * declaration type - so they appear in the module inspector of the HTML report. Default: `true`.
+     *
+     * Set to `false` to exclude external dependencies from extraction (and therefore the report).
+     * The [includeTestDependencies] and [includeCompileOnlyDependencies] flags still apply, so test
+     * and compileOnly external dependencies follow the same scope rules as inter-module edges.
+     */
+    public val includeExternalDependencies: Property<Boolean> =
+        objects.property(Boolean::class.java)
+            .convention(true)
+
+    /**
      * When true, `aalekhReport` writes `aalekh-metrics.csv` alongside `index.html`.
      * The CSV contains one row per module with timestamp, fan-in/out, instability,
      * transitive dep count, and health score. Default: `false`.

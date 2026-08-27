@@ -4,6 +4,7 @@ import com.aalekh.aalekh.gradle.extractor.ConfigurationClassifier
 import com.aalekh.aalekh.gradle.extractor.ModuleTypeDetector
 import com.aalekh.aalekh.model.AalekhBuildConfig
 import com.aalekh.aalekh.model.DependencyEdge
+import com.aalekh.aalekh.model.ExternalDependency
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.ModuleNode
 import kotlinx.serialization.json.Json
@@ -74,6 +75,26 @@ public abstract class AalekhExtractTask : DefaultTask() {
     public abstract val subprojectData: MapProperty<String, List<String>>
 
     /**
+     * External (third-party) dependency data captured at configuration time.
+     *
+     * Format: `Map<subprojectPath, List<"configurationName|group|name|version">>`
+     *
+     * The value is pipe-delimited (not colon-delimited like [subprojectData]) because Maven
+     * coordinates themselves contain colons. The `group` and `version` segments may be empty.
+     *
+     * Example:
+     * ```
+     * { ":app" -> ["implementation|androidx.core|core-ktx|1.13.1", "api|com.squareup.okhttp3|okhttp|4.12.0"] }
+     * ```
+     *
+     * Collected unconditionally, like [subprojectData]. Filtering by [includeExternalDependencies],
+     * [includeTestDependencies], and [includeCompileOnlyDependencies] happens in [extract] so the
+     * task is correctly UP-TO-DATE cached when only the flags change.
+     */
+    @get:Input
+    public abstract val subprojectExternalData: MapProperty<String, List<String>>
+
+    /**
      * Applied plugin class names per subproject - used for module type detection.
      *
      * Format: `Map<subprojectPath, List<pluginClassName>>`
@@ -107,6 +128,17 @@ public abstract class AalekhExtractTask : DefaultTask() {
     public abstract val includeCompileOnlyDependencies: Property<Boolean>
 
     /**
+     * Whether to capture external (third-party) dependencies in the extracted graph.
+     *
+     * Default: `true` - mirrors [com.aalekh.aalekh.gradle.AalekhExtension.includeExternalDependencies].
+     *
+     * When `false`, [ModuleDependencyGraph.externalDependencies] is left empty and the HTML report
+     * shows no external-dependency section.
+     */
+    @get:Input
+    public abstract val includeExternalDependencies: Property<Boolean>
+
+    /**
      * Root project directory path. Used to resolve conventional build file paths
      * for violation messages. Stored as a plain string rather than a Directory
      * property so it doesn't skew UP-TO-DATE checks on the output file.
@@ -126,9 +158,11 @@ public abstract class AalekhExtractTask : DefaultTask() {
     @TaskAction
     public fun extract() {
         val depsData = subprojectData.get()
+        val externalData = subprojectExternalData.get()
         val pluginsData = subprojectPlugins.get()
         val includeTest = includeTestDependencies.getOrElse(true)
         val includeCompileOnly = includeCompileOnlyDependencies.getOrElse(false)
+        val includeExternal = includeExternalDependencies.getOrElse(true)
 
         val nodes = depsData.keys.sorted().map { path ->
             val plugins = pluginsData[path] ?: emptyList()
@@ -145,39 +179,27 @@ public abstract class AalekhExtractTask : DefaultTask() {
             )
         }
 
-        val edges = depsData.flatMap { (fromPath, depStrings) ->
-            depStrings.mapNotNull { depString ->
-                val colonIdx = depString.indexOf(':')
-                if (colonIdx < 0) return@mapNotNull null
-                val config = depString.substring(0, colonIdx)
-                val toPath = depString.substring(colonIdx + 1)
+        val edges = buildEdges(depsData, includeTest, includeCompileOnly)
 
-                // Apply filter flags before building the edge - this is the
-                // single place where the extension flags take effect.
-                if (!includeTest && ConfigurationClassifier.isTestConfig(config)) return@mapNotNull null
-                if (!includeCompileOnly && ConfigurationClassifier.isCompileOnlyConfig(config)) return@mapNotNull null
-
-                DependencyEdge(
-                    from = fromPath,
-                    to = toPath,
-                    configuration = config,
-                    sourceSet = ConfigurationClassifier.kmpSourceSetName(config),
-                )
-            }
-        }.distinctBy { Triple(it.from, it.to, it.configuration) }
+        val externalDependencies =
+            if (includeExternal) buildExternalDependencies(externalData, includeTest, includeCompileOnly)
+            else emptyList()
 
         val graph = ModuleDependencyGraph(
             projectName = projectName.get(),
             modules = nodes,
             edges = edges,
+            externalDependencies = externalDependencies,
             metadata = mapOf(
                 "gradleVersion" to gradleVersion.get(),
                 "extractedAt" to Instant.now().toString(),
                 "moduleCount" to nodes.size.toString(),
                 "edgeCount" to edges.size.toString(),
+                "externalDepCount" to externalDependencies.size.toString(),
                 "aalekhVersion" to AalekhBuildConfig.VERSION,
                 "includeTestDependencies" to includeTest.toString(),
                 "includeCompileOnlyDependencies" to includeCompileOnly.toString(),
+                "includeExternalDependencies" to includeExternal.toString(),
             ),
         )
 
@@ -188,10 +210,67 @@ public abstract class AalekhExtractTask : DefaultTask() {
 
         logger.lifecycle(
             "Aalekh extracted ${nodes.size} modules, ${edges.size} edges" +
+                    (if (includeExternal) ", ${externalDependencies.size} external deps" else "") +
                     (if (!includeTest) " (test deps excluded)" else "") +
                     (if (includeCompileOnly) " (compileOnly included)" else "")
         )
     }
+
+    // Parses the "configurationName:targetProjectPath" strings collected by the plugins into edges,
+    // applying the test / compileOnly scope filters - the single place the extension flags take effect.
+    private fun buildEdges(
+        depsData: Map<String, List<String>>,
+        includeTest: Boolean,
+        includeCompileOnly: Boolean,
+    ): List<DependencyEdge> =
+        depsData.flatMap { (fromPath, depStrings) ->
+            depStrings.mapNotNull { depString ->
+                val colonIdx = depString.indexOf(':')
+                if (colonIdx < 0) return@mapNotNull null
+                val config = depString.substring(0, colonIdx)
+                val toPath = depString.substring(colonIdx + 1)
+                if (!includeTest && ConfigurationClassifier.isTestConfig(config)) return@mapNotNull null
+                if (!includeCompileOnly && ConfigurationClassifier.isCompileOnlyConfig(config)) {
+                    return@mapNotNull null
+                }
+                DependencyEdge(
+                    from = fromPath,
+                    to = toPath,
+                    configuration = config,
+                    sourceSet = ConfigurationClassifier.kmpSourceSetName(config),
+                )
+            }
+        }.distinctBy { Triple(it.from, it.to, it.configuration) }
+
+    // Parses the pipe-delimited external-dependency strings collected by the plugins into model
+    // objects, applying the same test / compileOnly scope filters used for inter-module edges.
+    private fun buildExternalDependencies(
+        externalData: Map<String, List<String>>,
+        includeTest: Boolean,
+        includeCompileOnly: Boolean,
+    ): List<ExternalDependency> =
+        externalData.flatMap { (modulePath, depStrings) ->
+            depStrings.mapNotNull { depString ->
+                // "configurationName|group|name|version" - group/version may be empty.
+                val parts = depString.split('|', limit = EXTERNAL_DEP_FIELD_COUNT)
+                if (parts.size < EXTERNAL_DEP_FIELD_COUNT) return@mapNotNull null
+                val config = parts[0]
+                val name = parts[2]
+                if (config.isEmpty() || name.isEmpty()) return@mapNotNull null
+                if (!includeTest && ConfigurationClassifier.isTestConfig(config)) return@mapNotNull null
+                if (!includeCompileOnly && ConfigurationClassifier.isCompileOnlyConfig(config)) {
+                    return@mapNotNull null
+                }
+                ExternalDependency(
+                    module = modulePath,
+                    group = parts[1],
+                    name = name,
+                    version = parts[3].ifEmpty { null },
+                    configuration = config,
+                    sourceSet = ConfigurationClassifier.kmpSourceSetName(config),
+                )
+            }
+        }.distinctBy { listOf(it.module, it.group, it.name, it.version, it.configuration) }
 
     private fun inferTags(path: String): Set<String> {
         val segments = path.split(":").filter { it.isNotBlank() }
@@ -215,6 +294,11 @@ public abstract class AalekhExtractTask : DefaultTask() {
             groovy.exists() -> "$relativeDirPath/build.gradle"
             else -> null
         }
+    }
+
+    private companion object {
+        // "configurationName|group|name|version" - four pipe-delimited fields.
+        const val EXTERNAL_DEP_FIELD_COUNT = 4
     }
 
 }

@@ -1,8 +1,14 @@
 package com.aalekh.aalekh.report
 
 import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
+import com.aalekh.aalekh.analysis.rules.AppliedRule
+import com.aalekh.aalekh.model.CoChange
 import com.aalekh.aalekh.model.DependencyEdge
+import com.aalekh.aalekh.model.ExternalDependency
+import com.aalekh.aalekh.model.MainSequenceZone
+import com.aalekh.aalekh.model.ModuleChurn
 import com.aalekh.aalekh.model.ModuleDependencyGraph
+import com.aalekh.aalekh.model.ModuleMainSequence
 import com.aalekh.aalekh.model.ModuleNode
 import com.aalekh.aalekh.model.ModuleType
 import com.aalekh.aalekh.model.Severity
@@ -76,6 +82,130 @@ class HtmlReportGeneratorTest {
         val html = generateHtml()
         assertTrue(html.contains("% Tangled"), "the KPI board must include the %Tangle card")
         assertTrue(html.contains("NCCD"), "the KPI board must include the NCCD card")
+    }
+
+    @Test
+    fun `main-sequence points are injected for the A-I scatter when provided`() {
+        val graph = sampleGraph()
+        val html = HtmlReportGenerator.generate(
+            projectName = graph.projectName,
+            graph = graph,
+            summary = GraphAnalyzer.summary(graph),
+            mainSequence = listOf(
+                ModuleMainSequence(":app", 0.9, 0.1, 0.0, MainSequenceZone.MAIN_SEQUENCE, 1, 9),
+            ),
+        )
+        assertTrue(
+            html.contains("\"mainSequence\":[{\"path\":\":app\""),
+            "the scatter points must be injected into the summary data",
+        )
+    }
+
+    @Test
+    fun `main-sequence is an empty array when no scatter data is supplied`() {
+        assertTrue(generateHtml().contains("\"mainSequence\":[]"))
+    }
+
+    @Test
+    fun `hidden coupling pairs are injected when provided`() {
+        val graph = sampleGraph()
+        val html = HtmlReportGenerator.generate(
+            projectName = graph.projectName,
+            graph = graph,
+            summary = GraphAnalyzer.summary(graph),
+            hiddenCoupling = listOf(CoChange(":a", ":b", 5, 0.8, declared = false)),
+        )
+        assertTrue(
+            html.contains("\"hiddenCoupling\":[{\"a\":\":a\",\"b\":\":b\""),
+            "hidden-coupling pairs must be injected for the temporal alert card",
+        )
+    }
+
+    @Test
+    fun `hidden coupling is an empty array when no temporal data is supplied`() {
+        assertTrue(generateHtml().contains("\"hiddenCoupling\":[]"))
+    }
+
+    @Test
+    fun `applied rules are injected into the summary for the Rules panel`() {
+        val graph = sampleGraph()
+        val html = HtmlReportGenerator.generate(
+            projectName = graph.projectName,
+            graph = graph,
+            summary = GraphAnalyzer.summary(graph),
+            appliedRules = listOf(
+                AppliedRule(
+                    id = "layer-dependency",
+                    description = "Modules must only depend on permitted layers.",
+                    severity = Severity.ERROR,
+                    explanation = "Layered architecture keeps concerns separate.",
+                    ruleCount = 1,
+                    violationCount = 0,
+                ),
+            ),
+        )
+        assertTrue(
+            html.contains("\"rules\":[{\"id\":\"layer-dependency\""),
+            "the active rule set must be injected into the summary data",
+        )
+        assertTrue(
+            html.contains("\"severity\":\"ERROR\"") && html.contains("\"violations\":0"),
+            "each applied rule must carry its effective severity and violation count",
+        )
+    }
+
+    @Test
+    fun `applied rules is an empty array when no rules are configured`() {
+        assertTrue(generateHtml().contains("\"rules\":[]"))
+    }
+
+    @Test
+    fun `report ships the Rules tab and panel shell`() {
+        val html = generateHtml()
+        assertTrue(html.contains("""data-p="rules""""), "the Rules tab must be present in the nav")
+        assertTrue(html.contains("""id="panel-rules""""), "the Rules panel container must be present")
+    }
+
+    @Test
+    fun `per-module churn is injected for the inspector when provided`() {
+        val graph = sampleGraph()
+        val html = HtmlReportGenerator.generate(
+            projectName = graph.projectName,
+            graph = graph,
+            summary = GraphAnalyzer.summary(graph),
+            churn = listOf(ModuleChurn(":app", 12)),
+        )
+        assertTrue(
+            html.contains("\"churn\":{\":app\":12"),
+            "per-module churn must be injected so the inspector can show it",
+        )
+    }
+
+    @Test
+    fun `external dependencies are embedded in the graph data for the inspector`() {
+        val graph = sampleGraph().copy(
+            externalDependencies = listOf(
+                ExternalDependency(":app", "androidx.core", "core-ktx", "1.13.1", "implementation"),
+            ),
+        )
+        val html = generateHtml(graph)
+        assertTrue(html.contains("androidx.core"), "HTML should embed the external dependency group")
+        assertTrue(html.contains("core-ktx"), "HTML should embed the external dependency name")
+        assertTrue(html.contains("1.13.1"), "HTML should embed the external dependency version")
+    }
+
+    @Test
+    fun `external dependencies is an empty array when none are captured`() {
+        assertTrue(generateHtml().contains("\"externalDependencies\":[]"))
+    }
+
+    @Test
+    fun `dependencies tab and aggregate panel are present in the report shell`() {
+        val html = generateHtml()
+        assertTrue(html.contains("""data-p="deps""""), "Dependencies outer tab must be in the nav")
+        assertTrue(html.contains("""id="panel-deps""""), "Dependencies panel container must exist")
+        assertTrue(html.contains("""id="deps-content""""), "Dependencies content host must exist")
+        assertTrue(html.contains("function buildDeps"), "buildDeps aggregator must be embedded")
     }
 
     @Test

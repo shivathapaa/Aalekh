@@ -21,13 +21,21 @@ import kotlinx.serialization.Serializable
  * @param projectName Root project name from `settings.gradle.kts`
  * @param modules     All subproject modules discovered in the build
  * @param edges       All inter-module dependency relationships
+ * @param externalDependencies All declared external (third-party) dependencies, keyed by declaring
+ *   module via [ExternalDependency.module]. Empty when external-dependency capture is disabled or
+ *   when deserializing a graph file produced by an older plugin version.
  * @param metadata    Build context: Gradle version, AGP version, extraction timestamp, etc.
  */
+// The query surface (moduleByPath, edgesFrom/To, fanIn/Out, instability, transitive*, cycle
+// helpers, externalDependenciesOf) is the central graph API every consumer reads through; the
+// method count reflects that breadth, not a class doing unrelated jobs.
+@Suppress("TooManyFunctions")
 @Serializable
 public data class ModuleDependencyGraph(
     val projectName: String,
     val modules: List<ModuleNode>,
     val edges: List<DependencyEdge>,
+    val externalDependencies: List<ExternalDependency> = emptyList(),
     val metadata: Map<String, String> = emptyMap(),
 ) {
     // Indices (lazy, computed once). Avoid O(E) scans inside hot graph algorithms;
@@ -41,9 +49,16 @@ public data class ModuleDependencyGraph(
     private val edgesToIndex: Map<String, List<DependencyEdge>> by lazy {
         edges.groupBy { it.to }
     }
+    private val externalDepsByModule: Map<String, List<ExternalDependency>> by lazy {
+        externalDependencies.groupBy { it.module }
+    }
 
     /** Finds a module by its Gradle project path, or null if not found.*/
     public fun moduleByPath(path: String): ModuleNode? = moduleIndex[path]
+
+    /** All external (third-party) dependencies declared by a module.*/
+    public fun externalDependenciesOf(path: String): List<ExternalDependency> =
+        externalDepsByModule[path] ?: emptyList()
 
     /** All edges leaving a module (what it directly depends on).*/
     public fun edgesFrom(path: String): List<DependencyEdge> =

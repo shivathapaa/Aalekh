@@ -16,10 +16,4 @@ pages below.
 | [Metrics & output](metrics.md) | Graph metrics glossary, output files, CSV export, trend history |
 | [CI setup](ci.md) | Wiring `aalekhCheck` and the report into GitHub Actions |
 
-## Project direction
-
-| Page | What's inside |
-|------|---------------|
-| [Roadmap](ROADMAP.md) | Prioritized plans, known gaps, and where Aalekh is headed |
-
 See also: [CONTRIBUTING.md](../CONTRIBUTING.md), [CHANGELOG.md](../CHANGELOG.md).

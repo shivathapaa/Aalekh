@@ -124,6 +124,36 @@ class ModelSerializationTest {
         assertEquals("commonMain", deserialized.edges.first().sourceSet)
     }
 
+    // ExternalDependency
+
+    @Test
+    fun `ExternalDependency round-trips through the graph`() {
+        val graph = ModuleDependencyGraph(
+            projectName = "ext",
+            modules = listOf(node(":app", ModuleType.ANDROID_APP)),
+            edges = emptyList(),
+            externalDependencies = listOf(
+                ExternalDependency(":app", "androidx.core", "core-ktx", "1.13.1", "implementation"),
+                ExternalDependency(":app", "com.example", "bom", null, "implementation"),
+            ),
+        )
+        val deserialized = json.decodeFromString<ModuleDependencyGraph>(json.encodeToString(graph))
+        assertEquals(2, deserialized.externalDependencies.size)
+        val core = deserialized.externalDependenciesOf(":app").first { it.name == "core-ktx" }
+        assertEquals("androidx.core:core-ktx:1.13.1", core.coordinates)
+        assertNull(deserialized.externalDependencies.first { it.name == "bom" }.version)
+    }
+
+    @Test
+    fun `graph without externalDependencies field deserializes to empty list`() {
+        // Simulates reading a graph.json written by an older plugin version that predates
+        // external-dependency capture.
+        val legacyJson =
+            """{"projectName":"legacy","modules":[],"edges":[]}"""
+        val deserialized = json.decodeFromString<ModuleDependencyGraph>(legacyJson)
+        assertTrue(deserialized.externalDependencies.isEmpty())
+    }
+
     // Violation
 
     @Test

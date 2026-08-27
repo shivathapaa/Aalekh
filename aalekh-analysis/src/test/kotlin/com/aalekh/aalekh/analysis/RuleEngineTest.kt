@@ -208,4 +208,56 @@ class RuleEngineTest {
             .violations.first { it.severity == Severity.INFO }
         assertTrue(info.message.contains("test"))
     }
+
+    // Applied rule set - surfaced for the report's Rules panel.
+
+    private fun ruleWith(idV: String, sev: Severity, fires: Boolean) = object : ArchRule {
+        override val id = idV
+        override val description = "description of $idV"
+        override val defaultSeverity = sev
+        override val plainLanguageExplanation = "why $idV matters"
+        override fun evaluate(graph: ModuleDependencyGraph): List<Violation> =
+            if (fires) listOf(Violation(ruleId = idV, severity = sev, message = "m", source = "s"))
+            else emptyList()
+    }
+
+    @Test
+    fun `appliedRules lists a failing rule with its violation count`() {
+        val result = RuleEngine.withBuiltinRules().evaluate(cyclicGraph())
+        val cycle = result.appliedRules.single { it.id == "no-cyclic-dependencies" }
+        assertEquals(Severity.ERROR, cycle.severity)
+        assertEquals(1, cycle.ruleCount)
+        assertTrue(cycle.violationCount > 0, "a failing rule must report its violation count")
+    }
+
+    @Test
+    fun `appliedRules reports a passing rule with zero violations`() {
+        val result = RuleEngine.withBuiltinRules().evaluate(acyclicGraph())
+        val cycle = result.appliedRules.single { it.id == "no-cyclic-dependencies" }
+        assertEquals(0, cycle.violationCount)
+    }
+
+    @Test
+    fun `appliedRules folds instances sharing an id and takes the strictest severity`() {
+        val engine = RuleEngine(
+            listOf(
+                ruleWith("dup", Severity.WARNING, fires = false),
+                ruleWith("dup", Severity.ERROR, fires = true),
+            )
+        )
+        val row = engine.evaluate(acyclicGraph()).appliedRules.single { it.id == "dup" }
+        assertEquals(2, row.ruleCount, "both instances fold into one row")
+        assertEquals(Severity.ERROR, row.severity, "strictest severity wins across instances")
+        assertEquals(1, row.violationCount)
+    }
+
+    @Test
+    fun `appliedRules reflects a configured severity override`() {
+        val engine = RuleEngine(
+            rules = listOf(ruleWith("x", Severity.ERROR, fires = false)),
+            severityOverrides = mapOf("x" to Severity.WARNING),
+        )
+        val row = engine.evaluate(acyclicGraph()).appliedRules.single { it.id == "x" }
+        assertEquals(Severity.WARNING, row.severity)
+    }
 }

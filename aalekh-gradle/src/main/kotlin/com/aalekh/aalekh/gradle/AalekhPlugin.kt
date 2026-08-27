@@ -81,10 +81,12 @@ public class AalekhPlugin : Plugin<Project> {
             task.projectName.set(project.name)
             task.gradleVersion.set(project.gradle.gradleVersion)
             task.subprojectData.set(project.provider { buildSubprojectData(project) })
+            task.subprojectExternalData.set(project.provider { buildSubprojectExternalData(project) })
             task.subprojectPlugins.set(project.provider { buildPluginData(project) })
             // Wire extension flags - same as settings plugin
             task.includeTestDependencies.set(extension.includeTestDependencies)
             task.includeCompileOnlyDependencies.set(extension.includeCompileOnlyDependencies)
+            task.includeExternalDependencies.set(extension.includeExternalDependencies)
             task.rootProjectDir.set(project.rootDir.absolutePath)
             task.outputFile.set(graphJsonFile)
         }
@@ -241,6 +243,22 @@ public class AalekhPlugin : Plugin<Project> {
                         .forEach { dep ->
                             val to = dep.path
                             if (to != sub.path) deps += "${cfg.name}:$to"
+                        }
+                }
+            sub.path to deps
+        }
+
+    // Mirror of AalekhSettingsPlugin.buildSubprojectExternalData - pipe-delimited external
+    // coordinates, declared only, no resolution. Kept in lock-step with the settings plugin.
+    private fun buildSubprojectExternalData(rootProject: Project): Map<String, List<String>> =
+        rootProject.subprojects.associate { sub ->
+            val deps = mutableListOf<String>()
+            sub.configurations
+                .filter { cfg -> ConfigurationClassifier.isCaptured(cfg.name) }
+                .forEach { cfg ->
+                    cfg.dependencies.filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
+                        .forEach { dep ->
+                            deps += "${cfg.name}|${dep.group}|${dep.name}|${dep.version ?: ""}"
                         }
                 }
             sub.path to deps

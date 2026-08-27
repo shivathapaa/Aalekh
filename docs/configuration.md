@@ -84,6 +84,7 @@ enabled metric (`cycles`, `god-modules`, `ccd`, `tangle`, `instability`, `critic
 | `openBrowserAfterReport`         | `Boolean` | `true`             | Auto-open the HTML report after `aalekhReport` runs                          |
 | `includeTestDependencies`        | `Boolean` | `true`             | Include `testImplementation`, `androidTestImplementation`, etc. in the graph |
 | `includeCompileOnlyDependencies` | `Boolean` | `false`            | Include `compileOnly` edges in the graph                                     |
+| `includeExternalDependencies`    | `Boolean` | `true`             | Capture external (third-party) dependency coordinates for the report inspector |
 | `exportMetrics`                  | `Boolean` | `false`                 | Write `aalekh-metrics.csv` alongside the HTML report                    |
 | `baselineFile`                   | `String`  | `"aalekh-baseline.json"` | Path (relative to root) of the committed violation baseline; see [rules](rules.md#baseline--freeze) |
 | `temporalCoupling.commitWindow`  | `Int`     | `500`                    | Recent non-merge commits `aalekhTemporal` analyses                          |
@@ -92,7 +93,12 @@ enabled metric (`cycles`, `god-modules`, `ccd`, `tangle`, `instability`, `critic
 
 ## Captured Configurations
 
-Aalekh captures inter-module project dependencies from the following Gradle configurations:
+Aalekh captures both inter-module project dependencies **and** external (third-party) dependencies
+from the following Gradle configurations. External dependencies are read as declared coordinates
+(`group:name:version`) at configuration time - no dependency resolution is triggered - and are shown
+per module in the report's inspector. Set `includeExternalDependencies = false` to skip them; the
+`includeTestDependencies` and `includeCompileOnlyDependencies` flags apply to external dependencies
+too.
 
 **Production** (always captured):
 
@@ -138,6 +144,28 @@ first match wins.
 | `ANDROID_LIBRARY`     | `com.android.library`, `com.android.dynamic-feature` | Green       |
 | `JVM_LIBRARY`         | `org.jetbrains.kotlin.jvm`, `java-library`, `java`   | Amber       |
 | `UNKNOWN`             | *(fallback - no known plugin applied)*               | Gray        |
+
+## Convention plugins and `build-logic`
+
+Aalekh detects module types from the plugin classes actually *applied* to each module, not from the
+plugin IDs written in your build scripts. A convention plugin (for example `myapp.android.library`
+living in an included `build-logic`) applies the underlying `com.android.library` plugin, so the
+real `LibraryPlugin` is on the module and detection resolves it to `ANDROID_LIBRARY`. The convention
+wrapper is transparent - there is nothing to configure. Dependencies added inside a convention
+plugin (`implementation(project(":core:common"))`) land on the module's configurations like any
+other and are captured as normal graph edges.
+
+The `build-logic` composite itself is **not** part of the graph. Aalekh only walks the main build's
+subprojects; an included build applied via `includeBuild("build-logic")` to supply convention
+plugins is excluded, which is what you want - the graph shows your application's architecture, not
+the tooling that builds it.
+
+**Limitation - source-substituting composite builds.** A dependency on a module from a *different*
+included build that is wired via dependency substitution (`includeBuild("../shared-lib")` used as a
+source replacement for a published coordinate) resolves as an external module dependency, not a
+project dependency. It appears under external dependencies in the inspector rather than as a graph
+edge to that module. Single-build projects that use `build-logic` only for convention plugins - the
+common Android/KMP shape - are fully covered.
 
 ## Configuration Cache
 

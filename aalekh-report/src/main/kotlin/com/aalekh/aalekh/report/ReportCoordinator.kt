@@ -4,7 +4,10 @@ import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
 import com.aalekh.aalekh.analysis.rules.RuleEngineResult
 import com.aalekh.aalekh.analysis.temporal.CommitChange
 import com.aalekh.aalekh.analysis.temporal.TemporalCouplingAnalyzer
+import com.aalekh.aalekh.model.CoChange
+import com.aalekh.aalekh.model.ModuleChurn
 import com.aalekh.aalekh.model.ModuleDependencyGraph
+import com.aalekh.aalekh.model.ModuleMainSequence
 import com.aalekh.aalekh.model.TemporalCouplingReport
 import com.aalekh.aalekh.report.html.HtmlReportGenerator
 import com.aalekh.aalekh.report.json.JsonReporter
@@ -37,14 +40,21 @@ public class ReportCoordinator(
     public fun generateHtml(
         trendJson: String = "[]",
         teamOwners: Map<String, List<String>> = emptyMap(),
+        mainSequence: List<ModuleMainSequence> = emptyList(),
+        hiddenCoupling: List<CoChange> = emptyList(),
+        churn: List<ModuleChurn> = emptyList(),
     ): String =
         HtmlReportGenerator.generate(
             projectName = projectName,
             graph = graph,
             summary = summary,
             violations = ruleResult.violations,
+            appliedRules = ruleResult.appliedRules,
             trendJson = trendJson,
             teamOwners = teamOwners,
+            mainSequence = mainSequence,
+            hiddenCoupling = hiddenCoupling,
+            churn = churn,
         )
 
     /** Generates JUnit XML output for CI test reporting systems. */

@@ -6,7 +6,39 @@ All notable changes to this project are documented here. Format based on
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-27
+
 ### Added
+- **Rules panel in the HTML report.** A new top-level **Rules** tab lists every architecture rule
+  applied to the project - passing and failing alike - so the enforced rule set is visible even when
+  the build is green. Each card shows the rule ID, its effective severity (overrides applied), a
+  plain-language explanation, and a pass / *N issues* status; rules sharing an ID (e.g. several
+  `forbid { }` predicates) fold into one card. Driven by a new `summary.rules` payload derived from
+  `RuleEngineResult.appliedRules`; no new task inputs, still fully offline. When no rules are
+  configured the panel explains that Aalekh is in visualization-only mode.
+- **Dependencies panel in the HTML report.** A new top-level **Dependencies** tab aggregates every
+  external library declared across the project, keyed by `group:name` and sorted by module usage.
+  Each row shows the declared version(s), a module-usage count (hover for the module list), and
+  colour-coded `api`/`impl`/`test` declaration badges. Libraries resolved at more than one version
+  are flagged as **version conflicts** (amber highlight, header count, "Conflicts only" toggle) and
+  the panel has a group/name filter. Built entirely client-side from the embedded
+  `externalDependencies` data - no new inputs, still fully offline.
+- **External (third-party) dependencies in the HTML report.** Extraction now captures each module's
+  declared external dependencies - `group:name:version` plus declaration type - and the module
+  inspector lists them in an "External dependencies (n)" section. Coordinates are read from the
+  configuration's declared dependencies (never resolved), so extraction stays configuration-cache
+  safe and offline; the data rides inside `graph.json` (and `aalekh-results.json`). Opt out with
+  `aalekh { includeExternalDependencies = false }`; the existing `includeTestDependencies` /
+  `includeCompileOnlyDependencies` flags apply to external dependencies too.
+- **Hidden-coupling alert in the HTML report.** When `aalekhTemporal` has run, the report reads the
+  sibling `aalekh-temporal.json` and surfaces a "Hidden Coupling" card - module pairs that change
+  together in git history but declare no dependency - in the Metrics panel, and a per-module **Churn**
+  card in the module inspector. With no temporal data both are omitted; the report stays fully offline.
+- **Abstractness/Instability scatter in the HTML report.** When `aalekhMainSequence` has run, the
+  report's Metrics panel draws the classic A/I scatter - each module by instability and abstractness
+  against the `A + I = 1` main sequence, coloured by zone. The report picks up the sibling
+  `aalekh-main-sequence.json` automatically and injects the points as `summary.mainSequence`; with no
+  data the panel stays hidden. Rendered as an inline SVG, so the report remains fully offline.
 - **Per-source-set dependency rules** (`forbidSourceSetDependency(...)` /
   `forbidSourceSetDependencyOnType(...)`). The general form of the `commonMain` rule: forbid
   dependencies declared in any named source set (e.g. `iosMain`, `androidMain`) from targeting a
@@ -139,6 +171,9 @@ All notable changes to this project are documented here. Format based on
   one-way boundary fails the build.
 
 ### Fixed
+- **External-dependency rows in the module inspector no longer clip the coordinate.** Each row now
+  stacks onto two lines so the full `group:name` is always readable in the narrow sidebar, with the
+  version and declaration badge on a second line.
 - Structural cycle counting is now consistently production-only. `MetricsEngine.computeProjectMetrics`
   reported `hasCycles` via the test-edge-inclusive `graph.hasCycle()`, contradicting the rest of the
   analysis (and the "test-only cycles never fail the build" invariant); it now uses
@@ -154,8 +189,10 @@ All notable changes to this project are documented here. Format based on
 
 ### Documentation
 - Split the monolithic README into a lean landing page plus focused reference guides under
-  `docs/` (tasks, report, configuration, rules, metrics, CI) behind a `docs/README.md` index,
-  and added `docs/ROADMAP.md`.
+  `docs/` (tasks, report, configuration, rules, metrics, CI) behind a `docs/README.md` index.
+- Documented how convention plugins and `build-logic` interact with module-type detection and graph
+  extraction, including the source-substituting composite-build limitation, in
+  `docs/configuration.md`.
 
 ## [0.5.1] - 2026-07-16
 
@@ -299,7 +336,8 @@ All notable changes to this project are documented here. Format based on
 - Initial public preview: `aalekhExtract`, `aalekhReport`, `aalekhCheck` tasks;
   basic interactive HTML graph; cycle detection.
 
-[Unreleased]: https://github.com/shivathapaa/aalekh/compare/0.5.1...HEAD
+[Unreleased]: https://github.com/shivathapaa/aalekh/compare/0.6.0...HEAD
+[0.6.0]: https://github.com/shivathapaa/aalekh/compare/0.5.1...0.6.0
 [0.5.1]: https://github.com/shivathapaa/aalekh/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/shivathapaa/aalekh/compare/0.4.0...0.5.0
 [0.4.0]: https://github.com/shivathapaa/aalekh/compare/0.3.0...0.4.0

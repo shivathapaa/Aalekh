@@ -2,8 +2,12 @@ package com.aalekh.aalekh.report.html
 
 import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
 import com.aalekh.aalekh.analysis.graph.GraphSummary
+import com.aalekh.aalekh.analysis.rules.AppliedRule
 import com.aalekh.aalekh.model.AalekhBuildConfig
+import com.aalekh.aalekh.model.CoChange
+import com.aalekh.aalekh.model.ModuleChurn
 import com.aalekh.aalekh.model.ModuleDependencyGraph
+import com.aalekh.aalekh.model.ModuleMainSequence
 import com.aalekh.aalekh.model.Violation
 import kotlinx.serialization.json.Json
 import java.time.Instant
@@ -60,6 +64,9 @@ public object HtmlReportGenerator {
      * @param graph       The complete module dependency graph
      * @param summary     Pre-computed summary statistics
      * @param violations  Rule violations (empty for pure visualization, populated when rules run)
+     * @param appliedRules The active rule set (one entry per rule id), injected as `summary.rules`
+     *                    so the report's Rules panel can list every enforced rule, its severity, and
+     *                    whether it passed - not only the rules that failed. Empty when no rules run.
      * @param trendJson   JSON array string of historical trend entries, injected into the report
      *                    so the client-side chart can plot module/edge counts over time.
      *                    Defaults to `"[]"` when no history is available yet.
@@ -68,17 +75,28 @@ public object HtmlReportGenerator {
      *                    module→team client-side and draws the ownership colour overlay. Empty
      *                    map (the default) leaves the overlay disabled.
      */
+    // The parameters are the report's independent data channels (graph, summary, violations, trend,
+    // team overlay, scatter points). Bundling them into a holder would add indirection at every call
+    // site for no gain - the same trade-off ArchRule.fromConfig documents.
+    @Suppress("LongParameterList")
     public fun generate(
         projectName: String,
         graph: ModuleDependencyGraph,
         summary: GraphSummary,
         violations: List<Violation> = emptyList(),
+        appliedRules: List<AppliedRule> = emptyList(),
         trendJson: String = "[]",
         teamOwners: Map<String, List<String>> = emptyMap(),
+        mainSequence: List<ModuleMainSequence> = emptyList(),
+        hiddenCoupling: List<CoChange> = emptyList(),
+        churn: List<ModuleChurn> = emptyList(),
     ): String {
         val template = loadTemplate()
         val graphJson = json.encodeToString(graph)
-        val summaryJson = buildSummaryJson(summary, violations, graph, trendJson, teamOwners)
+        val summaryJson = buildSummaryJson(
+            summary, violations, appliedRules, graph, trendJson, teamOwners,
+            mainSequence, hiddenCoupling, churn,
+        )
 
         // Build the two data script tags that the template JS reads via
         // parseScriptJson('aalekh-graph-data') and parseScriptJson('aalekh-summary-data').
@@ -114,12 +132,19 @@ public object HtmlReportGenerator {
                 "This is a packaging bug.",
     )
 
+    // A single linear assembler that serialises every summary channel into one JSON object; its length
+    // and parameter count are inherent to that job, not hidden complexity. Kept flat deliberately.
+    @Suppress("LongParameterList", "LongMethod")
     private fun buildSummaryJson(
         summary: GraphSummary,
         violations: List<Violation>,
+        appliedRules: List<AppliedRule>,
         graph: ModuleDependencyGraph,
         trendJson: String,
         teamOwners: Map<String, List<String>>,
+        mainSequence: List<ModuleMainSequence>,
+        hiddenCoupling: List<CoChange>,
+        churn: List<ModuleChurn>,
     ): String {
         val byType = summary.modulesByType.entries.joinToString(",") { (k, v) -> "\"$k\":$v" }
         val violationsJson = violations.joinToString(",") { v ->
@@ -128,6 +153,16 @@ public object HtmlReportGenerator {
             }","source":"${
                 escapeJson(v.source)
             }"}"""
+        }
+
+        // Active rule set for the Rules panel: every enforced rule, its effective severity, and its
+        // violation count (0 = passing). Empty when the project runs in visualization-only mode.
+        val rulesJson = appliedRules.joinToString(",") { r ->
+            """{"id":"${escapeJson(r.id)}","description":"${escapeJson(r.description)}","severity":"${
+                r.severity.name
+            }","explanation":"${escapeJson(r.explanation)}","ruleCount":${r.ruleCount},"violations":${
+                r.violationCount
+            }}"""
         }
 
         val criticalPathModules = try {
@@ -173,6 +208,26 @@ public object HtmlReportGenerator {
             "\"${escapeJson(team)}\":[$pats]"
         }
 
+        // Main-sequence points for the A/I scatter: only present when aalekhMainSequence has run and
+        // written its JSON next to the report. Absent (empty) leaves the scatter panel hidden.
+        val mainSequenceJson = mainSequence.joinToString(",") { m ->
+            "{\"path\":\"${escapeJson(m.path)}\",\"i\":${m.instability},\"a\":${m.abstractness}," +
+                "\"d\":${m.distance},\"zone\":\"${m.zone.name}\"}"
+        }
+
+        // Hidden coupling: pairs that co-change strongly but declare no dependency. Present only when
+        // aalekhTemporal has run; drives the "Hidden coupling" alert card. Empty leaves it hidden.
+        val hiddenCouplingJson = hiddenCoupling.joinToString(",") { c ->
+            "{\"a\":\"${escapeJson(c.moduleA)}\",\"b\":\"${escapeJson(c.moduleB)}\"," +
+                "\"shared\":${c.sharedCommits},\"degree\":${c.degree}}"
+        }
+
+        // Per-module churn (commit counts) for the inspector, keyed by module path. Present only when
+        // aalekhTemporal has run; empty leaves the inspector's Churn card off.
+        val churnJson = churn.joinToString(",") { c ->
+            "\"${escapeJson(c.module)}\":${c.commits}"
+        }
+
         return """{
 "totalModules":${summary.totalModules},
 "totalEdges":${summary.totalEdges},
@@ -195,6 +250,7 @@ public object HtmlReportGenerator {
 "infoCount":${violations.count { it.severity.name == "INFO" }},
 "modulesByType":{$byType},
 "violations":[$violationsJson],
+"rules":[$rulesJson],
 "criticalPathModules":[$critPathJson],
 "godModulePaths":[$godPathJson],
 "isolatedModulePaths":[$isolPathJson],
@@ -202,6 +258,9 @@ public object HtmlReportGenerator {
 "mainCycleEdges":[$mainCycleEdgesJson],
 "trendEntries":$trendJson,
 "teamOwners":{$teamOwnersJson},
+"mainSequence":[$mainSequenceJson],
+"hiddenCoupling":[$hiddenCouplingJson],
+"churn":{$churnJson},
 "adrLinks":{$adrLinksJson}
 }""".replace("\n", "")  // single line for embedding in HTML
     }

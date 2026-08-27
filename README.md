@@ -28,6 +28,23 @@ plugin, with zero external dependencies beyond the browser.
 |------------|:----------:|:--------------:|:--------------:|:---------:|
 | **Aalekh** |   **✓**    |     **✓**      |     **✓**      |   **✓**   |
 
+## Highlights
+
+- **Interactive HTML report** - offline and self-contained: force graph, layer swimlane, adjacency
+  matrix, tree, module inspector, an applied-rules panel, command palette, drag-drop diff,
+  dark/light themes, and a KPI panel.
+- **Architecture rule DSL** - layers, feature isolation, reachability, per-source-set / KMP rules,
+  graph-height and orphan checks, inline `forbid { }` predicates, and custom `ArchRule`s.
+- **Baseline & quality gates** - freeze existing violations and fail only on new ones, and ratchet
+  structural metrics (cycles, CCD, %tangle, instability) so they can only improve.
+- **Text graph exports** - diffable Mermaid and Graphviz DOT, with focus/exclude filters for large
+  graphs.
+- **Metrics** - Martin instability, Lakos CCD/ACD/NCCD and %tangle, distance from the main sequence,
+  a rolling trend window, and a `MetricProvider` SPI for your own metrics.
+- **Git-aware analysis** - temporal (change) coupling and hotspots, plus an affected-graph blast
+  radius for a diff, each written as a local, PR-reviewable artefact.
+- **CI-ready outputs** - HTML, JSON, JUnit XML, SARIF, GitLab Code Quality, and CSV.
+
 ## Sample Reports
 
 - Now in Android App
@@ -46,6 +63,9 @@ plugin, with zero external dependencies beyond the browser.
     - [View locally](assets/report_samples/geokrishifarm.html)
     - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/geokrishifarm.html)
 
+The exact `aalekh { }` configuration behind each report - layers, feature isolation, teams, and the
+cyclic-dependency demo - is documented in [docs/real-world-examples.md](docs/real-world-examples.md).
+
 <p align="center">
   <a href="assets/report_samples/nowinandroid.html">
     <img src="assets/images/nowinandroid_sample.gif" alt="Now in Android App Demo" width="600"/>
@@ -58,7 +78,7 @@ plugin, with zero external dependencies beyond the browser.
 
 ```kotlin
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.5.1"
+    id("io.github.shivathapaa.aalekh") version "0.6.0"
 }
 ```
 
@@ -80,7 +100,7 @@ across configuration cache entries, preventing cache misses on subsequent runs.
 ```kotlin
 // settings.gradle.kts
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.5.1"
+    id("io.github.shivathapaa.aalekh") version "0.6.0"
 }
 ```
 
@@ -99,7 +119,7 @@ time. To migrate: move the plugin declaration to `settings.gradle.kts` and remov
 ```kotlin
 // build.gradle.kts (root project only) - deprecated, migrate to settings plugin
 plugins {
-    id("io.github.shivathapaa.aalekh.project") version "0.5.1"
+    id("io.github.shivathapaa.aalekh.project") version "0.6.0"
 }
 ```
 
@@ -132,13 +152,12 @@ Full reference documentation lives in [`docs/`](docs/README.md):
 
 | Guide | What's inside |
 |-------|---------------|
-| [Gradle tasks](docs/tasks.md) | `aalekhReport`, `aalekhCheck`, `aalekhExtract` — what each does and produces |
+| [Gradle tasks](docs/tasks.md) | All nine `aalekh*` tasks — what each does and produces |
 | [The report](docs/report.md) | The interactive HTML report: six panels, toolbar, command palette, themes, permalinks, inspector, cycle detection |
 | [Configuration](docs/configuration.md) | The `aalekh { }` block, captured configurations, module types, configuration cache |
-| [Architecture rules](docs/rules.md) | Built-in rules, layers, feature isolation, team ownership, gradual adoption, SARIF, custom rules |
-| [Metrics & output](docs/metrics.md) | Graph metrics glossary, output files, CSV export, trend history |
+| [Architecture rules](docs/rules.md) | Built-in rules, layers, feature isolation, team ownership, reachability & per-source-set/KMP rules, quality gates, baseline, gradual adoption, SARIF, custom rules |
+| [Metrics & output](docs/metrics.md) | Graph metrics, Lakos coupling & main-sequence, temporal coupling, output files, CSV export, trend history |
 | [CI setup](docs/ci.md) | Wiring `aalekhCheck` and the report into GitHub Actions |
-| [Roadmap](docs/ROADMAP.md) | Prioritized plans, known gaps, and where Aalekh is headed |
 
 A minimal `aalekh { }` block to enforce layered architecture:
 
@@ -159,8 +178,9 @@ aalekh {
 }
 ```
 
-See [Architecture rules](docs/rules.md) for feature isolation, team ownership, custom rules, and
-gradual adoption, and [Configuration](docs/configuration.md) for the full option reference.
+See [Architecture rules](docs/rules.md) for feature isolation, team ownership, reachability and
+per-source-set rules, `forbid { }` predicates, quality gates, baselines, and custom rules, and
+[Configuration](docs/configuration.md) for the full option reference.
 
 ## Compatibility
 

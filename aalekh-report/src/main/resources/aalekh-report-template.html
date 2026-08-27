@@ -1882,6 +1882,7 @@
         .vcard.v-err { border-left: 3px solid var(--c-cycle); }
         .vcard.v-warn { border-left: 3px solid var(--c-warn); }
         .vcard.v-info { border-left: 3px solid var(--c-api); }
+        .vcard.v-pass { border-left: 3px solid var(--c-ok); }
 
         .vcard-hd {
             display: flex;
@@ -1906,6 +1907,7 @@
         .v-err .vcard-icon { background: var(--tint-err); color: var(--c-cycle); }
         .v-warn .vcard-icon { background: var(--tint-warn); color: var(--c-warn); }
         .v-info .vcard-icon { background: var(--tint-info); color: var(--c-api); }
+        .v-pass .vcard-icon { background: var(--tint-ok); color: var(--c-ok); }
 
         .vcard-body { flex: 1; min-width: 0; }
 
@@ -1993,6 +1995,31 @@
         .vcard-loc-btn:hover {
             background: color-mix(in srgb, var(--c-main) 10%, var(--bg-paper));
             border-color: var(--c-main);
+        }
+
+        /* Rules panel badges. Severity colour is decoupled from the card's pass/fail tone:
+           a passing ERROR-severity rule still shows a red ERROR badge but a green card. */
+        .rule-sev, .rule-status {
+            font-family: var(--f-mono);
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 2px;
+            text-transform: uppercase;
+            letter-spacing: .8px;
+        }
+
+        .rule-sev.sev-ERROR { background: var(--tint-err); color: var(--c-cycle); }
+        .rule-sev.sev-WARNING { background: var(--tint-warn); color: var(--c-warn); }
+        .rule-sev.sev-INFO { background: var(--tint-info); color: var(--c-api); }
+        .rule-status.st-pass { background: var(--tint-ok); color: var(--c-ok); }
+        .rule-status.st-fail { background: var(--tint-err); color: var(--c-cycle); }
+
+        .rule-count {
+            font-family: var(--f-mono);
+            font-size: 9px;
+            color: var(--text-3);
+            letter-spacing: .5px;
         }
 
         .hs-pill {
@@ -2327,6 +2354,118 @@
             color: var(--c-test);
             border-color: color-mix(in srgb, var(--c-test) 25%, transparent);
             background: color-mix(in srgb, var(--c-test) 6%, transparent);
+        }
+
+        /* External-dep rows in the inspector stack onto two lines so the full
+           coordinate is never clipped by the narrow sidebar. */
+        .dep-row.ext {
+            cursor: default;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 4px;
+        }
+        .dep-row.ext:hover { border-color: var(--border-1); background: var(--bg-panel); }
+        .dep-row.ext .dep-name {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            word-break: break-word;
+            flex: none;
+            color: var(--text-1);
+        }
+        .dep-meta { display: flex; align-items: center; gap: 6px; }
+        .dep-row.ext .dep-ver, .dep-row.ext .dep-cfg { margin-left: 0; }
+
+        .dep-ver {
+            font-size: 9px;
+            color: var(--text-4);
+            flex-shrink: 0;
+            margin-left: 6px;
+            font-family: var(--f-mono);
+        }
+
+        /* ---- Dependencies panel: aggregate external-dependency list ---- */
+        .deps-scroll {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 28px 32px 48px;
+        }
+        .deps-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+        .deps-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
+        .deps-sub { font-size: 11px; color: var(--text-4); }
+        .deps-stats { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 18px; }
+        .deps-stat {
+            border: 1px solid var(--border-1);
+            border-radius: var(--r);
+            background: var(--bg-panel);
+            padding: 8px 14px;
+            min-width: 92px;
+        }
+        .deps-stat-n { font-family: var(--f-mono); font-size: 18px; font-weight: 600; color: var(--text-1); line-height: 1.1; }
+        .deps-stat-n.warn { color: var(--c-warn); }
+        .deps-stat-l { font-size: 10px; color: var(--text-4); text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+        .deps-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+        .deps-search {
+            font-family: var(--f-mono); font-size: 12px;
+            padding: 6px 10px; border-radius: var(--r);
+            border: 1px solid var(--border-2); background: var(--bg-panel); color: var(--text-1);
+            min-width: 240px;
+        }
+        .deps-search:focus { outline: none; border-color: var(--c-main); }
+        .deps-chip-toggle {
+            font-size: 11px; padding: 5px 10px; border-radius: var(--r);
+            border: 1px solid var(--border-2); background: var(--bg-panel); color: var(--text-3);
+            cursor: pointer; user-select: none;
+        }
+        .deps-chip-toggle.on {
+            color: var(--c-warn);
+            border-color: color-mix(in srgb, var(--c-warn) 45%, transparent);
+            background: var(--tint-warn);
+        }
+        .deps-tbl { border: 1px solid var(--border-1); border-radius: var(--r); overflow: hidden; }
+        .deps-tr {
+            display: grid;
+            grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.6fr) 76px minmax(0, 1fr);
+            gap: 12px;
+            align-items: center;
+            padding: 9px 14px;
+            border-bottom: 1px solid var(--border-1);
+            font-size: 12px;
+        }
+        .deps-tr:last-child { border-bottom: none; }
+        .deps-thead {
+            background: var(--bg-panel);
+            font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-4);
+            position: sticky; top: 0; z-index: 1;
+        }
+        .deps-tr.row:nth-child(even) { background: color-mix(in srgb, var(--text-4) 4%, transparent); }
+        .deps-tr.row:hover { background: color-mix(in srgb, var(--c-main) 6%, transparent); }
+        .deps-tr.conflict { box-shadow: inset 3px 0 0 var(--c-warn); }
+        .dep-coord { font-family: var(--f-mono); min-width: 0; word-break: break-word; }
+        .dep-coord .g { color: var(--text-4); }
+        .dep-coord .n { color: var(--text-1); font-weight: 600; }
+        .dep-vers { display: flex; flex-wrap: wrap; gap: 4px; }
+        .dep-vpill {
+            font-family: var(--f-mono); font-size: 10px; padding: 1px 7px; border-radius: 10px;
+            border: 1px solid var(--border-2); color: var(--text-2); background: var(--bg-panel);
+        }
+        .dep-vpill.conflict {
+            color: var(--c-warn);
+            border-color: color-mix(in srgb, var(--c-warn) 40%, transparent);
+            background: var(--tint-warn);
+        }
+        .dep-modn {
+            font-family: var(--f-mono); font-size: 11px; color: var(--text-2);
+            background: var(--bg-panel); border: 1px solid var(--border-2); border-radius: 10px;
+            padding: 1px 8px; justify-self: start; cursor: default;
+        }
+        .dep-types { display: flex; flex-wrap: wrap; gap: 4px; }
+        .deps-empty { color: var(--text-4); font-size: 13px; padding: 44px 0; text-align: center; line-height: 1.7; }
+        .deps-empty code { font-family: var(--f-mono); font-size: 12px; color: var(--text-2); }
+        @media print {
+            .deps-scroll { padding: 20px 16px 40px; }
+            .deps-toolbar { display: none; }
         }
 
         .ss-row { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -3167,7 +3306,15 @@
     <div class="tab" data-p="health" tabindex="0" role="tab" aria-selected="false">
         <span>Health</span>
     </div>
+    <div class="tab" data-p="deps" tabindex="0" role="tab" aria-selected="false">
+        <span>Dependencies</span>
+        <span class="tab-n" id="tn-deps">0</span>
+    </div>
     <div class="nav-divider"></div>
+    <div class="tab" data-p="rules" tabindex="0" role="tab" aria-selected="false">
+        <span>Rules</span>
+        <span class="tab-n" id="tn-rules">0</span>
+    </div>
     <div class="tab" data-p="violations" tabindex="0" role="tab" aria-selected="false">
         <span>Violations</span>
         <span class="tab-n" id="tn-violations">0</span>
@@ -3335,6 +3482,16 @@
         <div class="subpanel active" id="panel-metrics">
             <div class="metrics-scroll" id="metrics-content"></div>
         </div>
+    </div>
+
+    <!-- DEPENDENCIES -->
+    <div class="panel" id="panel-deps" role="tabpanel">
+        <div class="deps-scroll" id="deps-content"></div>
+    </div>
+
+    <!-- RULES -->
+    <div class="panel" id="panel-rules" role="tabpanel">
+        <div class="vio-scroll" id="rules-content"></div>
     </div>
 
     <!-- VIOLATIONS -->
@@ -3566,8 +3723,10 @@
     /* DATA */
     var modules = (GRAPH_DATA && GRAPH_DATA.modules) || [];
     var edges = (GRAPH_DATA && GRAPH_DATA.edges) || [];
+    var externalDeps = (GRAPH_DATA && GRAPH_DATA.externalDependencies) || [];
     var summary = SUMMARY_DATA || {};
     var violations = summary.violations || [];
+    var appliedRules = summary.rules || [];
 
     // Use server-computed main-only cycle data if available; fallback to client DFS
     var mainCycleNodesSet = new Set(summary.mainCycleNodes || []);
@@ -3720,6 +3879,10 @@
         var realVioCount = errCount + warnCount;
         vn.textContent = realVioCount + (violations.length - realVioCount > 0 ? ' + ' + (violations.length - realVioCount) + ' info' : '');
         if (errCount > 0) vn.classList.add('danger');
+
+        var rn = document.getElementById('tn-rules');
+        rn.textContent = appliedRules.length;
+        if (appliedRules.some(function (r) { return (r.violations || 0) > 0; })) rn.classList.add('danger');
     })();
 
     /* TOOLTIP ENGINE */
@@ -4859,6 +5022,28 @@
                 + '</div>';
         }
 
+        // External (third-party) dependencies declared by this module.
+        var extDeps = externalDeps.filter(function (e) {
+            return e.module === path;
+        }).slice().sort(function (a, b) {
+            var ca = (a.group ? a.group + ':' : '') + a.name;
+            var cb = (b.group ? b.group + ':' : '') + b.name;
+            return ca < cb ? -1 : ca > cb ? 1 : 0;
+        });
+
+        function extDepRowHtml(e) {
+            var coord = (e.group ? e.group + ':' : '') + e.name;
+            var ver = e.version || 'unspecified';
+            var cfgCls = e.configuration === 'api' ? 'is-api' : isTestCfg(e.configuration) ? 'is-test' : 'is-impl';
+            return '<div class="dep-row ext">'
+                + '<span class="dep-name" title="' + esc(coord + ':' + ver) + '">' + esc(coord) + '</span>'
+                + '<span class="dep-meta">'
+                + '<span class="dep-ver">' + esc(ver) + '</span>'
+                + '<span class="dep-cfg ' + cfgCls + '">' + esc(CFG_LABEL[e.configuration] || e.configuration) + '</span>'
+                + '</span>'
+                + '</div>';
+        }
+
         var ssPills = ((m.sourceSets && m.sourceSets.length) ?
             '<div class="mdt-sec"><div class="mdt-sec-title">KMP Source Sets</div><div class="ss-row">'
             + m.sourceSets.map(function (ss) {
@@ -4891,6 +5076,7 @@
             + '<div class="mdt-kpi"><div class="mdt-kv" style="color:var(--c-warn)">' + fo + '</div><div class="mdt-kl">Fan-out</div></div>'
             + '<div class="mdt-kpi"><div class="mdt-kv" style="color:var(--t-kmp)">' + fi + '</div><div class="mdt-kl">Fan-in</div></div>'
             + '<div class="mdt-kpi"><div class="mdt-kv" style="color:var(--c-api)">' + tc + '</div><div class="mdt-kl">Transitive</div></div>'
+            + ((summary.churn && summary.churn[m.path] != null) ? '<div class="mdt-kpi" title="Commits touching this module in the analysed window (aalekhTemporal)"><div class="mdt-kv" style="color:var(--health-hi)">' + summary.churn[m.path] + '</div><div class="mdt-kl">Churn</div></div>' : '')
             + '</div>'
             + '<div class="mdt-inst-wrap">'
             + '<div class="mdt-inst-row"><span>Instability Index<br/><span style="font-size:8px;font-style:italic">0 = stable · 1 = unstable</span></span><span style="color:' + ic + ';font-weight:600">' + inst.toFixed(2) + '</span></div>'
@@ -4904,7 +5090,9 @@
             + (usedBy.length ? '<div class="mdt-sec"><div class="mdt-sec-title">Used by (' + usedBy.length + ')</div>'
                 + usedBy.map(function (e) {
                     return depRowHtml(e, e.from, e.configuration);
-                }).join('') + '</div>' : '');
+                }).join('') + '</div>' : '')
+            + (extDeps.length ? '<div class="mdt-sec"><div class="mdt-sec-title">External dependencies (' + extDeps.length + ')</div>'
+                + extDeps.map(extDepRowHtml).join('') + '</div>' : '');
     }
 
     function clearSideDetail() {
@@ -5423,8 +5611,156 @@
     }
 
     /* METRICS PANEL */
+    /* DEPENDENCIES PANEL - aggregates the per-module externalDependencies into a
+       single searchable list keyed by coordinate, flagging version conflicts. */
+    (function buildDeps() {
+        var el = document.getElementById('deps-content');
+        if (!el) return;
+        var deps = externalDeps || [];
+        var tn = document.getElementById('tn-deps');
+
+        if (!deps.length) {
+            el.innerHTML = '<div class="deps-head"><span class="deps-title">Dependencies</span></div>'
+                + '<div class="deps-empty">No external dependencies were captured.<br>'
+                + 'They may be disabled via <code>aalekh { includeExternalDependencies = false }</code>.</div>';
+            if (tn) tn.textContent = '0';
+            return;
+        }
+
+        // Aggregate by coordinate "group:name".
+        var map = {};
+        var moduleSet = {};
+        deps.forEach(function (e) {
+            moduleSet[e.module] = true;
+            var coord = (e.group ? e.group + ':' : '') + e.name;
+            var L = map[coord] || (map[coord] = {
+                coord: coord, group: e.group || '', name: e.name,
+                versions: {}, mods: {}, types: {},
+            });
+            L.versions[e.version || 'unspecified'] = true;
+            L.mods[e.module] = e.version || 'unspecified';
+            L.types[e.configuration === 'api' ? 'api' : isTestCfg(e.configuration) ? 'test' : 'impl'] = true;
+        });
+
+        var list = Object.keys(map).map(function (k) {
+            var L = map[k];
+            L.verList = Object.keys(L.versions).sort();
+            L.modList = Object.keys(L.mods).sort();
+            L.conflict = L.verList.length > 1;
+            return L;
+        }).sort(function (a, b) {
+            return b.modList.length - a.modList.length || (a.coord < b.coord ? -1 : a.coord > b.coord ? 1 : 0);
+        });
+
+        var conflictCount = list.filter(function (l) { return l.conflict; }).length;
+        if (tn) {
+            tn.textContent = list.length;
+            if (conflictCount > 0) tn.classList.add('danger');
+        }
+
+        function typeBadge(t) {
+            var cls = t === 'api' ? 'is-api' : t === 'test' ? 'is-test' : 'is-impl';
+            return '<span class="dep-cfg ' + cls + '">' + t + '</span>';
+        }
+
+        function rowHtml(L) {
+            var gi = L.group ? '<span class="g">' + esc(L.group) + ':</span>' : '';
+            var coord = '<div class="dep-coord" title="' + esc(L.coord) + '">' + gi
+                + '<span class="n">' + esc(L.name) + '</span></div>';
+            var vers = '<div class="dep-vers">' + L.verList.map(function (v) {
+                return '<span class="dep-vpill' + (L.conflict ? ' conflict' : '') + '">' + esc(v) + '</span>';
+            }).join('') + '</div>';
+            var modTip = L.modList.map(function (m) { return m + '  (' + L.mods[m] + ')'; }).join('\n');
+            var mods = '<span class="dep-modn" title="' + esc(modTip) + '">' + L.modList.length + '</span>';
+            var types = '<div class="dep-types">' + ['api', 'impl', 'test'].filter(function (t) {
+                return L.types[t];
+            }).map(typeBadge).join('') + '</div>';
+            return '<div class="deps-tr row' + (L.conflict ? ' conflict' : '') + '">'
+                + coord + vers + mods + types + '</div>';
+        }
+
+        function render(rows) {
+            if (!rows.length) return '<div class="deps-empty">No dependencies match the filter.</div>';
+            return '<div class="deps-tbl">'
+                + '<div class="deps-tr deps-thead"><span>Library</span><span>Version</span>'
+                + '<span>Modules</span><span>Type</span></div>'
+                + rows.map(rowHtml).join('') + '</div>';
+        }
+
+        el.innerHTML = '<div class="deps-head">'
+            + '<span class="deps-title">Dependencies</span>'
+            + '<span class="deps-sub">External (third-party) libraries declared across '
+            + Object.keys(moduleSet).length + ' module(s)</span></div>'
+            + '<div class="deps-stats">'
+            + '<div class="deps-stat"><div class="deps-stat-n">' + list.length
+            + '</div><div class="deps-stat-l">Libraries</div></div>'
+            + '<div class="deps-stat"><div class="deps-stat-n">' + deps.length
+            + '</div><div class="deps-stat-l">Declarations</div></div>'
+            + '<div class="deps-stat"><div class="deps-stat-n' + (conflictCount ? ' warn' : '') + '">'
+            + conflictCount + '</div><div class="deps-stat-l">Version conflicts</div></div>'
+            + '</div>'
+            + '<div class="deps-toolbar">'
+            + '<input class="deps-search" id="deps-search" type="text" placeholder="Filter by group or name…" aria-label="Filter dependencies">'
+            + '<span class="deps-chip-toggle" id="deps-conflict-only" role="button" tabindex="0">Conflicts only</span>'
+            + '</div>'
+            + '<div id="deps-table-host">' + render(list) + '</div>';
+
+        var host = document.getElementById('deps-table-host');
+        var search = document.getElementById('deps-search');
+        var conflictBtn = document.getElementById('deps-conflict-only');
+        var conflictOnly = false;
+
+        function apply() {
+            var q = (search.value || '').trim().toLowerCase();
+            host.innerHTML = render(list.filter(function (L) {
+                if (conflictOnly && !L.conflict) return false;
+                return !q || L.coord.toLowerCase().indexOf(q) >= 0;
+            }));
+        }
+        if (search) search.addEventListener('input', apply);
+        if (conflictBtn) {
+            var toggle = function () {
+                conflictOnly = !conflictOnly;
+                conflictBtn.classList.toggle('on', conflictOnly);
+                apply();
+            };
+            conflictBtn.addEventListener('click', toggle);
+            conflictBtn.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+            });
+        }
+    })();
+
     (function buildMetrics() {
         var el = document.getElementById('metrics-content');
+
+        // A/I scatter (populated only when aalekhMainSequence has run and injected its points).
+        var msPoints = summary.mainSequence || [];
+
+        function buildAiScatter(points) {
+            var L = 40, R = 300, T = 20, B = 220, W = 320, H = 260;
+            var px = function (i) { return (L + Math.max(0, Math.min(1, i)) * (R - L)).toFixed(1); };
+            var py = function (a) { return (B - Math.max(0, Math.min(1, a)) * (B - T)).toFixed(1); };
+            var zoneColor = function (z) {
+                return z === 'ZONE_OF_PAIN' ? 'var(--c-cycle)'
+                    : z === 'ZONE_OF_USELESSNESS' ? 'var(--c-warn)'
+                        : 'var(--c-ok)';
+            };
+            var dots = points.map(function (p) {
+                var i = p.i || 0, a = p.a || 0, d = p.d || 0;
+                return '<circle cx="' + px(i) + '" cy="' + py(a) + '" r="4" fill="' + zoneColor(p.zone)
+                    + '" fill-opacity="0.85"><title>' + esc(p.path) + '  (A ' + a.toFixed(2)
+                    + ', I ' + i.toFixed(2) + ', D ' + d.toFixed(2) + ')</title></circle>';
+            }).join('');
+            return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:360px;display:block;margin:4px auto">'
+                + '<rect x="' + L + '" y="' + T + '" width="' + (R - L) + '" height="' + (B - T) + '" fill="var(--bg-inset)"/>'
+                + '<line x1="' + px(0) + '" y1="' + py(1) + '" x2="' + px(1) + '" y2="' + py(0) + '" stroke="var(--c-main)" stroke-width="1.2" stroke-dasharray="4 3"/>'
+                + '<text x="' + px(0.5) + '" y="' + (B + 22) + '" text-anchor="middle" font-size="10" fill="var(--text-4)">Instability &#8594;</text>'
+                + '<text x="14" y="' + py(0.5) + '" text-anchor="middle" font-size="10" fill="var(--text-4)" transform="rotate(-90 14 ' + py(0.5) + ')">Abstractness &#8594;</text>'
+                + dots
+                + '</svg>'
+                + '<div class="kpi-hint" style="text-align:center">Distance from the dashed main sequence (A+I=1); closer is healthier.</div>';
+        }
 
         var kpis = [
             {v: modules.length, l: 'Total Modules', hint: 'All subprojects discovered', c: 'var(--c-main)'},
@@ -5526,6 +5862,18 @@
                 + '<div style="font-family:var(--font-ui),serif;font-size:11.5px;color:var(--text-2);line-height:1.7">' + cpPaths + '</div>'
                 + '</div>';
         }
+        var hidden = summary.hiddenCoupling || [];
+        if (hidden.length) {
+            var hcPairs = hidden.map(function (c) {
+                var pct = Math.round((c.degree || 0) * 100);
+                return '<code style="background:rgba(46,196,166,.1);padding:1px 5px;border-radius:3px;color:var(--health-hi)">'
+                    + esc(shortName(c.a)) + ' &#8596; ' + esc(shortName(c.b)) + ' (' + pct + '%)</code>';
+            }).join(' ');
+            alerts += '<div style="background:rgba(46,196,166,.04);border:1px solid rgba(46,196,166,.18);border-radius:10px;padding:14px 16px;margin-bottom:10px">'
+                + '<div style="font-family:var(--font-mono),serif;font-size:10px;font-weight:600;color:var(--health-hi);margin-bottom:6px">' + ixIcon('interchange', 'currentColor', 12) + ' Hidden Coupling - Co-changes Without a Declared Dependency</div>'
+                + '<div style="font-family:var(--font-ui),serif;font-size:11.5px;color:var(--text-2);line-height:1.7">These pairs change together in git history but declare no dependency (from <code>aalekhTemporal</code>). Percent is co-change strength. ' + hcPairs + '</div>'
+                + '</div>';
+        }
 
         // Per-module table
         var rows = [...modules].map(function (m) {
@@ -5595,6 +5943,7 @@
 
         el.innerHTML =
             '<div><div class="sec-head">Health Overview</div>' + kpiHtml + '</div>'
+            + (msPoints.length ? '<div><div class="sec-head">Abstractness vs Instability</div>' + buildAiScatter(msPoints) + '</div>' : '')
             + (alerts ? '<div><div class="sec-head">Architecture Concerns</div>' + alerts + '</div>' : '')
             + '<div><div class="sec-head">Per-Module Breakdown</div>'
             + '<div class="tbl-wrap"><table class="mtbl" id="mtbl">'
@@ -5690,6 +6039,70 @@
             + ' style="font-family:var(--font-ui),serif;font-size:11px;padding:6px 14px;background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.3);border-radius:var(--r);color:var(--c-api);cursor:pointer">Copy to clipboard</button>'
             + '</div>';
     }
+
+    /* RULES PANEL - lists every architecture rule applied to the project (from summary.rules),
+       passing and failing alike, so the enforced rule set is visible even when the build is green. */
+    (function buildRules() {
+        var el = document.getElementById('rules-content');
+        if (!el) return;
+        if (!appliedRules.length) {
+            el.innerHTML = '<div class="vio-empty">'
+                + '<div class="vio-empty-ico"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" aria-hidden="true"><path d="M5 4.5h11l3 3V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19V6a1.5 1.5 0 0 1 1.5-1.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 10h6M9 13.5h6M9 17h3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>'
+                + '<div class="vio-empty-ttl">No architecture rules configured</div>'
+                + '<div class="vio-empty-body">Aalekh is running in visualization-only mode. Add a '
+                + '<code>layers { }</code>, <code>featureIsolation { }</code>, or <code>rules { }</code> block to the '
+                + '<code>aalekh { }</code> configuration to start enforcing architecture, then re-run '
+                + '<code>aalekhReport</code>. See the Architecture rules guide in the docs.</div>'
+                + '</div>';
+            return;
+        }
+        var passing = appliedRules.filter(function (r) { return (r.violations || 0) === 0; });
+        var failing = appliedRules.filter(function (r) { return (r.violations || 0) > 0; });
+
+        function ruleCard(r) {
+            var v = r.violations || 0;
+            var pass = v === 0;
+            var sev = r.severity || 'ERROR';
+            var cardCls = pass ? 'v-pass' : (sev === 'ERROR' ? 'v-err' : sev === 'WARNING' ? 'v-warn' : 'v-info');
+            var icon = pass
+                ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/><path d="M8 12.5l2.6 2.6L16 9.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+                : sev === 'ERROR'
+                ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.9"/><path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>'
+                : ixIcon('warn', 'currentColor', 16);
+            var statusTxt = pass ? 'Pass' : (v + ' issue' + (v !== 1 ? 's' : ''));
+            var statusCls = pass ? 'st-pass' : 'st-fail';
+            return '<div class="vcard ' + cardCls + '">'
+                + '<div class="vcard-hd">'
+                + '<div class="vcard-icon">' + icon + '</div>'
+                + '<div class="vcard-body">'
+                + '<div class="vcard-rule-row">'
+                + '<span class="vcard-rule-id">' + esc(r.id || 'unknown') + '</span>'
+                + '<span class="rule-sev sev-' + esc(sev) + '">' + esc(sev) + '</span>'
+                + '<span class="rule-status ' + statusCls + '">' + esc(statusTxt) + '</span>'
+                + ((r.ruleCount || 1) > 1 ? '<span class="rule-count">' + (r.ruleCount || 1) + ' rules</span>' : '')
+                + '</div>'
+                + '<div class="vcard-msg">' + esc(r.description || '') + '</div>'
+                + (r.explanation ? '<div class="vcard-plain">' + esc(r.explanation) + '</div>' : '')
+                + '</div>'
+                + '</div>'
+                + (v > 0
+                    ? '<div class="vcard-source">'
+                    + '<span class="vcard-src-lbl">Result:</span>'
+                    + '<span style="color:var(--text-2)">' + v + ' violation' + (v !== 1 ? 's' : '') + '</span>'
+                    + '<button class="vcard-loc-btn" onclick="if(window.aalekhActivate)window.aalekhActivate(\'violations\')">View violations →</button>'
+                    + '</div>' : '')
+                + '</div>';
+        }
+
+        el.innerHTML =
+            '<div class="vio-summary-row">'
+            + '<div class="vio-summary-card vc-info"><div class="vsc-num">' + appliedRules.length + '</div><div class="vsc-lbl">Rule' + (appliedRules.length !== 1 ? 's' : '') + ' active</div></div>'
+            + '<div class="vio-summary-card vc-ok"><div class="vsc-num">' + passing.length + '</div><div class="vsc-lbl">Passing</div></div>'
+            + (failing.length ? '<div class="vio-summary-card vc-err"><div class="vsc-num">' + failing.length + '</div><div class="vsc-lbl">Failing</div></div>' : '')
+            + '</div>'
+            + (failing.length ? '<div class="sec-head">Failing (' + failing.length + ')</div>' + failing.map(ruleCard).join('') : '')
+            + (passing.length ? '<div class="sec-head"' + (failing.length ? ' style="margin-top:16px"' : '') + '>Passing (' + passing.length + ')</div>' + passing.map(ruleCard).join('') : '');
+    })();
 
     /* VIOLATIONS PANEL */
     (function buildViolations() {
@@ -7175,6 +7588,7 @@ modules.forEach(function (m) { _moduleTierMap[m.path] = inferTierPublic(m); });
             { kind: 'view', name: 'Browse · Tree', hint: 'Hierarchical', go: function () { activateOuterTab('browse'); var w = document.getElementById('panel-browse'); if (w) showSubpanel(w, 'explorer'); } },
             { kind: 'view', name: 'Browse · Matrix', hint: 'Coupling grid', go: function () { activateOuterTab('browse'); var w = document.getElementById('panel-browse'); if (w) showSubpanel(w, 'matrix'); } },
             { kind: 'view', name: 'Health', hint: 'Metrics + trend', go: function () { activateOuterTab('health'); } },
+            { kind: 'view', name: 'Rules', hint: 'Applied architecture rules', go: function () { activateOuterTab('rules'); } },
             { kind: 'view', name: 'Violations', hint: 'Rule failures', go: function () { activateOuterTab('violations'); } },
             { kind: 'view', name: 'Diff', hint: 'Snapshot compare', go: function () { activateOuterTab('diff'); } },
             { kind: 'action', name: 'Toggle theme', hint: 'Dark ↔ light', go: toggleTheme },

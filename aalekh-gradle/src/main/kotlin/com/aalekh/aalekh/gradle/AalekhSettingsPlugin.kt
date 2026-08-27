@@ -78,12 +78,16 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
                 task.subprojectData.set(rootProject.provider {
                     buildSubprojectData(rootProject)
                 })
+                task.subprojectExternalData.set(rootProject.provider {
+                    buildSubprojectExternalData(rootProject)
+                })
                 task.subprojectPlugins.set(rootProject.provider {
                     buildPluginData(rootProject)
                 })
 
                 task.includeTestDependencies.set(extension.includeTestDependencies)
                 task.includeCompileOnlyDependencies.set(extension.includeCompileOnlyDependencies)
+                task.includeExternalDependencies.set(extension.includeExternalDependencies)
                 task.rootProjectDir.set(rootProject.rootDir.absolutePath)
                 task.outputFile.set(graphJsonFile)
             }
@@ -288,6 +292,27 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
                         .forEach { dep ->
                             val to = dep.path
                             if (to != subproject.path) deps += "${cfg.name}:$to"
+                        }
+                }
+            subproject.path to deps
+        }
+
+    // External deps are read from the same captured configurations as project edges, but each
+    // coordinate segment can contain colons, so they are pipe-delimited ("config|group|name|version")
+    // rather than reusing the colon encoding of buildSubprojectData. Declared coordinates only -
+    // no resolution is triggered, keeping this CC-safe.
+    private fun buildSubprojectExternalData(
+        rootProject: org.gradle.api.Project,
+    ): Map<String, List<String>> =
+        rootProject.subprojects.associate { subproject ->
+            val deps = mutableListOf<String>()
+            subproject.configurations
+                .filter { cfg -> ConfigurationClassifier.isCaptured(cfg.name) }
+                .forEach { cfg ->
+                    cfg.dependencies
+                        .filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
+                        .forEach { dep ->
+                            deps += "${cfg.name}|${dep.group}|${dep.name}|${dep.version ?: ""}"
                         }
                 }
             subproject.path to deps
