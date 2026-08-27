@@ -45,6 +45,25 @@ window, mapping each changed file to the module that owns its directory.
 | **Hidden coupling** | A pair that co-changes at or above the degree threshold but has **no** declared dependency - implicit coupling the static graph cannot see.         |
 | **Dead structure**  | A declared production edge whose two modules both changed in the window but *never together* - a dependency that may no longer reflect actual usage. |
 
+## Main sequence
+
+Written by [`aalekhMainSequence`](tasks.md#aalekhmainsequence). Places each module on Robert Martin's
+*main sequence* - the line `A + I = 1` that a well-designed module should sit near.
+
+| Metric               | Description                                                                                                                              |
+|----------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| **Instability (I)**  | `Ce / (Ca + Ce)` - efferent coupling ratio, from the production graph. `0` = maximally stable (only depended upon), `1` = maximally unstable (only depends). |
+| **Abstractness (A)** | `Na / (Na + Nc)` - abstract type declarations over total, from a coarse source scan. `0` = all concrete, `1` = all abstract.            |
+| **Distance (D)**     | `\|A + I - 1\|` - distance from the main sequence. `0` sits on the line (ideal balance); `1` is a far corner.                            |
+| **Zone of pain**     | Concrete **and** stable (low A, low I): rigid, hard to change, yet heavily depended upon.                                               |
+| **Zone of uselessness** | Abstract **and** unstable (high A, high I): abstractions almost nothing depends on.                                                  |
+
+Abstractness is the one metric the dependency graph cannot supply, so it comes from a **coarse lexical
+scan** of each module's Kotlin/Java source (interfaces and `abstract`/`sealed` classes count as
+abstract; concrete/`data`/`enum`/`value` classes, `object`s and Java `enum`s count as concrete). It
+strips comments but is not a full parser - treat the numbers as a directional hint. Modules with no
+countable types are omitted.
+
 ## Output files reference
 
 | File                                        | Task            | Description                                                                                                                    |
@@ -63,6 +82,8 @@ window, mapping each changed file to the module that owns its directory.
 | `build/reports/aalekh/aalekh-affected.md`   | `aalekhAffected`| Affected-modules PR comment: changed modules and downstream blast radius for a git diff.                                     |
 | `build/reports/aalekh/aalekh-affected.json` | `aalekhAffected`| The same affected-graph data, machine-readable.                                                                              |
 | `aalekh-baseline.json`                      | `aalekhBaseline`| Committed baseline: frozen violation fingerprints and a metrics snapshot for quality gates.                                  |
+| `build/reports/aalekh/aalekh-main-sequence.md`   | `aalekhMainSequence`| Abstractness/instability/distance table with zone-of-pain and zone-of-uselessness call-outs. |
+| `build/reports/aalekh/aalekh-main-sequence.json` | `aalekhMainSequence`| The same main-sequence data, machine-readable.                                          |
 
 ## Metrics CSV export
 

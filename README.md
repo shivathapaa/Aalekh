@@ -120,6 +120,7 @@ Aalekh registers seven tasks on the root project, all in the `aalekh` task group
 | `./gradlew aalekhBaseline` | Freezes current violations to a committed baseline so `aalekhCheck` fails only on new ones   |
 | `./gradlew aalekhTemporal` | Analyses git history for change coupling and hotspots (`aalekh-temporal.md` / `.json`)       |
 | `./gradlew aalekhAffected` | Computes modules affected by a git diff and their blast radius (`aalekh-affected.md` / `.json`) |
+| `./gradlew aalekhMainSequence` | Abstractness/instability/distance-from-main-sequence per module (`aalekh-main-sequence.md` / `.json`) |
 
 All tasks depend on `aalekhExtract` implicitly, and `aalekhCheck` wires into the standard `check`
 lifecycle automatically. See [Gradle tasks](docs/tasks.md) for details.

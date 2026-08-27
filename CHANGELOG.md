@@ -7,6 +7,15 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **Main-sequence metrics** (`aalekhMainSequence`). Computes each module's distance from Robert
+  Martin's main sequence `D = |A + I - 1|`, writing a local `aalekh-main-sequence.md` (a
+  worst-distance-first table with zone-of-pain / zone-of-uselessness call-outs) and `.json`.
+  Instability (I) comes from the production graph; **abstractness (A)** - the one metric the graph
+  cannot supply - comes from a deliberately coarse lexical scan of each module's Kotlin/Java source
+  (interfaces and `abstract`/`sealed` classes vs concrete/`data`/`enum`/`object`). The pure counting
+  and A/I/D maths live in `aalekh-analysis` (`MainSequenceAnalyzer`); only the file I/O
+  (`TypeAbstractnessScanner`) sits in `aalekh-gradle`. The task is not cached (source is not a
+  declared input) and never fails the build - a module with no countable types is omitted.
 - **API-leak predicate** (`forbid { ... apiOnly() }`). Restricts a `forbid { }` rule to `api`
   configurations only: the *from* module may still depend on *to* via `implementation`, it just may
   not re-export it onto its own consumers - the "don't widen the public surface" check. Recognises

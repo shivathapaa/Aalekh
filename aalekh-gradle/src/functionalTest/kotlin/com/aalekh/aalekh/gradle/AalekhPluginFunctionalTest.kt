@@ -947,6 +947,45 @@ class AalekhPluginFunctionalTest {
     }
 
     @Test
+    fun `aalekhMainSequence writes an abstractness-vs-instability report`() {
+        listOf("api", "app").forEach { projectDir.resolve(it).mkdirs() }
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins { id("io.github.shivathapaa.aalekh") }
+            rootProject.name = "mainseq-test"
+            include(":api", ":app")
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh { openBrowserAfterReport.set(false) }
+            """.trimIndent()
+        )
+        projectDir.resolve("api/build.gradle.kts").writeText("""plugins { kotlin("jvm") version "2.3.0" }""")
+        projectDir.resolve("app/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies { implementation(project(":api")) }
+            """.trimIndent()
+        )
+        // :api is a stable abstraction (an interface); :app is an unstable concrete consumer.
+        writeSource("api/src/main/kotlin/Repo.kt", "package api\ninterface Repo")
+        writeSource("app/src/main/kotlin/App.kt", "package app\nclass App")
+
+        val result = gradleRunner("aalekhMainSequence", "--no-configuration-cache").build()
+        assertEquals(TaskOutcome.SUCCESS, result.task(":aalekhMainSequence")?.outcome)
+
+        val md = projectDir.resolve("build/reports/aalekh/aalekh-main-sequence.md").readText()
+        assertTrue(md.contains("main sequence"), "the report must be titled")
+        assertTrue(md.contains(":api") && md.contains(":app"), "both modules must be analysed")
+        assertTrue(md.contains("Abstractness"), "the module table must be present")
+
+        val json = projectDir.resolve("build/reports/aalekh/aalekh-main-sequence.json")
+        assertTrue(json.exists(), "aalekhMainSequence must write the JSON artefact")
+        assertTrue(json.readText().contains("\"averageDistance\""), "JSON must carry the average distance")
+    }
+
+    @Test
     fun `aalekhTemporal is configuration cache compatible on second run`() {
         // Single java-library module, mirroring the aalekhReport CC test, to avoid the
         // Kotlin-Gradle-plugin build-service-across-sibling-projects quirk that breaks CC store.

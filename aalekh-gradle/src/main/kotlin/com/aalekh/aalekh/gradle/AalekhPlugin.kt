@@ -5,6 +5,7 @@ import com.aalekh.aalekh.gradle.task.AalekhAffectedTask
 import com.aalekh.aalekh.gradle.task.AalekhBaselineTask
 import com.aalekh.aalekh.gradle.task.AalekhCheckTask
 import com.aalekh.aalekh.gradle.task.AalekhExtractTask
+import com.aalekh.aalekh.gradle.task.AalekhMainSequenceTask
 import com.aalekh.aalekh.gradle.task.AalekhMermaidTask
 import com.aalekh.aalekh.gradle.task.AalekhReportTask
 import com.aalekh.aalekh.gradle.task.AalekhTemporalTask
@@ -195,6 +196,16 @@ public class AalekhPlugin : Plugin<Project> {
             val reportsDir = project.layout.buildDirectory.dir(extension.outputDir)
             task.jsonFile.set(reportsDir.map { it.file("aalekh-affected.json") })
             task.markdownFile.set(reportsDir.map { it.file("aalekh-affected.md") })
+            task.dependsOn(extractTask)
+        }
+
+        project.tasks.register("aalekhMainSequence", AalekhMainSequenceTask::class.java) { task ->
+            task.graphJsonFile.set(graphJsonFile)
+            task.projectName.set(project.name)
+            task.rootDir.set(project.rootDir.absolutePath)
+            val reportsDir = project.layout.buildDirectory.dir(extension.outputDir)
+            task.jsonFile.set(reportsDir.map { it.file("aalekh-main-sequence.json") })
+            task.markdownFile.set(reportsDir.map { it.file("aalekh-main-sequence.md") })
             task.dependsOn(extractTask)
         }
 

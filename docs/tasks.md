@@ -2,17 +2,18 @@
 
 [← Documentation index](README.md) · [Project README](../README.md)
 
-Aalekh registers seven tasks on the root project, all in the `aalekh` task group.
+Aalekh registers eight tasks on the root project, all in the `aalekh` task group.
 
-| Task                       | Description                                                                                  |
-|----------------------------|----------------------------------------------------------------------------------------------|
-| `./gradlew aalekhExtract`  | Extracts the module dependency graph and writes it as JSON to `build/tmp/aalekh/graph.json`  |
-| `./gradlew aalekhReport`   | Generates the interactive HTML report at `build/reports/aalekh/index.html`                   |
-| `./gradlew aalekhCheck`    | Evaluates all architecture rules; fails the build on `ERROR`-severity violations             |
-| `./gradlew aalekhMermaid`  | Exports the graph as diffable Mermaid text (`aalekh-graph.mmd` + `aalekh-graph.md`)          |
-| `./gradlew aalekhBaseline` | Records current violations to a committed baseline so `aalekhCheck` fails only on new ones   |
-| `./gradlew aalekhTemporal` | Analyses git history for temporal (change) coupling and hotspots (`aalekh-temporal.md`/`.json`) |
-| `./gradlew aalekhAffected` | Computes modules affected by a git diff and their blast radius (`aalekh-affected.md`/`.json`) |
+| Task                          | Description                                                                                  |
+|-------------------------------|----------------------------------------------------------------------------------------------|
+| `./gradlew aalekhExtract`     | Extracts the module dependency graph and writes it as JSON to `build/tmp/aalekh/graph.json`  |
+| `./gradlew aalekhReport`      | Generates the interactive HTML report at `build/reports/aalekh/index.html`                   |
+| `./gradlew aalekhCheck`       | Evaluates all architecture rules; fails the build on `ERROR`-severity violations             |
+| `./gradlew aalekhMermaid`     | Exports the graph as diffable Mermaid text (`aalekh-graph.mmd` + `aalekh-graph.md`)          |
+| `./gradlew aalekhBaseline`    | Records current violations to a committed baseline so `aalekhCheck` fails only on new ones   |
+| `./gradlew aalekhTemporal`    | Analyses git history for temporal (change) coupling and hotspots (`aalekh-temporal.md`/`.json`) |
+| `./gradlew aalekhAffected`    | Computes modules affected by a git diff and their blast radius (`aalekh-affected.md`/`.json`) |
+| `./gradlew aalekhMainSequence`| Computes each module's abstractness, instability and distance from the main sequence (`aalekh-main-sequence.md`/`.json`) |
 
 `aalekhReport` and `aalekhCheck` both depend on `aalekhExtract` implicitly - you do not need to
 run it manually.
@@ -202,6 +203,32 @@ aalekh {
 Aalekh only writes local files - **posting the comment is the consumer CI's job**, in keeping with
 Aalekh never publishing anything itself. Like `aalekhTemporal`, the task is fail-silent on a missing
 git binary or unknown ref: it writes an empty report rather than failing the build.
+
+## aalekhMainSequence
+
+```bash
+./gradlew aalekhMainSequence
+```
+
+Computes where each module sits relative to Robert Martin's **main sequence** - the line `A + I = 1`
+that balances abstractness against instability - and writes two files next to the HTML report:
+
+- `build/reports/aalekh/aalekh-main-sequence.md` - a reviewable table, worst-distance first, with the
+  off-sequence modules called out.
+- `build/reports/aalekh/aalekh-main-sequence.json` - the same data, machine-readable.
+
+For each module it reads **instability (I)** from the dependency graph and estimates **abstractness
+(A)** - the ratio of abstract to total type declarations - from a coarse scan of the module's Kotlin
+and Java source. The **distance D = |A + I - 1|** is how far the module sits from the ideal balance:
+`0` is on the line, `1` is a far corner. A concrete-and-stable module (low A, low I) lands in the
+**zone of pain** (rigid, hard to change, yet heavily depended upon); an abstract-and-unstable module
+(high A, high I) lands in the **zone of uselessness** (abstractions almost nothing uses).
+
+The abstractness scan is a deliberately coarse lexical estimate (it strips comments and counts
+declaration keywords, not a full parse), so treat the numbers as a hint, not a precise measurement.
+The task is not cached - it re-scans source on every run - and never fails the build; a module with no
+scannable source is simply omitted. See [Metrics & output → Main sequence](metrics.md#main-sequence)
+for the metric definitions.
 
 ## aalekhExtract
 
