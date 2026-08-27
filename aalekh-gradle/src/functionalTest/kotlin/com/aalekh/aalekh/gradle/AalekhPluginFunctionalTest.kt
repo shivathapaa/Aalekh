@@ -910,6 +910,107 @@ class AalekhPluginFunctionalTest {
         )
     }
 
+    // Reachability & layer-coverage rules
+
+    /**
+     * Graph: app -> feature:a -> core, with feature:b wired to nobody. [configBlock] is injected
+     * inside the `aalekh { }` block so each test supplies its own rule.
+     */
+    private fun setupReachabilityProject(configBlock: String) {
+        listOf("app", "feature/a", "feature/b", "core").forEach { projectDir.resolve(it).mkdirs() }
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins { id("io.github.shivathapaa.aalekh") }
+            rootProject.name = "reach-test"
+            include(":app", ":feature:a", ":feature:b", ":core")
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                $configBlock
+            }
+            """.trimIndent()
+        )
+        projectDir.resolve("app/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies { implementation(project(":feature:a")) }
+            """.trimIndent()
+        )
+        projectDir.resolve("feature/a/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies { implementation(project(":core")) }
+            """.trimIndent()
+        )
+        projectDir.resolve("feature/b/build.gradle.kts").writeText(
+            """plugins { kotlin("jvm") version "2.3.0" }"""
+        )
+        projectDir.resolve("core/build.gradle.kts").writeText(
+            """plugins { kotlin("jvm") version "2.3.0" }"""
+        )
+    }
+
+    @Test
+    fun `mustBeReachableFrom fails the build for a feature not wired into the app`() {
+        setupReachabilityProject(
+            """rules { mustBeReachableFrom(module = ":feature:*", from = ":app", because = "wire every feature in") }"""
+        )
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        assertEquals(TaskOutcome.FAILED, result.task(":aalekhCheck")?.outcome)
+        assertTrue(
+            result.output.contains("unreachable-module"),
+            "the unreachable feature must be reported under the stable rule id",
+        )
+        assertTrue(
+            result.output.contains(":feature:b"),
+            "the specific unreachable module must be named",
+        )
+    }
+
+    @Test
+    fun `forbidReachable fails on an indirect dependency the direct rule would miss`() {
+        // app -> feature:a -> core: app reaches core only transitively.
+        setupReachabilityProject(
+            """rules { forbidReachable(from = ":app", to = ":core", because = "app must not reach core") }"""
+        )
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        assertEquals(TaskOutcome.FAILED, result.task(":aalekhCheck")?.outcome)
+        assertTrue(
+            result.output.contains("forbidden-transitive-dependency"),
+            "the transitive forbidden dependency must be reported under the stable rule id",
+        )
+        assertTrue(
+            result.output.contains("app must not reach core"),
+            "the because(...) reason must appear in the violation message",
+        )
+    }
+
+    @Test
+    fun `requireLayerForAllModules promoted to ERROR fails on an uncovered module`() {
+        setupReachabilityProject(
+            """
+            layers { layer("features") { modules(":feature:**") } }
+            rules {
+                requireLayerForAllModules()
+                rule("uncovered-module") { severity = com.aalekh.aalekh.model.Severity.ERROR }
+            }
+            """.trimIndent()
+        )
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        assertEquals(TaskOutcome.FAILED, result.task(":aalekhCheck")?.outcome)
+        assertTrue(
+            result.output.contains("uncovered-module"),
+            "a module in no declared layer must be reported",
+        )
+        assertTrue(
+            result.output.contains(":app") || result.output.contains(":core"),
+            "an uncovered module (\":app\" or \":core\") must be named",
+        )
+    }
+
     // Guard rails
 
     @Test

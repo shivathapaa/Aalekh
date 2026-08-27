@@ -109,6 +109,7 @@ public class AalekhPlugin : Plugin<Project> {
             task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
             task.ruleEntries.set(extension.rulesConfig.entries)
             task.forbidEntries.set(extension.forbiddenEntries)
+            task.reachabilityEntries.set(extension.rulesConfig.reachabilityEntries)
             task.teamEntries.set(project.provider { extension.teamOwnership.toInputString() })
             task.trendFile.set(project.layout.buildDirectory.file("aalekh/trend.json"))
             task.dependsOn(extractTask)
@@ -131,6 +132,7 @@ public class AalekhPlugin : Plugin<Project> {
             task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
             task.ruleEntries.set(extension.rulesConfig.entries)
             task.forbidEntries.set(extension.forbiddenEntries)
+            task.reachabilityEntries.set(extension.rulesConfig.reachabilityEntries)
             task.baselineFile.set(
                 extension.baselineFile.map { project.layout.projectDirectory.file(it) }
             )
@@ -164,6 +166,7 @@ public class AalekhPlugin : Plugin<Project> {
             task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
             task.ruleEntries.set(extension.rulesConfig.entries)
             task.forbidEntries.set(extension.forbiddenEntries)
+            task.reachabilityEntries.set(extension.rulesConfig.reachabilityEntries)
             task.baselineOutputFile.set(
                 extension.baselineFile.map { project.layout.projectDirectory.file(it) }
             )

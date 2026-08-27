@@ -28,6 +28,15 @@ public abstract class RulesConfig @Inject constructor(objects: ObjectFactory) {
     internal val entries: ListProperty<String> =
         objects.listProperty(String::class.java).convention(emptyList())
 
+    /**
+     * Serialized reachability rules from [forbidReachable] / [mustBeReachableFrom], kept in a
+     * separate channel from [entries] because their `from`/`to` globs contain `:` and cannot use
+     * the `ruleId:kind:value` layout. Format per entry:
+     * `"<kind>|<fromGlob>|<toGlob>|<severity>|<reason>"`, kind = `forbid` or `require`.
+     */
+    internal val reachabilityEntries: ListProperty<String> =
+        objects.listProperty(String::class.java).convention(emptyList())
+
     public fun rule(id: String, configure: RuleOverride.() -> Unit) {
         val override = RuleOverride(id)
         override.configure()
@@ -59,6 +68,67 @@ public abstract class RulesConfig @Inject constructor(objects: ObjectFactory) {
      */
     public fun noOrphanModules() {
         entries.add("no-orphan-modules:option:enabled")
+    }
+
+    /**
+     * Requires every module to belong to a declared `layers { }` layer. A module matched by no layer
+     * pattern is invisible to [layer enforcement][com.aalekh.aalekh.analysis.rules.LayerDependencyRule]
+     * and can depend on anything; this makes layer coverage exhaustive. Reports the `uncovered-module`
+     * rule at WARNING (promote with `rule("uncovered-module") { severity = ERROR }`). Does nothing
+     * until at least one layer is declared.
+     */
+    public fun requireLayerForAllModules() {
+        entries.add("uncovered-module:option:enabled")
+    }
+
+    /**
+     * Forbids modules matching [from] from *transitively* depending on modules matching [to] - the
+     * indirect counterpart to `forbid { }`, which only checks direct edges. Follows the full
+     * production dependency closure, so a banned module reached through any chain is a violation.
+     * Reports `forbidden-transitive-dependency` at [severity] (default ERROR).
+     *
+     * ```kotlin
+     * rules { forbidReachable(from = ":core:domain", to = ":platform:android", because = "keep domain pure") }
+     * ```
+     */
+    public fun forbidReachable(
+        from: String,
+        to: String,
+        because: String = "",
+        severity: Severity = Severity.ERROR,
+    ) {
+        reachabilityEntries.add(serializeReachability("forbid", from, to, severity, because))
+    }
+
+    /**
+     * Requires every module matching [module] to be reachable from a module matching [from] over
+     * production dependencies - e.g. every `:feature:*` must be reachable from `:app`. A module no
+     * production path from [from] reaches is dead in that entry point. Reports `unreachable-module`
+     * at [severity] (default ERROR).
+     *
+     * ```kotlin
+     * rules { mustBeReachableFrom(module = ":feature:*", from = ":app", because = "wire every feature into the app") }
+     * ```
+     */
+    public fun mustBeReachableFrom(
+        module: String,
+        from: String,
+        because: String = "",
+        severity: Severity = Severity.ERROR,
+    ) {
+        reachabilityEntries.add(serializeReachability("require", from, module, severity, because))
+    }
+
+    /** Serializes one reachability rule to `"<kind>|<from>|<to>|<severity>|<reason>"`. */
+    private fun serializeReachability(
+        kind: String,
+        from: String,
+        to: String,
+        severity: Severity,
+        reason: String,
+    ): String {
+        val safeReason = reason.replace('|', '/').replace('\n', ' ').trim()
+        return "$kind|$from|$to|${severity.name}|$safeReason"
     }
 
     /**

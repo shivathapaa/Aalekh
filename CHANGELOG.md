@@ -7,6 +7,19 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **Reachability rules** (`forbidReachable(...)`, `mustBeReachableFrom(...)`). Two rules that reason
+  over the full production reachability closure rather than direct edges. `forbidReachable(from, to)`
+  fails when `from` *transitively* reaches `to` - catching the indirect leak `forbid { }` misses
+  (reported as `forbidden-transitive-dependency`). `mustBeReachableFrom(module, from)` fails when a
+  module is not reachable from a declared root, e.g. "every `:feature:*` must be reachable from
+  `:app`" - the targeted counterpart to `no-orphan-modules` (reported as `unreachable-module`). Both
+  follow production edges only, default to `ERROR`, and serialize to a configuration-cache-safe
+  string. Pure `GraphReachability` closure in `aalekh-analysis`.
+- **Exhaustive layer coverage** (`requireLayerForAllModules()`). Opt-in rule that flags any module
+  belonging to no declared `layers { }` layer - a module that would otherwise slip past
+  `layer-dependency` and depend on anything. Reported as `uncovered-module` at `WARNING` (promote to
+  `ERROR`); inert until at least one layer is declared. Draws its patterns from the existing layer
+  declarations, so no extra configuration is needed.
 - **Predicate rule DSL** (`forbid { }`). Declares a one-off structural rule inline -
   `forbid { from(":core:domain"); toModuleType(ModuleType.ANDROID_LIBRARY); because("...") }` - instead
   of writing and shipping a custom `ArchRule` jar for the common "X must not depend on Y" case. Each

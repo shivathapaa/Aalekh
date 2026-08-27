@@ -115,6 +115,9 @@ public class RuleEngine(
          * @param forbidEntries Serialized `forbid { }` predicate rules. Format per entry:
          *   `"<fromKind>|<fromValue>|<toKind>|<toValue>|<severity>|<reason>"` where kind is
          *   `path` or `type`.
+         * @param reachabilityEntries Serialized `forbidReachable` / `mustBeReachableFrom` rules.
+         *   Format per entry: `"<kind>|<fromGlob>|<toGlob>|<severity>|<reason>"` where kind is
+         *   `forbid` (transitive forbidden dependency) or `require` (must be reachable).
          */
         // Parameters are one cohesive set of serialized DSL channels reconstructed at execution
         // time; bundling them into a holder adds indirection at every call site without any gain.
@@ -126,6 +129,7 @@ public class RuleEngine(
             ruleEntries: List<String>,
             previousCycleCount: Int? = null,
             forbidEntries: List<String> = emptyList(),
+            reachabilityEntries: List<String> = emptyList(),
         ): RuleEngine {
             val parsed = parseRuleEntries(ruleEntries)
             val rules = mutableListOf<ArchRule>()
@@ -144,7 +148,11 @@ public class RuleEngine(
             parsed.maxTransitive?.let { rules += MaxTransitiveDependenciesRule(it) }
             parsed.maxGraphHeight?.let { rules += MaxGraphHeightRule(it) }
             if (parsed.forbidOrphans) rules += NoOrphanModulesRule()
+            if (parsed.requireLayerCoverage && layerEntries.isNotEmpty()) {
+                rules += UncoveredModuleRule.fromSerializedLayers(layerEntries)
+            }
             rules += forbidEntries.mapNotNull { parsePredicateRule(it) }
+            rules += reachabilityEntries.mapNotNull { parseReachabilityRule(it) }
 
             return RuleEngine(
                 rules = rules,
@@ -176,6 +184,38 @@ public class RuleEngine(
             )
         }
 
+        /**
+         * Rebuilds a reachability rule from one serialized `forbidReachable` / `mustBeReachableFrom`
+         * entry, or null if malformed. Format: `"<kind>|<fromGlob>|<toGlob>|<severity>|<reason>"`.
+         * `forbid` -> [ForbiddenTransitiveDependencyRule]; `require` -> [UnreachableModuleRule]
+         * (its `toGlob` field holds the module that must be reachable from `fromGlob`).
+         */
+        private const val REACH_FIELDS = 5
+        private const val REACH_MIN_FIELDS = 4
+        private const val REACH_TO_INDEX = 2
+        private const val REACH_SEVERITY_INDEX = 3
+        private const val REACH_REASON_INDEX = 4
+
+        private fun parseReachabilityRule(entry: String): ArchRule? {
+            val parts = entry.split("|", limit = REACH_FIELDS)
+            if (parts.size < REACH_MIN_FIELDS) return null
+            val from = parts[1]
+            val to = parts[REACH_TO_INDEX]
+            val severity = Severity.entries.firstOrNull { it.name == parts[REACH_SEVERITY_INDEX] }
+                ?: Severity.ERROR
+            val reason = parts.getOrElse(REACH_REASON_INDEX) { "" }
+            return when (parts[0]) {
+                "forbid" -> ForbiddenTransitiveDependencyRule(from, to, reason, severity)
+                "require" -> UnreachableModuleRule(
+                    modulePattern = to,
+                    fromPattern = from,
+                    reason = reason,
+                    defaultSeverity = severity,
+                )
+                else -> null
+            }
+        }
+
         /** Accumulated result of parsing the serialized `ruleEntries` strings. */
         private class ParsedRuleEntries {
             val severityOverrides = mutableMapOf<String, Severity>()
@@ -185,6 +225,7 @@ public class RuleEngine(
             var maxTransitive: Int? = null
             var maxGraphHeight: Int? = null
             var forbidOrphans = false
+            var requireLayerCoverage = false
         }
 
         /** Parses the delimited `ruleId:kind:value` entries into a [ParsedRuleEntries] accumulator. */
@@ -220,6 +261,9 @@ public class RuleEngine(
 
                 ruleId == "no-orphan-modules" && value == "enabled" ->
                     parsed.forbidOrphans = true
+
+                ruleId == "uncovered-module" && value == "enabled" ->
+                    parsed.requireLayerCoverage = true
             }
         }
 

@@ -89,6 +89,10 @@ public abstract class AalekhReportTask : DefaultTask() {
     @get:Input
     public abstract val forbidEntries: ListProperty<String>
 
+    /** Serialized reachability rules; mirrors [AalekhCheckTask.reachabilityEntries]. */
+    @get:Input
+    public abstract val reachabilityEntries: ListProperty<String>
+
     /**
      * Serialized team-ownership map from the `teams { }` DSL block.
      * Format: `"team=pat1,pat2;team2=pat3"` (from `TeamOwnershipConfig.toInputString`).
@@ -122,6 +126,7 @@ public abstract class AalekhReportTask : DefaultTask() {
             featureAllowedPairs = featureAllowedPairs.get(),
             ruleEntries = ruleEntries.get(),
             forbidEntries = forbidEntries.get(),
+            reachabilityEntries = reachabilityEntries.get(),
         )
         val ruleResult = ruleEngine.evaluate(graph)
         val report = ReportCoordinator(graph, ruleResult, projectName.get())
@@ -316,6 +321,13 @@ public abstract class AalekhCheckTask : DefaultTask() {
     public abstract val forbidEntries: ListProperty<String>
 
     /**
+     * Serialized reachability rules from `rules { forbidReachable(...) / mustBeReachableFrom(...) }`.
+     * Format per entry: `"<kind>|<fromGlob>|<toGlob>|<severity>|<reason>"`. CC-safe plain strings.
+     */
+    @get:Input
+    public abstract val reachabilityEntries: ListProperty<String>
+
+    /**
      * The committed baseline file (`aalekh-baseline.json`) written by `aalekhBaseline`.
      * When present, violations recorded in it are suppressed and only new ones fail the build.
      *
@@ -359,6 +371,7 @@ public abstract class AalekhCheckTask : DefaultTask() {
             ruleEntries = ruleEntries.get(),
             previousCycleCount = previousCycleCount,
             forbidEntries = forbidEntries.get(),
+            reachabilityEntries = reachabilityEntries.get(),
         )
         val rawResult = ruleEngine.evaluate(graph)
 

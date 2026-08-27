@@ -12,13 +12,18 @@
 | `max-transitive-dependencies` | `WARNING` | Modules must not exceed the configured transitive dependency limit   |
 | `max-graph-height`            | `WARNING` | The longest dependency chain must not exceed the configured height   |
 | `no-orphan-modules`           | `WARNING` | Modules must not be isolated (zero fan-in and zero fan-out)          |
+| `uncovered-module`            | `WARNING` | Every module must belong to a declared `layers { }` layer            |
 | `forbidden-dependency`        | `ERROR`   | A `forbid { }` predicate rule: the *from* modules must not depend on the *to* modules |
+| `forbidden-transitive-dependency` | `ERROR` | A `forbidReachable(...)` rule: *from* must not **transitively** reach *to* |
+| `unreachable-module`          | `ERROR`   | A `mustBeReachableFrom(...)` rule: *module* must be reachable from a declared root |
 | `metric-regression`           | `ERROR`   | A quality-gated metric must not exceed the committed baseline value  |
 
-`max-transitive-dependencies`, `max-graph-height`, and `no-orphan-modules` are inactive until you
-opt in from the `rules { }` block; `forbidden-dependency` and `metric-regression` are active only
-when you declare a `forbid { }` predicate or a `qualityGates { }` gate. The first three rules are
-always on.
+`max-transitive-dependencies`, `max-graph-height`, `no-orphan-modules`, and `uncovered-module` are
+inactive until you opt in from the `rules { }` block; `forbidden-dependency`,
+`forbidden-transitive-dependency`, `unreachable-module`, and `metric-regression` are active only when
+you declare the corresponding `forbid { }`, `forbidReachable(...)`, `mustBeReachableFrom(...)`, or
+`qualityGates { }` rule. The first three rules (`no-cyclic-dependencies`, `layer-dependency`,
+`no-feature-to-feature`) are always on.
 
 ## Violation severity levels
 
@@ -175,6 +180,75 @@ aalekh {
 ```
 
 The default severity is `WARNING`; promote it with `rule("no-orphan-modules") { severity = Severity.ERROR }`.
+
+## Exhaustive layer coverage
+
+Layer enforcement only holds if *every* module is actually placed in a layer. A module matched by
+none of the `layers { }` patterns slips past `layer-dependency` entirely - it can depend on anything
+and nothing constrains what depends on it. `requireLayerForAllModules()` makes coverage exhaustive:
+any module in no declared layer is reported under `uncovered-module`.
+
+```kotlin
+aalekh {
+    layers {
+        layer("domain") { modules(":core:domain", ":feature:*:domain") }
+        layer("data") { modules(":core:data", ":feature:*:data"); canOnlyDependOn("domain") }
+        layer("presentation") { modules(":feature:*:ui", ":app"); canOnlyDependOn("domain", "data") }
+    }
+    rules {
+        requireLayerForAllModules()
+    }
+}
+```
+
+The default severity is `WARNING`; promote it with
+`rule("uncovered-module") { severity = Severity.ERROR }`. The rule does nothing until at least one
+layer is declared - there is no coverage map to check against otherwise.
+
+## Reachability rules
+
+`forbid { }` and `layer-dependency` check *direct* edges. Two rules reason over the full production
+**reachability closure** - every chain of production dependencies, however long.
+
+**`forbidReachable(from, to)`** - modules matching `from` must not *transitively* reach modules
+matching `to`. Catches the indirect leak a direct-edge rule misses: `:core:domain` pulling in an
+Android module three hops away through an innocent-looking utility. Reports
+`forbidden-transitive-dependency`.
+
+```kotlin
+aalekh {
+    rules {
+        forbidReachable(
+            from = ":core:domain",
+            to = ":platform:android",
+            because = "the domain layer must stay platform-agnostic, even indirectly",
+        )
+    }
+}
+```
+
+**`mustBeReachableFrom(module, from)`** - every module matching `module` must be reachable from a
+module matching `from` over production edges. Use it to prove modules are wired into an entry point:
+"every `:feature:*` must be reachable from `:app`". A feature no production path from `:app` reaches
+is dead in that entry point - it compiles but ships to nobody. It is the targeted, root-relative
+counterpart to `no-orphan-modules`. Reports `unreachable-module`.
+
+```kotlin
+aalekh {
+    rules {
+        mustBeReachableFrom(
+            module = ":feature:*",
+            from = ":app",
+            because = "every feature must be wired into the app",
+        )
+    }
+}
+```
+
+Both default to `ERROR`; pass `severity = Severity.WARNING` to only report. Both follow production
+edges only - a `testImplementation`-only path does not count as reachable. The `from`/`to`/`module`
+selectors are path globs (`*`, `**`); like every rule, they are serialized to a
+configuration-cache-safe string, never captured as a lambda.
 
 ## Cycle regression prevention
 
