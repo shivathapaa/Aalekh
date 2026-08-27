@@ -16,16 +16,24 @@ import com.aalekh.aalekh.model.Violation
  * @param to Selects the forbidden dependency targets.
  * @param reason Why this dependency is disallowed - surfaced in the violation message.
  * @param defaultSeverity Severity for matches; `ERROR` fails the build.
+ * @param apiOnly When true, only `api`-configuration edges are forbidden (an "API-leak" rule):
+ *   the *from* module may still depend on *to* via `implementation`, it just may not re-export it
+ *   onto its own consumers. When false, any production configuration matches.
  */
 internal class PredicateRule(
     private val from: ModuleMatcher,
     private val to: ModuleMatcher,
     private val reason: String,
     override val defaultSeverity: Severity,
+    private val apiOnly: Boolean = false,
 ) : ArchRule {
 
     override val id: String = RULE_ID
-    override val description: String = "Forbidden dependency: ${from.describe()} → ${to.describe()}."
+    override val description: String = buildString {
+        append("Forbidden ")
+        append(if (apiOnly) "api dependency" else "dependency")
+        append(": ${from.describe()} → ${to.describe()}.")
+    }
     override val plainLanguageExplanation: String =
         reason.ifBlank { "This dependency direction is disallowed by a project-defined rule." }
 
@@ -33,19 +41,22 @@ internal class PredicateRule(
         graph.edges
             .asSequence()
             .filter { !it.isTest && it.from != it.to }
+            .filter { !apiOnly || it.isApi }
             .filter { from.matches(it.from, graph) && to.matches(it.to, graph) }
             .map { edge -> toViolation(edge.from, edge.to, graph) }
             .toList()
 
     private fun toViolation(fromPath: String, toPath: String, graph: ModuleDependencyGraph): Violation {
+        val config = if (apiOnly) "api" else "implementation"
         val buildFileHint = graph.moduleByPath(fromPath)?.buildFilePath
-            ?.let { " Edit $it and remove: implementation(project(\"$toPath\"))." }
+            ?.let { " Edit $it and change: $config(project(\"$toPath\"))." }
             ?: ""
         val why = reason.ifBlank { "it is disallowed by a project-defined rule" }
+        val verb = if (apiOnly) "must not expose (api) " else "must not depend on "
         return Violation(
             ruleId = id,
             severity = defaultSeverity,
-            message = "$fromPath must not depend on $toPath: $why.$buildFileHint",
+            message = "$fromPath $verb$toPath: $why.$buildFileHint",
             source = "$fromPath → $toPath",
             moduleHint = fromPath,
             plainLanguageExplanation = plainLanguageExplanation,

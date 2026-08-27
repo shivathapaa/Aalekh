@@ -8,10 +8,16 @@ import kotlin.test.assertTrue
 class DependencyEdgeTest {
 
     @Test
-    fun `isApi is true only for api configuration`() {
+    fun `isApi covers api and KMP source-set api configurations`() {
         assertTrue(DependencyEdge(":a", ":b", "api").isApi)
+        assertTrue(DependencyEdge(":a", ":b", "commonMainApi").isApi)
+        assertTrue(DependencyEdge(":a", ":b", "androidMainApi").isApi)
+        assertTrue(DependencyEdge(":a", ":b", "debugApi").isApi)
         assertFalse(DependencyEdge(":a", ":b", "implementation").isApi)
+        assertFalse(DependencyEdge(":a", ":b", "commonMainImplementation").isApi)
+        // Test api configurations never count toward the production api surface.
         assertFalse(DependencyEdge(":a", ":b", "testApi").isApi)
+        assertFalse(DependencyEdge(":a", ":b", "testFixturesApi").isApi)
     }
 
     @Test

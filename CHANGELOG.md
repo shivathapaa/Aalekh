@@ -7,6 +7,12 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **API-leak predicate** (`forbid { ... apiOnly() }`). Restricts a `forbid { }` rule to `api`
+  configurations only: the *from* module may still depend on *to* via `implementation`, it just may
+  not re-export it onto its own consumers - the "don't widen the public surface" check. Recognises
+  the plain `api` configuration and KMP / build-type source-set variants (`commonMainApi`,
+  `androidMainApi`, `debugApi`); test api configurations never count. Reuses the existing
+  `forbidden-dependency` rule id and the configuration-cache-safe `forbid` serialization.
 - **Reachability rules** (`forbidReachable(...)`, `mustBeReachableFrom(...)`). Two rules that reason
   over the full production reachability closure rather than direct edges. `forbidReachable(from, to)`
   fails when `from` *transitively* reaches `to` - catching the indirect leak `forbid { }` misses

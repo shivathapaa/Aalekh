@@ -708,6 +708,56 @@ class AalekhPluginFunctionalTest {
         )
     }
 
+    @Test
+    fun `forbid apiOnly fails on an api edge but ignores an implementation edge`() {
+        listOf("public", "internal", "consumer").forEach { projectDir.resolve(it).mkdirs() }
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins { id("io.github.shivathapaa.aalekh") }
+            rootProject.name = "apionly-test"
+            include(":public", ":internal", ":consumer")
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                forbid {
+                    from(":public")
+                    to(":internal")
+                    apiOnly()
+                    because(":internal must stay an implementation detail")
+                }
+            }
+            """.trimIndent()
+        )
+        // :public re-exports :internal via api (violation); :consumer uses it via implementation (fine).
+        projectDir.resolve("public/build.gradle.kts").writeText(
+            """
+            plugins { `java-library` }
+            dependencies { api(project(":internal")) }
+            """.trimIndent()
+        )
+        projectDir.resolve("consumer/build.gradle.kts").writeText(
+            """
+            plugins { `java-library` }
+            dependencies { implementation(project(":internal")) }
+            """.trimIndent()
+        )
+        projectDir.resolve("internal/build.gradle.kts").writeText("""plugins { `java-library` }""")
+
+        val result = gradleRunner("aalekhCheck", "--no-configuration-cache").buildAndFail()
+        assertEquals(TaskOutcome.FAILED, result.task(":aalekhCheck")?.outcome)
+        assertTrue(
+            result.output.contains(":public") && result.output.contains("expose"),
+            "the api re-export from :public must be flagged as an exposure",
+        )
+        assertFalse(
+            result.output.contains(":consumer"),
+            "an implementation dependency must not trip an apiOnly rule",
+        )
+    }
+
     // Quality gates (metric-delta regression)
 
     /** Modules a -> b with c isolated, and quality gates forbidding ccd / critical-path regressions. */

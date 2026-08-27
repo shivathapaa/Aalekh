@@ -113,8 +113,8 @@ public class RuleEngine(
          * @param previousCycleCount Main-code cycle count from the previous run's results JSON.
          *   Null when no prior results exist - regression check is skipped in that case.
          * @param forbidEntries Serialized `forbid { }` predicate rules. Format per entry:
-         *   `"<fromKind>|<fromValue>|<toKind>|<toValue>|<severity>|<reason>"` where kind is
-         *   `path` or `type`.
+         *   `"<fromKind>|<fromValue>|<toKind>|<toValue>|<severity>|<reason>|<apiOnly>"` where kind is
+         *   `path` or `type` and `apiOnly` (optional) restricts the match to `api` edges.
          * @param reachabilityEntries Serialized `forbidReachable` / `mustBeReachableFrom` rules.
          *   Format per entry: `"<kind>|<fromGlob>|<toGlob>|<severity>|<reason>"` where kind is
          *   `forbid` (transitive forbidden dependency) or `require` (must be reachable).
@@ -166,11 +166,12 @@ public class RuleEngine(
          * malformed. Format: `"<fromKind>|<fromValue>|<toKind>|<toValue>|<severity>|<reason>"`; the
          * reason is the final field and may itself contain no `|` (the DSL strips it).
          */
-        private const val PREDICATE_FIELDS = 6
+        private const val PREDICATE_FIELDS = 7
         private const val PREDICATE_MIN_FIELDS = 5
         private const val TO_VALUE_INDEX = 3
         private const val SEVERITY_INDEX = 4
         private const val REASON_INDEX = 5
+        private const val API_ONLY_INDEX = 6
 
         private fun parsePredicateRule(entry: String): ArchRule? {
             val parts = entry.split("|", limit = PREDICATE_FIELDS)
@@ -181,6 +182,7 @@ public class RuleEngine(
                 to = ModuleMatcher.fromSerialized(parts[2], parts[TO_VALUE_INDEX]),
                 reason = parts.getOrElse(REASON_INDEX) { "" },
                 defaultSeverity = severity,
+                apiOnly = parts.getOrElse(API_ONLY_INDEX) { "false" }.toBoolean(),
             )
         }
 

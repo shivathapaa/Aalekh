@@ -95,6 +95,47 @@ class PredicateRuleTest {
     }
 
     @Test
+    fun `apiOnly flags an api edge but ignores an implementation edge`() {
+        val graph = ModuleDependencyGraph(
+            projectName = "predicate",
+            modules = listOf(node(":core:public"), node(":core:internal"), node(":other")),
+            edges = listOf(
+                edge(":core:public", ":core:internal", "api"),
+                edge(":other", ":core:internal", "implementation"),
+            ),
+        )
+        val violations = PredicateRule(
+            from = ModuleMatcher.Path(":core:**"),
+            to = ModuleMatcher.Path(":core:internal"),
+            reason = "do not widen the public surface",
+            defaultSeverity = Severity.ERROR,
+            apiOnly = true,
+        ).evaluate(graph)
+        assertEquals(1, violations.size)
+        assertEquals(":core:public", violations.single().moduleHint)
+        assertTrue(violations.single().message.contains("expose"))
+    }
+
+    @Test
+    fun `fromConfig reconstructs an apiOnly predicate rule from its serialized form`() {
+        val graph = ModuleDependencyGraph(
+            projectName = "predicate",
+            modules = listOf(node(":a"), node(":b")),
+            edges = listOf(edge(":a", ":b", "api")),
+        )
+        val engine = RuleEngine.fromConfig(
+            layerEntries = emptyList(),
+            featurePattern = "",
+            featureAllowedPairs = emptyList(),
+            ruleEntries = emptyList(),
+            forbidEntries = listOf("path|:a|path|:b|ERROR|no api leak|true"),
+        )
+        val forbidden = engine.evaluate(graph).violations.filter { it.ruleId == PredicateRule.RULE_ID }
+        assertEquals(1, forbidden.size)
+        assertTrue(forbidden.single().message.contains("no api leak"))
+    }
+
+    @Test
     fun `fromConfig reconstructs a predicate rule from its serialized form`() {
         val graph = ModuleDependencyGraph(
             projectName = "predicate",

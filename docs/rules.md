@@ -347,6 +347,24 @@ distinguishes them in the message and report. Predicates are serialized to a dec
 a captured lambda), so they are configuration-cache safe. Reach for the full [custom rule](#custom-rules)
 SPI when a rule needs logic a `from → to` predicate cannot express.
 
+Add `apiOnly()` to forbid only the `api` configuration - an **API-leak** rule. The *from* module may
+still depend on *to* via `implementation`; it just may not re-export it onto its own consumers. Use it
+to stop a module widening its public surface:
+
+```kotlin
+aalekh {
+    forbid {
+        from(":core:public")
+        to(":core:internal")
+        apiOnly()
+        because(":core:internal must stay an implementation detail, never re-exported")
+    }
+}
+```
+
+`apiOnly()` recognises the plain `api` configuration and KMP / build-type source-set variants
+(`commonMainApi`, `androidMainApi`, `debugApi`, ...); test api configurations never count.
+
 ## Quality gates
 
 Quality gates fail (or warn) `aalekhCheck` when a **structural metric got worse** than the committed

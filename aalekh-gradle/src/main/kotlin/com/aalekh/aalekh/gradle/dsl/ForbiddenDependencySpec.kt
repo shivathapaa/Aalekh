@@ -33,6 +33,7 @@ public class ForbiddenDependencySpec {
     private var toSelector: String? = null
     private var reason: String = ""
     private var severity: Severity = Severity.ERROR
+    private var apiOnly: Boolean = false
 
     /** Selects depending modules by Gradle path glob, e.g. `":feature:**"`. */
     public fun from(pattern: String) {
@@ -65,8 +66,19 @@ public class ForbiddenDependencySpec {
     }
 
     /**
-     * Serializes to `"<fromKind>|<fromValue>|<toKind>|<toValue>|<severity>|<reason>"`. The reason is
-     * flattened to a single line with no `|` so it stays the parseable final field.
+     * Restricts the rule to `api` dependencies only - an "API-leak" rule. The *from* module may still
+     * depend on *to* via `implementation`; it just may not re-export it onto its own consumers with
+     * `api`. Use it to stop a module widening its public surface, e.g.
+     * `forbid { from(":core:public"); to(":core:internal"); apiOnly() }`.
+     */
+    public fun apiOnly() {
+        apiOnly = true
+    }
+
+    /**
+     * Serializes to `"<fromKind>|<fromValue>|<toKind>|<toValue>|<severity>|<reason>|<apiOnly>"`. The
+     * reason is flattened to a single line with no `|` so it stays parseable; `apiOnly` is the final
+     * boolean field.
      */
     internal fun serialize(): String {
         val from = requireNotNull(fromSelector) {
@@ -76,6 +88,6 @@ public class ForbiddenDependencySpec {
             "forbid { } requires a to(...) or toModuleType(...) selector"
         }
         val safeReason = reason.replace('|', '/').replace('\n', ' ').trim()
-        return "$from|$to|${severity.name}|$safeReason"
+        return "$from|$to|${severity.name}|$safeReason|$apiOnly"
     }
 }

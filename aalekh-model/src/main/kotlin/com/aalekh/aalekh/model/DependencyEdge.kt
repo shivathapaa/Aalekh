@@ -36,8 +36,13 @@ public data class DependencyEdge(
     val reason: String? = null,
     val adrUrl: String? = null,
 ) {
-    /** True when this dependency is declared as `api` - it leaks to consumers of [from]. */
-    val isApi: Boolean get() = configuration == "api"
+    /**
+     * True when this is a production `api` dependency - it leaks transitively onto every consumer of
+     * [from]. Covers the plain `api` configuration and KMP / build-type source-set api configurations
+     * (`commonMainApi`, `androidMainApi`, `debugApi`, ...). Test api configurations (`testApi`) are
+     * excluded - they never affect the production surface.
+     */
+    val isApi: Boolean get() = !isTest && (configuration == "api" || configuration.endsWith("Api"))
 
     /** True when this is a test-only dependency that does not affect production builds. */
     val isTest: Boolean get() = configuration.contains("test", ignoreCase = true)
