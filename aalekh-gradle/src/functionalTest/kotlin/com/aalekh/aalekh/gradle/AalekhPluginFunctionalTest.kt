@@ -329,6 +329,51 @@ class AalekhPluginFunctionalTest {
     }
 
     @Test
+    fun `exportMetrics writes a per-module metrics CSV`() {
+        setupMultiModuleProject()
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                exportMetrics.set(true)
+            }
+            """.trimIndent()
+        )
+        gradleRunner("aalekhReport", "--no-configuration-cache").build()
+        val csv = projectDir.resolve("build/reports/aalekh/aalekh-metrics.csv")
+        assertTrue(csv.exists(), "exportMetrics = true must write aalekh-metrics.csv")
+        val text = csv.readText()
+        assertTrue(
+            text.lineSequence().first().startsWith("timestamp,module,type,fanIn,fanOut"),
+            "the CSV must start with the metrics header row",
+        )
+        assertTrue(text.contains(":core:domain"), "the CSV must carry one row per module")
+    }
+
+    @Test
+    fun `exportMetrics defaults off - no CSV is written`() {
+        setupSingleModuleProject()
+        gradleRunner("aalekhReport", "--no-configuration-cache").build()
+        assertFalse(
+            projectDir.resolve("build/reports/aalekh/aalekh-metrics.csv").exists(),
+            "the metrics CSV must not appear unless exportMetrics is enabled",
+        )
+    }
+
+    @Test
+    fun `aalekhReport accumulates one trend history entry per run`() {
+        setupSingleModuleProject()
+        gradleRunner("aalekhReport", "--no-configuration-cache").build()
+        gradleRunner("aalekhReport", "--no-configuration-cache", "--rerun-tasks").build()
+        gradleRunner("aalekhReport", "--no-configuration-cache", "--rerun-tasks").build()
+
+        val trend = projectDir.resolve("build/aalekh/trend.json")
+        assertTrue(trend.exists(), "the report must write the rolling trend history")
+        val entries = Regex("\"ts\"").findAll(trend.readText()).count()
+        assertEquals(3, entries, "each report run should append exactly one trend entry")
+    }
+
+    @Test
     fun `aalekhReport wires the teams DSL through to the report teamOwners map`() {
         setupTeamOwnershipProject()
         gradleRunner("aalekhReport", "--no-configuration-cache").build()
