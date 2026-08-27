@@ -7,6 +7,10 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **Signed build provenance for published artifacts.** The publish workflow now attaches a signed
+  provenance attestation (via GitHub OIDC, `actions/attest-build-provenance`) to every published jar,
+  and a post-publish smoke test applies the freshly published plugin end to end. A tag-triggered
+  release workflow and `FUNDING.yml` round out the repository automation.
 - **Coupling KPI cards in the HTML report.** The Metrics/Health board now shows the Lakos
   **CCD**, **NCCD**, and **% Tangled** figures alongside the existing KPIs. The numbers were already
   computed and injected into the report's summary data; this surfaces them as cards using the same

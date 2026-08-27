@@ -1,0 +1,69 @@
+name: Release
+
+# Automates GitHub Release creation from an annotated version tag. Pushing a tag like `v0.6.0`:
+#   1. verifies the tag matches `plugin-version` in gradle/libs.versions.toml (the single source),
+#   2. extracts that version's section from the curated CHANGELOG.md as the release notes,
+#   3. creates the GitHub Release - which in turn triggers publish.yml (`release: released`).
+#
+# The curated CHANGELOG stays the source of truth for notes; this only wires tag -> release -> publish.
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Resolve version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if [[ "$VERSION" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify tag matches plugin-version
+        run: |
+          DECLARED=$(sed -n 's/^plugin-version = "\(.*\)"/\1/p' gradle/libs.versions.toml | head -1)
+          if [[ "$DECLARED" != "${{ steps.version.outputs.version }}" ]]; then
+            echo "::error::Tag ${{ steps.version.outputs.tag }} does not match plugin-version '$DECLARED' in gradle/libs.versions.toml"
+            exit 1
+          fi
+          echo "Tag matches plugin-version $DECLARED."
+
+      - name: Extract changelog section
+        id: notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          awk -v ver="$VERSION" '
+            $0 ~ ("^## \\[" ver "\\]") { grab = 1; next }
+            grab && /^## / { exit }
+            grab { print }
+          ' CHANGELOG.md > release-notes.md
+          if [[ ! -s release-notes.md ]]; then
+            echo "No '## [$VERSION]' section found in CHANGELOG.md; falling back to a generated note." >&2
+            echo "Release $VERSION. See CHANGELOG.md for details." > release-notes.md
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "Aalekh ${{ steps.version.outputs.version }}" \
+            --notes-file release-notes.md \
+            ${{ steps.version.outputs.prerelease == 'true' && '--prerelease' || '' }}
