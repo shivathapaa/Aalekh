@@ -1003,6 +1003,40 @@ class AalekhPluginFunctionalTest {
         assertTrue(json.readText().contains("\"averageDistance\""), "JSON must carry the average distance")
     }
 
+    // Custom-metric SPI
+
+    @Test
+    fun `aalekhMetrics writes a custom-metrics report even with no providers`() {
+        setupMultiModuleProject()
+        val result = gradleRunner("aalekhMetrics", "--no-configuration-cache").build()
+        assertEquals(TaskOutcome.SUCCESS, result.task(":aalekhMetrics")?.outcome)
+
+        val md = projectDir.resolve("build/reports/aalekh/aalekh-custom-metrics.md")
+        assertTrue(md.exists(), "aalekhMetrics must write the Markdown report")
+        assertTrue(
+            md.readText().contains("No custom metric providers were discovered"),
+            "with no providers on the classpath the report must explain how to register one",
+        )
+
+        val json = projectDir.resolve("build/reports/aalekh/aalekh-custom-metrics.json")
+        assertTrue(json.exists(), "aalekhMetrics must write the JSON artefact")
+        assertTrue(json.readText().contains("\"metrics\""), "JSON must carry the metrics envelope")
+    }
+
+    @Test
+    fun `aalekhMetrics is configuration cache compatible on second run`() {
+        // Single java-library module, mirroring the aalekhReport CC test, to avoid the
+        // Kotlin-Gradle-plugin build-service-across-sibling-projects quirk that breaks CC store.
+        setupJavaModuleProject()
+        gradleRunner("aalekhMetrics", "--configuration-cache").build()
+        val secondRun = gradleRunner("aalekhMetrics", "--configuration-cache").build()
+        assertTrue(
+            secondRun.output.contains("Reusing configuration cache") ||
+                    secondRun.output.contains("Configuration cache entry reused"),
+            "Second aalekhMetrics run should reuse the configuration cache",
+        )
+    }
+
     @Test
     fun `aalekhTemporal is configuration cache compatible on second run`() {
         // Single java-library module, mirroring the aalekhReport CC test, to avoid the

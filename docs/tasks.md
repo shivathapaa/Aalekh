@@ -2,7 +2,7 @@
 
 [← Documentation index](README.md) · [Project README](../README.md)
 
-Aalekh registers eight tasks on the root project, all in the `aalekh` task group.
+Aalekh registers nine tasks on the root project, all in the `aalekh` task group.
 
 | Task                          | Description                                                                                  |
 |-------------------------------|----------------------------------------------------------------------------------------------|
@@ -14,6 +14,7 @@ Aalekh registers eight tasks on the root project, all in the `aalekh` task group
 | `./gradlew aalekhTemporal`    | Analyses git history for temporal (change) coupling and hotspots (`aalekh-temporal.md`/`.json`) |
 | `./gradlew aalekhAffected`    | Computes modules affected by a git diff and their blast radius (`aalekh-affected.md`/`.json`) |
 | `./gradlew aalekhMainSequence`| Computes each module's abstractness, instability and distance from the main sequence (`aalekh-main-sequence.md`/`.json`) |
+| `./gradlew aalekhMetrics`     | Runs custom `MetricProvider` SPI implementations and writes their values (`aalekh-custom-metrics.md`/`.json`) |
 
 `aalekhReport` and `aalekhCheck` both depend on `aalekhExtract` implicitly - you do not need to
 run it manually.
@@ -232,6 +233,46 @@ declaration keywords, not a full parse), so treat the numbers as a hint, not a p
 The task is not cached - it re-scans source on every run - and never fails the build; a module with no
 scannable source is simply omitted. See [Metrics & output → Main sequence](metrics.md#main-sequence)
 for the metric definitions.
+
+## aalekhMetrics
+
+```bash
+./gradlew aalekhMetrics
+```
+
+Runs every **custom metric provider** discovered on the plugin classpath and writes their values as
+two files next to the HTML report:
+
+- `build/reports/aalekh/aalekh-custom-metrics.md` - a reviewable summary: system-wide metrics in one
+  table, then a per-module table (highest first) for each metric that carries module values.
+- `build/reports/aalekh/aalekh-custom-metrics.json` - the same data, machine-readable.
+
+Where `rules { custom(...) }` lets you *enforce* structure, a `MetricProvider` lets you *measure* it.
+Implement `com.aalekh.aalekh.analysis.spi.MetricProvider`, register it via the JDK `ServiceLoader`
+mechanism (a `META-INF/services/com.aalekh.aalekh.analysis.spi.MetricProvider` file listing your
+class), and put the jar on the plugin's runtime classpath - the same classpath used for custom rules.
+The task then discovers every provider automatically; no DSL wiring is needed.
+
+```kotlin
+class LeafRatioMetric : MetricProvider {
+    override val id = "leaf-ratio"
+    override val displayName = "Leaf module ratio"
+    override val description = "Share of modules that nothing depends on."
+    override val unit = "%"
+    override fun compute(graph: ModuleDependencyGraph): MetricContribution {
+        val leaves = graph.modules.count { m -> graph.edges.none { it.to == m.path && !it.isTest } }
+        val ratio = if (graph.modules.isEmpty()) 0.0 else leaves * 100.0 / graph.modules.size
+        return MetricContribution(systemValue = ratio)
+    }
+}
+```
+
+With no providers registered the task is a no-op that still writes an empty report explaining how to
+add one. A provider is a **pure function of the graph** (no I/O, no Gradle API); one that throws is
+skipped and noted in the report - it never fails the build. The task is not cached, since which
+provider jars sit on the classpath is not a declared input. See
+[Metrics & output → Custom metrics (SPI)](metrics.md#custom-metrics-spi) and
+[Extending Aalekh](rules.md#custom-rules) for the provider contract.
 
 ## aalekhExtract
 

@@ -7,6 +7,16 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **Custom metric SPI** (`aalekhMetrics`). A `ServiceLoader`-based extension point for measuring the
+  graph, the counterpart to the custom-rule SPI. Implement
+  `com.aalekh.aalekh.analysis.spi.MetricProvider` (a pure function of the graph returning a
+  `MetricContribution` of system-wide and/or per-module numbers), register it via a
+  `META-INF/services/...MetricProvider` entry on the plugin classpath, and the new `aalekhMetrics`
+  task discovers and runs every provider - writing `aalekh-custom-metrics.json` / `.md`. Discovery and
+  execution are fail-silent: a blank or duplicate metric id, or a provider that throws, is recorded as
+  a failure in the report and the rest still run. The engine (`CustomMetricEngine`) lives in
+  `aalekh-analysis` and is unit-tested including real `ServiceLoader` discovery; only the classpath
+  I/O sits in `aalekh-gradle`.
 - **KMP source-set rule** (`noCommonMainPlatformDependencies()`). Forbids a Kotlin Multiplatform
   module's `commonMain` from depending on a platform-only (JVM- or Android-only) module - a dependency
   that does not compile for the module's other targets. Aalekh already records the owning source set of

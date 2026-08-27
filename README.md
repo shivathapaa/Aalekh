@@ -109,7 +109,7 @@ plugins {
 
 ## Tasks at a glance
 
-Aalekh registers seven tasks on the root project, all in the `aalekh` task group.
+Aalekh registers nine tasks on the root project, all in the `aalekh` task group.
 
 | Task                       | Description                                                                                  |
 |----------------------------|----------------------------------------------------------------------------------------------|
@@ -121,6 +121,7 @@ Aalekh registers seven tasks on the root project, all in the `aalekh` task group
 | `./gradlew aalekhTemporal` | Analyses git history for change coupling and hotspots (`aalekh-temporal.md` / `.json`)       |
 | `./gradlew aalekhAffected` | Computes modules affected by a git diff and their blast radius (`aalekh-affected.md` / `.json`) |
 | `./gradlew aalekhMainSequence` | Abstractness/instability/distance-from-main-sequence per module (`aalekh-main-sequence.md` / `.json`) |
+| `./gradlew aalekhMetrics`  | Runs custom `MetricProvider` SPI implementations and writes their values (`aalekh-custom-metrics.md` / `.json`) |
 
 All tasks depend on `aalekhExtract` implicitly, and `aalekhCheck` wires into the standard `check`
 lifecycle automatically. See [Gradle tasks](docs/tasks.md) for details.

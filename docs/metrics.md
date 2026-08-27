@@ -64,6 +64,30 @@ abstract; concrete/`data`/`enum`/`value` classes, `object`s and Java `enum`s cou
 strips comments but is not a full parser - treat the numbers as a directional hint. Modules with no
 countable types are omitted.
 
+## Custom metrics (SPI)
+
+Written by [`aalekhMetrics`](tasks.md#aalekhmetrics). Beyond the built-in metrics above, third
+parties can contribute their own through the **metric provider SPI** - the measurement counterpart to
+the custom-rule SPI.
+
+Implement `com.aalekh.aalekh.analysis.spi.MetricProvider` and register it with the JDK `ServiceLoader`
+mechanism (a `META-INF/services/com.aalekh.aalekh.analysis.spi.MetricProvider` file listing your
+class), shipped in a jar on the plugin's runtime classpath. Each provider is a **pure function of the
+graph**:
+
+| Member                          | Meaning                                                                                     |
+|---------------------------------|---------------------------------------------------------------------------------------------|
+| `id`                            | Stable, unique kebab-case identifier; the metric's key in the JSON output.                   |
+| `displayName`                   | Human-readable label for the report.                                                        |
+| `description` / `unit`          | Optional one-line explanation and unit label (e.g. `"%"`).                                   |
+| `compute(graph)`                | Returns a `MetricContribution` with a `systemValue` and/or per-module `moduleValues`.        |
+
+The engine runs every discovered provider fail-silent: a blank id, an id already used by another
+provider, or a provider that throws is skipped and recorded under `providerFailures` in the report -
+never fatal. Values land in `aalekh-custom-metrics.json` (machine-readable) and
+`aalekh-custom-metrics.md` (system table + per-module tables, highest first). See
+[Extending Aalekh](rules.md#custom-rules) for how the classpath wiring mirrors custom rules.
+
 ## Output files reference
 
 | File                                        | Task            | Description                                                                                                                    |
@@ -86,6 +110,8 @@ countable types are omitted.
 | `aalekh-baseline.json`                      | `aalekhBaseline`| Committed baseline: frozen violation fingerprints and a metrics snapshot for quality gates.                                  |
 | `build/reports/aalekh/aalekh-main-sequence.md`   | `aalekhMainSequence`| Abstractness/instability/distance table with zone-of-pain and zone-of-uselessness call-outs. |
 | `build/reports/aalekh/aalekh-main-sequence.json` | `aalekhMainSequence`| The same main-sequence data, machine-readable.                                          |
+| `build/reports/aalekh/aalekh-custom-metrics.md`  | `aalekhMetrics`     | Custom `MetricProvider` SPI values: system table and per-module tables.                  |
+| `build/reports/aalekh/aalekh-custom-metrics.json`| `aalekhMetrics`     | The same custom-metric data, machine-readable, with any provider failures.              |
 
 ## Metrics CSV export
 

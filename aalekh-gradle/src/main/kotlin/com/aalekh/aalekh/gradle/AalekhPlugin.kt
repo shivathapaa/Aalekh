@@ -6,6 +6,7 @@ import com.aalekh.aalekh.gradle.task.AalekhBaselineTask
 import com.aalekh.aalekh.gradle.task.AalekhCheckTask
 import com.aalekh.aalekh.gradle.task.AalekhExtractTask
 import com.aalekh.aalekh.gradle.task.AalekhMainSequenceTask
+import com.aalekh.aalekh.gradle.task.AalekhMetricsTask
 import com.aalekh.aalekh.gradle.task.AalekhMermaidTask
 import com.aalekh.aalekh.gradle.task.AalekhReportTask
 import com.aalekh.aalekh.gradle.task.AalekhTemporalTask
@@ -207,6 +208,15 @@ public class AalekhPlugin : Plugin<Project> {
             val reportsDir = project.layout.buildDirectory.dir(extension.outputDir)
             task.jsonFile.set(reportsDir.map { it.file("aalekh-main-sequence.json") })
             task.markdownFile.set(reportsDir.map { it.file("aalekh-main-sequence.md") })
+            task.dependsOn(extractTask)
+        }
+
+        project.tasks.register("aalekhMetrics", AalekhMetricsTask::class.java) { task ->
+            task.graphJsonFile.set(graphJsonFile)
+            task.projectName.set(project.name)
+            val reportsDir = project.layout.buildDirectory.dir(extension.outputDir)
+            task.jsonFile.set(reportsDir.map { it.file("aalekh-custom-metrics.json") })
+            task.markdownFile.set(reportsDir.map { it.file("aalekh-custom-metrics.md") })
             task.dependsOn(extractTask)
         }
 
