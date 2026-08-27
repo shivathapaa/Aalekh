@@ -7,6 +7,38 @@ All notable changes to this project are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **Predicate rule DSL** (`forbid { }`). Declares a one-off structural rule inline -
+  `forbid { from(":core:domain"); toModuleType(ModuleType.ANDROID_LIBRARY); because("...") }` - instead
+  of writing and shipping a custom `ArchRule` jar for the common "X must not depend on Y" case. Each
+  side is selected by path glob (`from` / `to`) or module type (`fromModuleType` / `toModuleType`);
+  `severity(...)` defaults to `ERROR`. Predicates serialize to a declarative string, never a captured
+  lambda, so they stay configuration-cache safe. All share the stable id `forbidden-dependency`.
+- **Affected-graph from a git diff** (`aalekhAffected`). Runs `git diff` (offline) between two refs,
+  maps changed files to modules, and expands to the downstream blast radius a build must rebuild and
+  retest. Writes a local `aalekh-affected.md` (a ready-to-post PR comment: "N of M modules affected")
+  and `aalekh-affected.json`. Configure the range with `affected { baseRef.set("origin/main") }`.
+  Aalekh only writes local files - a consumer's CI posts the comment. Pure `AffectedGraphAnalyzer`;
+  git I/O isolated in `aalekh-gradle`.
+- **Metric-delta quality gates** (`qualityGates { }`). Generalises the cycle-only regression check to
+  any structural metric: `aalekhCheck` fails (or warns) when `cycles`, `god-modules`, `ccd`, `tangle`,
+  `instability`, or `critical-path` got worse than the committed baseline - letting a team ratchet
+  architecture quality in one direction only. `aalekhBaseline` now records a `metrics` snapshot
+  alongside the violation fingerprints; enable gates with `forbidRegression("ccd", "cycles", ...)` or
+  `forbidAllRegressions()` and set `severity`. Pure evaluator in `MetricGateEvaluator`.
+- **Cycle break-up advice.** When `aalekhCheck` detects a dependency cycle it now prints the specific
+  edge(s) to remove to break it - e.g. `implementation(project(":module-b")) in module-a/build.gradle.kts`.
+  For every cycle (strongly connected component) a feedback-arc-set heuristic (Eades-Lin-Smyth) picks
+  a small set of edges whose removal makes it acyclic, mapped back to the exact declaration to delete.
+  The suggestions are also emitted in `aalekh-results.json` under `cycleBreakSuggestions`. Pure graph
+  algorithm in `CycleAdvisor`; honest as a *suggested* cut since minimum feedback arc set is NP-hard.
+- **Git temporal-coupling analysis** (`aalekhTemporal`). Reads the recent commit window from
+  `git log` (offline, at execution time) and writes a local, diffable `aalekh-temporal.md` +
+  `aalekh-temporal.json`. Surfaces three signals the static graph cannot: **change hotspots** (the
+  most-committed modules), **hidden coupling** (modules that change together but declare no
+  dependency), and **dead structure** (declared edges whose modules both change yet never
+  co-change). Configure the commit window and thresholds via `temporalCoupling { }`. Fail-silent in
+  a shallow clone or non-git directory. All git I/O stays in `aalekh-gradle`; the ranking is a pure
+  function in `aalekh-analysis`.
 - **Mermaid export** (`aalekhMermaid`). Writes the module graph as diffable Mermaid text -
   `build/reports/aalekh/aalekh-graph.mmd` (raw) and `aalekh-graph.md` (a fenced ` ```mermaid `
   block that renders as a diagram directly on GitHub). Production edges are solid, test-only edges
@@ -39,6 +71,11 @@ All notable changes to this project are documented here. Format based on
   serialized team map now flows from the extension through a new `teamEntries` task
   `@Input` (configuration-cache safe) into `summary.teamOwners`, and the report
   resolves module→team client-side as designed.
+
+### Documentation
+- Split the monolithic README into a lean landing page plus focused reference guides under
+  `docs/` (tasks, report, configuration, rules, metrics, CI) behind a `docs/README.md` index,
+  and added `docs/ROADMAP.md`.
 
 ## [0.5.1] - 2026-07-16
 

@@ -89,11 +89,12 @@ docs: add KDoc to ModuleDependencyGraph public API
 
 Look for issues labelled `good-first-issue`. Typical examples:
 
-- **Beginner**: add a new graph export format (Mermaid, DOT), add a node colour scheme option
-- **Intermediate**: add a new built-in rule (e.g. `noDeprecatedModules`, `maxModuleDepth`)
+- **Beginner**: add a new graph export format (DOT/Graphviz, CodeClimate JSON), add a node colour
+  scheme option
+- **Intermediate**: add a new built-in rule (e.g. `noDeprecatedModules`, uncovered-module check)
 - **Advanced**: configuration cache edge case, composite build support
 
 ## Getting help
 
-Open a [GitHub Issue](https://github.com/shivathapaa/aalekh/issues) for questions, bug reports, or feature requests.
-Open an issue only for confirmed bugs or concrete feature requests.
+Open a [GitHub Issue](https://github.com/shivathapaa/aalekh/issues) for confirmed bugs or concrete
+feature requests.
