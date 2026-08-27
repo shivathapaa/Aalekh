@@ -77,6 +77,11 @@ All notable changes to this project are documented here. Format based on
   one-way boundary fails the build.
 
 ### Fixed
+- Structural cycle counting is now consistently production-only. `MetricsEngine.computeProjectMetrics`
+  reported `hasCycles` via the test-edge-inclusive `graph.hasCycle()`, contradicting the rest of the
+  analysis (and the "test-only cycles never fail the build" invariant); it now uses
+  `GraphAnalyzer.findMainOnlyCycles`, so a cycle formed only by `testImplementation` edges no longer
+  registers as a structural cycle. Regression-tested in `MetricsEngineTest`.
 - Team ownership overlay is now wired end-to-end. The `teams { }` DSL was fully
   implemented (config, report JS, and docs) but never connected: `aalekhReport`
   did not carry the configured teams into the report and the generator hardcoded an

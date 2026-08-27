@@ -1,5 +1,6 @@
 package com.aalekh.aalekh.analysis.metrics
 
+import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 
 /**
@@ -40,7 +41,9 @@ public object MetricsEngine {
             totalEdges = graph.edges.size,
             averageInstability = moduleMetrics.map { it.instability }.average().takeIf { !it.isNaN() } ?: 0.0,
             averageFanOut = moduleMetrics.map { it.fanOut }.average().takeIf { !it.isNaN() } ?: 0.0,
-            hasCycles = graph.hasCycle(),
+            // Structural metrics count production edges only, consistent with GraphAnalyzer and the
+            // "test-only cycles never fail the build" invariant; a test-only cycle is not a cycle here.
+            hasCycles = GraphAnalyzer.findMainOnlyCycles(graph).isNotEmpty(),
             moduleMetrics = moduleMetrics,
         )
     }
