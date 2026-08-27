@@ -9,6 +9,11 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
+    ignore:
+      # JUnit 6 requires a Java 17 baseline; Aalekh targets JVM 11 bytecode
+      # (-Xjdk-release=11). Stay on the JUnit 5.x line until that target changes.
+      - dependency-name: "org.junit.jupiter:*"
+        update-types: ["version-update:semver-major"]
     groups:
       gradle-dependencies:
         patterns:
