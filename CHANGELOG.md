@@ -6,6 +6,17 @@ All notable changes to this project are documented here. Format based on
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-31
+
+### Added
+- **Zoom controls for the Matrix view in the HTML report.** The coupling matrix (Browse → Matrix)
+  gains a floating zoom-strip - **fit**, **zoom in**, **zoom out** - with a live percentage readout,
+  plus **Ctrl / Cmd + mouse-wheel** zoom that anchors on the cursor. Large matrices are now legible
+  without relying on browser page zoom. Zoom scales the rendered SVG size against a natural-size
+  `viewBox`, so aspect ratio is preserved and the scroll container tracks the scaled canvas; the
+  level persists across sort re-orders. Client-side only - no new task inputs, still fully offline.
+  The four bundled sample reports were regenerated to match.
+
 ## [0.6.0] - 2026-08-27
 
 ### Added
@@ -336,7 +347,8 @@ All notable changes to this project are documented here. Format based on
 - Initial public preview: `aalekhExtract`, `aalekhReport`, `aalekhCheck` tasks;
   basic interactive HTML graph; cycle detection.
 
-[Unreleased]: https://github.com/shivathapaa/aalekh/compare/0.6.0...HEAD
+[Unreleased]: https://github.com/shivathapaa/aalekh/compare/0.6.1...HEAD
+[0.6.1]: https://github.com/shivathapaa/aalekh/compare/0.6.0...0.6.1
 [0.6.0]: https://github.com/shivathapaa/aalekh/compare/0.5.1...0.6.0
 [0.5.1]: https://github.com/shivathapaa/aalekh/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/shivathapaa/aalekh/compare/0.4.0...0.5.0

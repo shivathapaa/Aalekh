@@ -78,7 +78,7 @@ cyclic-dependency demo - is documented in [docs/real-world-examples.md](docs/rea
 
 ```kotlin
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.6.0"
+    id("io.github.shivathapaa.aalekh") version "0.6.1"
 }
 ```
 
@@ -100,7 +100,7 @@ across configuration cache entries, preventing cache misses on subsequent runs.
 ```kotlin
 // settings.gradle.kts
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.6.0"
+    id("io.github.shivathapaa.aalekh") version "0.6.1"
 }
 ```
 
@@ -119,7 +119,7 @@ time. To migrate: move the plugin declaration to `settings.gradle.kts` and remov
 ```kotlin
 // build.gradle.kts (root project only) - deprecated, migrate to settings plugin
 plugins {
-    id("io.github.shivathapaa.aalekh.project") version "0.6.0"
+    id("io.github.shivathapaa.aalekh.project") version "0.6.1"
 }
 ```
 

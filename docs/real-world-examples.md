@@ -38,7 +38,7 @@ pluginManagement {
 }
 
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.6.0"
+    id("io.github.shivathapaa.aalekh") version "0.6.1"
 }
 ```
 
