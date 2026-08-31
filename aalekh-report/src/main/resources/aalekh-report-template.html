@@ -1560,6 +1560,19 @@
 
         #matrix-svg { display: block; }
 
+        #panel-matrix { position: relative; }
+
+        .mx-zoom-lvl {
+            font-family: var(--f-mono);
+            font-size: 9.5px;
+            font-weight: 600;
+            text-align: center;
+            padding: 3px 0 1px;
+            color: var(--text-3);
+            letter-spacing: .3px;
+            user-select: none;
+        }
+
         /* ---------- HEALTH (Metrics) ---------- */
         .metrics-scroll {
             flex: 1;
@@ -3474,6 +3487,12 @@
             <div class="matrix-scroll">
                 <svg id="matrix-svg"></svg>
             </div>
+            <div class="zoom-strip" id="matrix-zoom-strip">
+                <div class="mx-zoom-lvl" id="mx-zoom-lvl">100%</div>
+                <button class="icon-btn" id="btn-mx-fit" title="Fit matrix" aria-label="Fit matrix"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <button class="icon-btn" id="btn-mx-zi" title="Zoom in" aria-label="Zoom in">+</button>
+                <button class="icon-btn" id="btn-mx-zo" title="Zoom out" aria-label="Zoom out">−</button>
+            </div>
         </div>
     </div>
 
@@ -5349,6 +5368,32 @@
     window.showExplorerDetail = showExplorerDetail;
 
     /* MATRIX */
+    // Zoom state for the matrix canvas. The SVG carries a viewBox at natural
+    // size; zoom scales the rendered width/height so native scroll keeps working.
+    var _mxZoom = 1, _mxNatW = 0, _mxNatH = 0;
+
+    function applyMatrixZoom(z) {
+        _mxZoom = Math.max(0.15, Math.min(4, z));
+        var m = document.getElementById('matrix-svg');
+        if (m && _mxNatW) {
+            m.setAttribute('width', _mxNatW * _mxZoom);
+            m.setAttribute('height', _mxNatH * _mxZoom);
+        }
+        var lvl = document.getElementById('mx-zoom-lvl');
+        if (lvl) lvl.textContent = Math.round(_mxZoom * 100) + '%';
+    }
+
+    function fitMatrix() {
+        var sc = document.querySelector('#panel-matrix .matrix-scroll');
+        if (!sc || !_mxNatW) return;
+        var pad = 48; // .matrix-scroll padding (24px) on both sides
+        applyMatrixZoom(Math.min(
+            (sc.clientWidth - pad) / _mxNatW,
+            (sc.clientHeight - pad) / _mxNatH,
+            1
+        ));
+    }
+
     function buildMatrix() {
         var SORT_MODE = 'connectivity';
         document.querySelectorAll('.mt-sort-btn').forEach(function (b) {
@@ -5377,6 +5422,29 @@
         }).join('');
 
         renderMatrix('connectivity');
+
+        // Zoom controls
+        var btnZi = document.getElementById('btn-mx-zi');
+        var btnZo = document.getElementById('btn-mx-zo');
+        var btnFit = document.getElementById('btn-mx-fit');
+        if (btnZi) btnZi.addEventListener('click', function () { applyMatrixZoom(_mxZoom * 1.25); });
+        if (btnZo) btnZo.addEventListener('click', function () { applyMatrixZoom(_mxZoom / 1.25); });
+        if (btnFit) btnFit.addEventListener('click', fitMatrix);
+
+        // Ctrl / Cmd + wheel zooms toward the cursor, keeping that point anchored.
+        var scroller = document.querySelector('#panel-matrix .matrix-scroll');
+        if (scroller) scroller.addEventListener('wheel', function (e) {
+            if (!(e.ctrlKey || e.metaKey)) return;
+            e.preventDefault();
+            var rect = scroller.getBoundingClientRect();
+            var offX = e.clientX - rect.left, offY = e.clientY - rect.top;
+            var px = offX + scroller.scrollLeft, py = offY + scroller.scrollTop;
+            var prev = _mxZoom;
+            applyMatrixZoom(_mxZoom * (e.deltaY < 0 ? 1.12 : 1 / 1.12));
+            var ratio = _mxZoom / prev;
+            scroller.scrollLeft = px * ratio - offX;
+            scroller.scrollTop = py * ratio - offY;
+        }, {passive: false});
     }
 
     // Kahn's algorithm topological sort for matrix ordering
@@ -5437,8 +5505,12 @@
         var CELL = 24, LBL = 120;
         var W = LBL + n * CELL + 20, H = LBL + n * CELL + 20;
 
-        var msvg = d3.select('#matrix-svg').attr('width', W).attr('height', H);
+        _mxNatW = W; _mxNatH = H;
+        var msvg = d3.select('#matrix-svg')
+            .attr('viewBox', '0 0 ' + W + ' ' + H)
+            .attr('width', W * _mxZoom).attr('height', H * _mxZoom);
         msvg.selectAll('*').remove();
+        applyMatrixZoom(_mxZoom); // keep zoom + readout in sync across re-sorts
 
         // Zebra rows
         msvg.selectAll('.mz').data(sorted).join('rect').attr('class', 'mz')
