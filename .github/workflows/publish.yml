@@ -125,7 +125,9 @@ jobs:
 
   smoke-test:
     name: Smoke-test the published plugin
-    needs: [ publish-plugin-portal ]
+    # The plugin's transitive artifacts (model/analysis/report) resolve from Maven Central, so the
+    # smoke test must wait for BOTH publish jobs and for Central to propagate before applying it.
+    needs: [ publish-plugin-portal, publish-maven-central ]
     runs-on: ubuntu-latest
     steps:
       - name: Set up JDK 21
@@ -142,6 +144,28 @@ jobs:
       - name: Resolve version from release tag
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for artifacts to land on Maven Central
+        env:
+          VER: ${{ steps.version.outputs.version }}
+        # Maven Central propagation after publishAndReleaseToMavenCentral typically takes >20 min.
+        # Poll repo1 for each POM until resolvable, capped at 45 min, before running the smoke test.
+        run: |
+          base=https://repo1.maven.org/maven2/io/github/shivathapaa
+          artifacts="aalekh-model aalekh-analysis aalekh-report"
+          deadline=$(( $(date +%s) + 45 * 60 ))
+          for a in $artifacts; do
+            url="$base/$a/$VER/$a-$VER.pom"
+            until curl -fsSL -o /dev/null "$url"; do
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "::error::$a $VER not on Maven Central after 45m ($url)."
+                exit 1
+              fi
+              echo "Waiting for $a $VER on Maven Central..."
+              sleep 60
+            done
+            echo "$a $VER present on Maven Central."
+          done
 
       - name: Generate a throwaway consumer project
         run: |
