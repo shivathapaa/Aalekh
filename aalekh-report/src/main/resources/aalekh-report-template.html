@@ -240,6 +240,10 @@
 
         /* ---------- APP LAYOUT ---------- */
         body {
+            /* Rail width is 0 unless the Map tab turns it on (body.rail-on) and it is not
+               manually collapsed. The line index is the Map's legend, so on every other panel
+               the column is reclaimed for the report. */
+            --rail: 0px;
             display: grid;
             grid-template-rows: minmax(var(--hdr), auto) var(--nav) 1fr;
             grid-template-columns: var(--rail) 1fr var(--side);
@@ -247,15 +251,46 @@
             transition: grid-template-columns var(--dur-slow) var(--ease-out);
         }
 
+        body.rail-on:not(.rail-collapsed) { --rail: 218px; }
+
+        #rail { display: none; }
+        body.rail-on:not(.rail-collapsed) #rail { display: block; }
+
         body.side-collapsed { grid-template-columns: var(--rail) 1fr var(--side-rail); }
 
         /* The inspector only carries content on Map and Browse (a selected node,
            tree item, or matrix cell). On Overview / Health / Violations / Diff it
            has nothing to show, so the whole column is reclaimed for the report -
-           an empty inspector reads as unfinished. Wins over side-collapsed. The
-           lines rail (grid-area: rail) is a persistent tier legend and stays. */
+           an empty inspector reads as unfinished. Wins over side-collapsed. */
         body.no-inspector { grid-template-columns: var(--rail) 1fr 0; }
         body.no-inspector #side { display: none; }
+
+        /* Re-open tab for the line index, shown only when the Map is active and the rail is
+           collapsed. Fixed to the left edge just under the nav. */
+        #rail-reopen {
+            display: none;
+            position: fixed;
+            left: 0; top: calc(var(--hdr) + var(--nav) + var(--subnav) + 14px);
+            z-index: 40;
+            align-items: center; gap: 6px;
+            padding: 7px 10px 7px 8px;
+            background: var(--bg-paper);
+            border: 1px solid var(--border-2); border-left: none;
+            border-radius: 0 var(--r) var(--r) 0;
+            font-family: var(--f-mono); font-size: 10px; letter-spacing: .12em;
+            text-transform: uppercase; color: var(--text-3);
+            cursor: pointer;
+            box-shadow: var(--shadow-1);
+        }
+        #rail-reopen:hover { color: var(--text-1); border-color: var(--c-main); }
+        body.rail-on.rail-collapsed #rail-reopen { display: flex; }
+
+        .ix-rail-collapse {
+            border: none; background: none; cursor: pointer;
+            color: var(--text-4); padding: 2px; margin: -2px -2px -2px 0;
+            border-radius: var(--r); line-height: 0;
+        }
+        .ix-rail-collapse:hover { color: var(--text-1); background: var(--bg-inset); }
 
         /* ---------- HEADER (drafting title-block) ---------- */
         #hdr {
@@ -406,6 +441,10 @@
             border: 1px solid;
             white-space: nowrap;
         }
+
+        .chip-nav { cursor: pointer; transition: filter .12s, box-shadow .12s; }
+        .chip-nav:hover { filter: brightness(1.08); box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 22%, transparent); }
+        .chip-nav:focus-visible { outline: 2px solid var(--c-main); outline-offset: 1px; }
 
         .chip::before {
             content: '';
@@ -1202,8 +1241,9 @@
 
         .rg-bar {
             margin-top: var(--s-2); height: 3px; border-radius: 3px;
-            background: var(--border-1); overflow: hidden;
+            background: var(--border-1); overflow: hidden; cursor: help;
         }
+        .rg-n[data-tip] { cursor: help; }
         .rg-bar > span { display: block; height: 100%; background: var(--rg, var(--c-api)); }
 
         .rg-meta { margin-top: var(--s-2); font-size: 11px; color: var(--text-3); line-height: 1.5; }
@@ -1218,7 +1258,12 @@
             cursor: pointer;
         }
         .rg-mod:hover { border-color: var(--rg); color: var(--text-1); }
-        .rg-more { cursor: default; border-style: dashed; }
+        .rg-hidden { display: none; }
+        .rg-more {
+            border-style: dashed; background: none; cursor: pointer;
+            color: var(--text-2);
+        }
+        .rg-more:hover { border-color: var(--rg); border-style: solid; color: var(--text-1); }
 
         .rg-subs { margin-top: var(--s-3); }
 
@@ -1247,6 +1292,7 @@
             border-bottom: 1px solid var(--border-1);
             font-size: 11.5px;
         }
+        .rg-flow { cursor: help; }
         .rg-flow:hover { background: var(--bg-raised); }
         .rg-flow.two-way .rg-f-arrow::after { content: '⇄'; }
 
@@ -1270,8 +1316,10 @@
         .rg-f-bar { display: block; height: 100%; background: var(--c-api); border-radius: 3px; }
         .rg-f-w { flex: none; width: 40px; text-align: right; font-family: var(--f-mono); color: var(--text-3); }
 
-        /* FOCUS VIEW - a bounded neighbourhood, so the node count never tracks project size. */
-        #panel-focus { display: flex; flex-direction: column; }
+        /* FOCUS VIEW - a bounded neighbourhood, so the node count never tracks project size.
+           Scoped to .active: without it the ID selector beat `.subpanel { display:none }` and the
+           module/depth bar leaked onto every other Map sub-view. */
+        #panel-focus.active { display: flex; flex-direction: column; }
         #focus-svg { flex: 1 1 auto; width: 100%; min-height: 0; }
 
         .fc-bar {
@@ -1327,6 +1375,18 @@
 
         .bld-row:hover { background: var(--bg-raised); }
         .bld-row.conflict { border-left: 2px solid var(--c-warn); }
+
+        /* Column header for the plugin list, so the bar and count read as "modules", not a mystery. */
+        .bld-colhead {
+            display: flex; align-items: center; gap: var(--s-4);
+            padding: 0 var(--s-3) var(--s-2);
+            font-family: var(--f-mono); font-size: 9px; letter-spacing: .1em;
+            text-transform: uppercase; color: var(--text-4);
+            border-bottom: 1px solid var(--border-2);
+        }
+        .bld-colhead .bld-name { flex: none; width: 300px; }
+        .bld-colhead .bld-vers { flex: 1 1 auto; }
+        .bld-colhead .bld-use { flex: none; margin-left: auto; text-align: right; }
 
         .bld-row .bld-name {
             flex: none; width: 300px;
@@ -1433,7 +1493,13 @@
         }
 
         .mi-chip.link { color: var(--c-api); border-color: color-mix(in srgb, var(--c-api) 40%, transparent); }
-        .mi-cell.wide { grid-column: 1 / -1; }
+        /* A wide cell holds a long value (a plugin list, a target list). It stacks so the value
+           wraps within the inspector instead of running off the right edge. */
+        .mi-cell.wide {
+            grid-column: 1 / -1;
+            flex-direction: column; align-items: stretch; gap: 2px;
+        }
+        .mi-cell.wide .v { text-align: left; overflow-wrap: anywhere; line-height: 1.5; }
         .mi-lead b { color: var(--text-1); }
 
         .mi-grid {
@@ -1454,6 +1520,10 @@
 
         .mi-cell .k { color: var(--text-3); }
         .mi-cell .v { color: var(--text-1); }
+
+        .mi-pluglist { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
+        .mi-plug { color: var(--text-2); }
+        .mi-plug-v { color: var(--text-4); }
 
         .mi-note {
             margin-top: var(--s-3);
@@ -1481,7 +1551,7 @@
            Evidence rows carry a one-letter provenance mark so a reader can tell an observed
            fact from a heuristic without leaving the sentence. */
         .ix-lead {
-            max-width: 68ch;
+            max-width: 92ch;
             margin: var(--s-4) 0 0;
             font-size: 14.5px;
             line-height: 1.65;
@@ -1548,25 +1618,32 @@
             cursor: help;
         }
 
-        .nf-d { margin-top: var(--s-2); font-size: 12.5px; line-height: 1.6; color: var(--text-2); max-width: 78ch; }
+        .nf-d { margin-top: var(--s-2); font-size: 12.5px; line-height: 1.6; color: var(--text-2); max-width: 96ch; }
 
         .nf-evs {
             margin-top: var(--s-3);
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 2px var(--s-4);
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2px var(--s-6);
         }
 
+        /* Label + provenance badge on the first line, value wrapping below it. A right-aligned
+           value looked broken the moment a long module list wrapped to two or three lines. */
         .nf-ev {
-            display: flex; align-items: baseline; gap: var(--s-2);
+            display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px var(--s-2);
             font-family: var(--f-mono); font-size: 10.5px;
-            padding: 2px 0;
+            padding: 4px 0;
             border-bottom: 1px dashed var(--border-1);
             cursor: help;
         }
 
-        .nf-ev .k { color: var(--text-3); flex: none; }
-        .nf-ev .v { color: var(--text-2); margin-left: auto; text-align: right; }
+        .nf-ev .k { color: var(--text-3); flex: none; order: 1; }
+        .nf-ev .p { order: 2; }
+        .nf-ev .v {
+            order: 3; flex-basis: 100%; margin-left: 0;
+            text-align: left; color: var(--text-1);
+            overflow-wrap: anywhere; line-height: 1.5;
+        }
 
         .nf-ev .p {
             flex: none;
@@ -1873,6 +1950,25 @@
             gap: 5px;
             box-shadow: var(--elev-2);
         }
+
+        .g-leg-head {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 10px; margin-bottom: 2px;
+        }
+        .g-leg-title {
+            font-family: var(--f-mono); font-size: 8.5px; letter-spacing: 1.6px;
+            text-transform: uppercase; color: var(--text-3);
+        }
+        .g-leg-toggle {
+            border: none; background: none; cursor: pointer; padding: 2px; margin: -2px;
+            color: var(--text-4); line-height: 0; border-radius: var(--r);
+        }
+        .g-leg-toggle:hover { color: var(--text-1); background: var(--bg-inset); }
+        .g-leg-toggle svg { transition: transform var(--dur-base) var(--ease-out); }
+        #g-legend.collapsed .g-leg-body, #arch-legend.collapsed .g-leg-body { display: none; }
+        #g-legend.collapsed, #arch-legend.collapsed { min-width: 0; gap: 0; }
+        #g-legend.collapsed .g-leg-toggle svg, #arch-legend.collapsed .g-leg-toggle svg { transform: rotate(180deg); }
+        .g-leg-body { display: flex; flex-direction: column; gap: 5px; }
 
         .g-leg-section {
             font-family: var(--f-mono);
@@ -3770,7 +3866,10 @@
 
             body.no-inspector { grid-template-columns: 1fr 0; }
             body.side-collapsed { grid-template-columns: 1fr var(--side-rail); }
+            /* Matches the specificity of the Map's rail-show rule so the rail still yields here. */
+            body.rail-on:not(.rail-collapsed) #rail,
             #rail { display: none; }
+            #rail-reopen { display: none !important; }
         }
 
         /* ---------- NARROW / MOBILE ----------
@@ -3949,9 +4048,23 @@
     </div>
 </nav>
 
-<!-- LINES RAIL (persistent tier legend - populated once on load) -->
+<!-- Re-open tab for the line index (Map only, when the rail is collapsed) -->
+<button id="rail-reopen" title="Show the line index" aria-label="Show the line index">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" aria-hidden="true"><path d="M10 6l6 6-6 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span>Lines</span>
+</button>
+
+<!-- LINES RAIL (the Map's tier legend - populated once on load) -->
 <aside id="rail" aria-label="Tier lines">
-    <div class="ix-rail-h"><span class="ix-rail-eyebrow">Lines</span><span class="ix-rail-n" id="rail-n"></span></div>
+    <div class="ix-rail-h">
+        <span class="ix-rail-eyebrow">Lines</span>
+        <span style="display:flex;align-items:center;gap:8px">
+            <span class="ix-rail-n" id="rail-n"></span>
+            <button class="ix-rail-collapse" id="rail-collapse" title="Hide the line index" aria-label="Hide the line index">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true"><path d="M14 6l-6 6 6 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+        </span>
+    </div>
     <div id="rail-lines"></div>
     <div class="ix-rail-legend">
         <span class="ix-rail-eyebrow">Legend</span>
@@ -4670,34 +4783,55 @@
     /* STATUS CHIPS */
     (function () {
         var chips = [
-            {v: modules.length, l: 'modules', cls: 'neutral'},
-            {v: edges.length, l: 'edges', cls: 'neutral'},
+            {v: modules.length, l: 'modules', cls: 'neutral',
+             tip: 'Modules in the graph<br>Opens the module map', go: 'map'},
+            {v: edges.length, l: 'edges', cls: 'neutral',
+             tip: 'Dependencies between modules<br>Opens the module map', go: 'map'},
             mainCycleNodesSet.size > 0
                 ? {
                     v: mainCycleNodesSet.size + ' in cycle',
                     ic: 'cycle',
                     cls: 'danger',
-                    tip: 'Circular dependencies detected in main code'
+                    tip: 'Circular dependencies in main code<br>Opens the Health panel',
+                    go: 'health'
                 }
-                : {v: 'No cycles', ic: 'ok', cls: 'ok', tip: 'No circular dependencies in main code'},
+                : {v: 'No cycles', ic: 'ok', cls: 'ok',
+                   tip: 'No circular dependencies in main code<br>Opens the Health panel', go: 'health'},
             errCount > 0
-                ? {v: errCount + ' Error' + (errCount !== 1 ? 's' : ''), cls: 'danger'}
+                ? {v: errCount + ' Error' + (errCount !== 1 ? 's' : ''), cls: 'danger',
+                   tip: 'Rule failures that fail the build<br>Opens the Violations panel', go: 'violations'}
                 : warnCount > 0
-                    ? {v: warnCount + ' Warning' + (warnCount !== 1 ? 's' : ''), cls: 'warn'}
-                    : {v: 'Clean', ic: 'ok', cls: 'ok'},
+                    ? {v: warnCount + ' Warning' + (warnCount !== 1 ? 's' : ''), cls: 'warn',
+                       tip: 'Advisory rule findings<br>Opens the Violations panel', go: 'violations'}
+                    : {v: 'Clean', ic: 'ok', cls: 'ok',
+                       tip: 'No rule violations<br>Opens the Rules panel', go: 'rules'},
             godPathSet.size > 0
                 ? {
                     v: godPathSet.size + ' God Module' + (godPathSet.size !== 1 ? 's' : ''),
                     ic: 'interchange',
                     cls: 'warn',
-                    tip: 'Modules with very high fan-in AND fan-out - architectural hotspots'
+                    tip: 'Modules with very high fan-in and fan-out - architectural hotspots<br>Opens the Health panel',
+                    go: 'health'
                 }
                 : null,
         ].filter(Boolean);
 
         document.getElementById('status-chips').innerHTML = chips.map(function (c) {
-            return '<div class="chip ' + c.cls + '"' + (c.tip ? ' title="' + esc(c.tip) + '"' : '') + '>' + (c.ic ? ixIcon(c.ic, 'currentColor', 12) : '') + esc(c.v) + (c.l ? ' ' + esc(c.l) : '') + '</div>';
+            return '<div class="chip ' + c.cls + (c.go ? ' chip-nav' : '') + '"'
+                + (c.tip ? ' data-tip="' + esc(c.tip) + '"' : '')
+                + (c.go ? ' data-go="' + esc(c.go) + '" role="button" tabindex="0"' : '')
+                + '>' + (c.ic ? ixIcon(c.ic, 'currentColor', 12) : '') + esc(c.v)
+                + (c.l ? ' ' + esc(c.l) : '') + '</div>';
         }).join('');
+        document.querySelectorAll('#status-chips .chip-nav').forEach(function (chip) {
+            var go = function () {
+                if (typeof window.aalekhActivate === 'function') window.aalekhActivate(chip.getAttribute('data-go'));
+            };
+            chip.addEventListener('click', go);
+            chip.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+            });
+        });
 
         document.getElementById('tn-graph').textContent = modules.length;
         var vn = document.getElementById('tn-violations');
@@ -4738,6 +4872,38 @@
     }
 
     document.addEventListener('mousemove', moveTip);
+
+    // Any element carrying data-tip gets the rich cursor-following tooltip. Delegated, so it works
+    // for everything rendered after load - region chips, build rows, KPI cards, schematic stops -
+    // and is how the report explains a control rather than leaving it to be guessed at. data-tip is
+    // treated as HTML, so callers escape any module/user text they interpolate into it.
+    document.addEventListener('mouseover', function (e) {
+        var t = e.target.closest && e.target.closest('[data-tip]');
+        if (!t || !t.getAttribute('data-tip')) return;
+        showTip(t.getAttribute('data-tip'), e);
+    });
+    document.addEventListener('mouseout', function (e) {
+        if (e.target.closest && e.target.closest('[data-tip]')) hideTip();
+    });
+
+    // Wraps a canvas legend's body in a header with a collapse toggle, so a dense graph can hide it
+    // and reclaim the corner. The line index (rail) carries the same key on the Map, so this is a
+    // duplicate a user should be able to dismiss.
+    function legendShell(bodyHtml) {
+        return '<div class="g-leg-head"><span class="g-leg-title">Legend</span>'
+            + '<button type="button" class="g-leg-toggle" aria-label="Collapse legend" '
+            + 'data-tip="Show or hide the legend">'
+            + '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" aria-hidden="true">'
+            + '<path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" '
+            + 'stroke-linejoin="round"/></svg></button></div>'
+            + '<div class="g-leg-body">' + bodyHtml + '</div>';
+    }
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest && e.target.closest('.g-leg-toggle');
+        if (!btn) return;
+        var leg = btn.closest('#g-legend, #arch-legend');
+        if (leg) { leg.classList.toggle('collapsed'); hideTip(); }
+    });
 
     function moduleTipHtml(m) {
         var color = TYPE_COLOR[m.type] || '#94a3b8';
@@ -5258,7 +5424,7 @@
                     return '<div class="g-leg-row">' + lineEl + (CFG_LABEL[cfg] || cfg) + '</div>';
                 }).join('');
 
-            el.innerHTML = html;
+            el.innerHTML = legendShell(html);
         })();
 
         // Expose fit/relayout for header buttons
@@ -5785,7 +5951,7 @@
             usedTypes.forEach(function (t) {
                 html += '<div class="g-leg-row"><div class="g-leg-dot" style="background:' + (TYPE_COLOR[t] || '#94a3b8') + '"></div>' + (TYPE_LABEL[t] || t) + '</div>';
             });
-            el.innerHTML = html;
+            el.innerHTML = legendShell(html);
         })();
 
         /* --- INITIAL FIT --- */
@@ -5826,11 +5992,22 @@
             return _cssVar(LAYER_PALETTE[i % LAYER_PALETTE.length], '#9aa3b0');
         }
 
+        // Modules beyond the limit render hidden, and the "+N" is a button that reveals them in
+        // place. It also carries a tooltip listing them, so the count is never a dead end.
         function moduleChips(list, limit) {
-            return list.slice(0, limit).map(function (m) {
+            var shown = list.slice(0, limit).map(function (m) {
                 return '<span class="rg-mod" data-path="' + esc(m) + '">' + esc(shortName(m)) + '</span>';
-            }).join('') + (list.length > limit
-                ? '<span class="rg-more">+' + (list.length - limit) + '</span>' : '');
+            }).join('');
+            if (list.length <= limit) return shown;
+            var rest = list.slice(limit);
+            var hidden = rest.map(function (m) {
+                return '<span class="rg-mod rg-hidden" data-path="' + esc(m) + '">' + esc(shortName(m)) + '</span>';
+            }).join('');
+            var tip = rest.slice(0, 40).map(function (m) { return esc(shortName(m)); }).join(', ')
+                + (rest.length > 40 ? ', +' + (rest.length - 40) + ' more' : '');
+            var more = '<button type="button" class="rg-more" data-tip="' + tip
+                + '" aria-label="Show ' + rest.length + ' more">+' + rest.length + '</button>';
+            return shown + hidden + more;
         }
 
         /* A region small enough to list shows its modules; one too large shows its sub-regions
@@ -5865,8 +6042,11 @@
             var risky = r.modules.filter(function (p) { return mainCycleNodesSet.has(p); }).length;
             return '<div class="rg-card" data-region="' + esc(r.id) + '" style="--rg:' + c + '">'
                 + '<div class="rg-h"><span class="rg-name">' + esc(r.name) + '</span>'
-                + '<span class="rg-n">' + r.modules.length + '</span></div>'
-                + '<div class="rg-bar"><span style="width:' + pct + '%"></span></div>'
+                + '<span class="rg-n" data-tip="' + r.modules.length + ' modules in this region">'
+                + r.modules.length + '</span></div>'
+                + '<div class="rg-bar" data-tip="' + pct + '% of this region\'s dependencies stay inside it'
+                + '<br>the rest cross to other regions">'
+                + '<span style="width:' + pct + '%"></span></div>'
                 + '<div class="rg-meta">' + pct + '% of its coupling stays inside · '
                 + out.length + ' outgoing · ' + inn.length + ' incoming'
                 + (risky ? ' · <span class="rg-risk">' + risky + ' in a cycle</span>' : '')
@@ -5879,12 +6059,15 @@
         var flows = regionEdges.slice(0, 24).map(function (e) {
             var w = Math.round(e.weight / maxWeight * 100);
             var backward = regionEdges.some(function (o) { return o.from === e.to && o.to === e.from; });
-            return '<div class="rg-flow' + (backward ? ' two-way' : '') + '">'
-                + '<span class="rg-f-from" data-region="' + esc(e.from) + '">'
-                + esc((byId[e.from] || {}).name || e.from) + '</span>'
+            var fromN = (byId[e.from] || {}).name || e.from;
+            var toN = (byId[e.to] || {}).name || e.to;
+            var tip = esc(e.weight) + ' dependenc' + (e.weight === 1 ? 'y' : 'ies') + ' cross from <b>'
+                + esc(fromN) + '</b> to <b>' + esc(toN) + '</b><br>' + w + '% of the heaviest boundary'
+                + (backward ? '<br>These two regions depend on each other both ways.' : '');
+            return '<div class="rg-flow' + (backward ? ' two-way' : '') + '" data-tip="' + tip + '">'
+                + '<span class="rg-f-from" data-region="' + esc(e.from) + '">' + esc(fromN) + '</span>'
                 + '<span class="rg-f-arrow"><span class="rg-f-bar" style="width:' + w + '%"></span></span>'
-                + '<span class="rg-f-to" data-region="' + esc(e.to) + '">'
-                + esc((byId[e.to] || {}).name || e.to) + '</span>'
+                + '<span class="rg-f-to" data-region="' + esc(e.to) + '">' + esc(toN) + '</span>'
                 + '<span class="rg-f-w">' + e.weight + '</span></div>';
         }).join('');
 
@@ -5918,13 +6101,25 @@
             + (flows || '<div class="ix-empty">No dependencies cross a region boundary</div>')
             + '</div>';
 
+        // "+N" reveals the modules it stood for, in place, and then retires itself.
+        el.querySelectorAll('.rg-more').forEach(function (b) {
+            b.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var wrap = b.parentElement;
+                if (wrap) wrap.querySelectorAll('.rg-hidden').forEach(function (h) { h.classList.remove('rg-hidden'); });
+                b.remove();
+                hideTip();
+            });
+        });
         el.querySelectorAll('[data-path]').forEach(function (n) {
             n.addEventListener('click', function (e) {
                 e.stopPropagation();
                 selectModule(n.getAttribute('data-path'));
             });
         });
-        el.querySelectorAll('[data-region]').forEach(function (n) {
+        // Only the flow endpoints scroll to a region. The card carries data-region purely as a
+        // lookup target - it is not itself a click target, so it does not look falsely tappable.
+        el.querySelectorAll('.rg-f-from, .rg-f-to').forEach(function (n) {
             n.addEventListener('click', function () {
                 var id = n.getAttribute('data-region');
                 var card = el.querySelector('.rg-card[data-region="' + CSS.escape(id) + '"]');
@@ -6492,6 +6687,7 @@
             1
         ));
     }
+    window._matrixFit = fitMatrix;
 
     function buildMatrix() {
         var SORT_MODE = 'connectivity';
@@ -7283,7 +7479,9 @@
                     }).join('')
                     : '<span class="bld-pill muted">version not declared here</span>') + '</span>'
                 + (alias.length ? '<span class="bld-alias">alias ' + esc(alias.join(', ')) + '</span>' : '')
-                + '<span class="bld-use"><span class="bld-bar"><span style="width:' + pct + '%"></span></span>'
+                + '<span class="bld-use" data-tip="' + esc(r.id) + '<br>applied in ' + r.modules.length
+                + ' of ' + totalModules + ' modules (' + pct + '%)">'
+                + '<span class="bld-bar"><span style="width:' + pct + '%"></span></span>'
                 + r.modules.length + '</span>'
                 + '</div>';
         }).join('');
@@ -7375,7 +7573,10 @@
             + '<div class="bld-sec"><div class="sec-head">Plugins</div>'
             + '<div class="bld-note">Every plugin applied across the project, most widely used first. '
             + 'A plugin declared at more than one version is highlighted - Gradle resolves one version '
-            + 'for the whole build, so the others are not what they appear to be.</div>'
+            + 'for the whole build, so the others are not what they appear to be. The bar on the right '
+            + 'is how many of the ' + totalModules + ' modules apply the plugin.</div>'
+            + '<div class="bld-colhead"><span class="bld-name">Plugin</span>'
+            + '<span class="bld-vers">Version</span><span class="bld-use">Modules</span></div>'
             + (pluginHtml || '<div class="ix-empty">No plugins recorded</div>')
             + '</div>'
             + groupedSection('Java toolchains',
@@ -7718,22 +7919,27 @@
             }
 
             if (buildInfo) {
-                var facts = [];
+                html += '<div class="mi-eyebrow" style="margin-top:14px">Build</div>';
                 if ((buildInfo.plugins || []).length) {
-                    facts.push(['Plugins', buildInfo.plugins.map(function (pl) {
-                        return pl.id + (pl.version ? ' ' + pl.version : '');
-                    }).join(', ')]);
+                    // One plugin per line - a comma run-on overflowed the inspector.
+                    var plList = buildInfo.plugins.map(function (pl) {
+                        return '<span class="mi-plug">' + esc(pl.id)
+                            + (pl.version ? ' <span class="mi-plug-v">' + esc(pl.version) + '</span>' : '')
+                            + '</span>';
+                    }).join('');
+                    html += '<div class="mi-cell wide"><span class="k">Plugins</span>'
+                        + '<span class="v mi-pluglist">' + plList + '</span></div>';
                 }
+                var facts = [];
                 if (buildInfo.javaToolchain) facts.push(['Java toolchain', buildInfo.javaToolchain]);
                 if ((buildInfo.kmpTargets || []).length) facts.push(['Targets', buildInfo.kmpTargets.join(', ')]);
                 facts.push(['Tests', (buildInfo.testSourceSets || []).length
                     ? buildInfo.testSourceSets.join(', ')
                     : 'no test source set']);
-                html += '<div class="mi-eyebrow" style="margin-top:14px">Build</div>'
-                    + facts.map(function (f) {
-                        return '<div class="mi-cell wide"><span class="k">' + esc(f[0]) + '</span>'
-                            + '<span class="v">' + esc(f[1]) + '</span></div>';
-                    }).join('');
+                html += facts.map(function (f) {
+                    return '<div class="mi-cell wide"><span class="k">' + esc(f[0]) + '</span>'
+                        + '<span class="v">' + esc(f[1]) + '</span></div>';
+                }).join('');
             }
 
             if (narrative.length) {
@@ -8418,6 +8624,7 @@
         var body = document.body;
         var LS_THEME = 'aalekh.theme';
         var LS_SIDE = 'aalekh.side';
+        var LS_RAIL = 'aalekh.rail';
 
         /* ---- INTERCHANGE SHARED HELPERS (rail + overview) ----
            Defined at the top of the IIFE so their values exist before the IA
@@ -8545,10 +8752,24 @@
         })();
 
         /* ---- SIDEBAR COLLAPSE ---- */
+        // The map's SVG canvases fit to their container width, so any change to the grid columns
+        // (inspector, rail, window) leaves them stretched or cropped until refit. One helper,
+        // called after every such change, keeps the active view sized to the space it has.
+        function refitActive() {
+            requestAnimationFrame(function () {
+                var v = window._activePanel;
+                if (v === 'arch' && window._archFit) window._archFit();
+                else if (v === 'graph' && window._graphFit) window._graphFit();
+                else if (v === 'focus' && window._focusFit) window._focusFit();
+                else if (v === 'matrix' && window._matrixFit) window._matrixFit();
+            });
+        }
+
         function applySide(state) {
             if (state === 'collapsed') body.classList.add('side-collapsed');
             else body.classList.remove('side-collapsed');
             try { localStorage.setItem(LS_SIDE, state); } catch (e) {}
+            refitActive();
         }
 
         function toggleSide() {
@@ -8564,6 +8785,30 @@
         if (sideToggle) sideToggle.addEventListener('click', toggleSide);
         var sideToggleNav = document.getElementById('btn-toggle-side');
         if (sideToggleNav) sideToggleNav.addEventListener('click', toggleSide);
+
+        /* ---- LINE INDEX (rail) ---- */
+        // The rail is the Map's tier legend; activateOuterTab adds body.rail-on only there. The
+        // collapse state is a separate user preference, remembered across sessions.
+        function applyRail(state) {
+            if (state === 'collapsed') body.classList.add('rail-collapsed');
+            else body.classList.remove('rail-collapsed');
+            try { localStorage.setItem(LS_RAIL, state); } catch (e) {}
+            refitActive();
+        }
+        try {
+            if (localStorage.getItem(LS_RAIL) === 'collapsed') body.classList.add('rail-collapsed');
+        } catch (e) {}
+        var railCollapse = document.getElementById('rail-collapse');
+        if (railCollapse) railCollapse.addEventListener('click', function () { applyRail('collapsed'); });
+        var railReopen = document.getElementById('rail-reopen');
+        if (railReopen) railReopen.addEventListener('click', function () { applyRail('open'); });
+
+        // Refit on window resize so a dragged window never leaves a stretched canvas.
+        var _resizeTimer;
+        window.addEventListener('resize', function () {
+            clearTimeout(_resizeTimer);
+            _resizeTimer = setTimeout(refitActive, 140);
+        });
 
         /* ---- IA ROUTING ---- */
         // window._activePanel is the *view* name as understood by the legacy
@@ -8642,6 +8887,8 @@
             panels.forEach(function (p) {
                 p.classList.toggle('active', p.id === 'panel-' + name);
             });
+            // The line index belongs to the Map. Turning it off elsewhere reclaims the column.
+            body.classList.toggle('rail-on', name === 'map');
             setView(viewNameForOuter(name));
             try { history.replaceState(null, '', '#tab=' + name); } catch (e) {}
         }
@@ -8670,7 +8917,7 @@
             var h = location.hash || '';
             var m = h.match(/[#&]tab=([a-z]+)/i);
             var name = m ? m[1] : 'overview';
-            var valid = ['overview', 'map', 'browse', 'health', 'violations', 'diff'];
+            var valid = ['overview', 'map', 'browse', 'health', 'deps', 'build', 'rules', 'violations', 'diff'];
             if (valid.indexOf(name) === -1) name = 'overview';
             activateOuterTab(name);
         })();
