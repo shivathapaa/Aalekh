@@ -24,6 +24,10 @@ import kotlinx.serialization.Serializable
  * @param externalDependencies All declared external (third-party) dependencies, keyed by declaring
  *   module via [ExternalDependency.module]. Empty when external-dependency capture is disabled or
  *   when deserializing a graph file produced by an older plugin version.
+ * @param buildInventory How the project is *built* rather than how it is wired: plugins and their
+ *   versions, version catalogs, toolchains, KMP targets, test layout, CODEOWNERS, and any metadata
+ *   the team declared in `.aalekh/modules.json`. [BuildInventory.EMPTY] when deserializing a graph
+ *   file produced by an older plugin version.
  * @param metadata    Build context: Gradle version, AGP version, extraction timestamp, etc.
  */
 // The query surface (moduleByPath, edgesFrom/To, fanIn/Out, instability, transitive*, cycle
@@ -36,6 +40,7 @@ public data class ModuleDependencyGraph(
     val modules: List<ModuleNode>,
     val edges: List<DependencyEdge>,
     val externalDependencies: List<ExternalDependency> = emptyList(),
+    val buildInventory: BuildInventory = BuildInventory.EMPTY,
     val metadata: Map<String, String> = emptyMap(),
 ) {
     // Indices (lazy, computed once). Avoid O(E) scans inside hot graph algorithms;
