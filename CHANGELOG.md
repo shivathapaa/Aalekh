@@ -106,6 +106,19 @@ All notable changes to this project are documented here. Format based on
 - **Gradle's own infrastructure plugins are no longer recorded.** `HelpTasksPlugin`, `WrapperPlugin`
   and their kin are applied to every module of every build and were 24% of `graph.json` on a
   128-module project. Module type detection is unaffected.
+- **The AGP and Kotlin versions are detected.** They are looked up reflectively against the plugins'
+  own version constants, but `Class.forName` was searching Aalekh's classpath. A settings plugin
+  loads in a different scope from the build scripts that apply them, so neither was ever found and
+  the Build panel always said "not detected". The buildscript classloaders are searched first now.
+- **Number keys reach every panel.** `1`-`6` covered six of the nine tabs, skipping Dependencies,
+  Build, and Rules. The keys now follow the visual tab order, `1`-`9`.
+- **A clean `aalekhCheck` run no longer logs a blank summary.** It read
+  `Aalekh:  found across 11 rule(s).` when there were neither errors nor warnings.
+- **The reading order no longer pads itself with tooling modules.** It filled to seven steps with
+  whatever ranked next, which on a real project meant modules 2% of it depends on; a step now has to
+  be depended on by at least 5%. Entry points are ordered by how far they reach rather than
+  alphabetically, and only an application module claims to be where execution starts - the rest say
+  what is actually known, that nothing depends on them.
 
 ### Changed
 - A `Provenance` type (`OBSERVED` / `COMPUTED` / `INFERRED` / `SUGGESTED`) records how Aalekh knows a
