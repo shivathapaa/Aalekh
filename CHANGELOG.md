@@ -6,6 +6,114 @@ All notable changes to this project are documented here. Format based on
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-02
+
+### Added
+- **Plain-language findings in the report.** The Overview opens with a summary of the project, a
+  suggested reading order for someone seeing it for the first time, and a list of findings - each one
+  a sentence about the project with the measurements behind it, so `fan-in = 24` is shown as "24
+  modules depend on this, more than half the project". Every finding carries its evidence, and each
+  piece of evidence is marked observed, computed, inferred, or suggested. Findings are assembled from
+  templates, so the same graph always produces the same text.
+- **Recommendations**: split candidates (a module whose consumers fall into groups sharing no other
+  dependency), merge candidates (two modules with identical dependents and dependencies), and
+  dependency-inversion candidates (a stable module depending on an unstable one). Each states its
+  confidence and the evidence behind it.
+- **New per-module metrics**: blast radius, influence (PageRank over the dependency graph),
+  betweenness, articulation points, comprehension cost, API surface ratio, and depth from the nearest
+  entry point. Plus fan-in concentration (Gini) for the whole project. A `MetricCatalog` gives each
+  metric a question it answers and how to read it, and ships with the report.
+- **`aalekhDocs`** writes architecture documentation as Markdown to `build/reports/aalekh/docs/`:
+  a summary and the findings, a module catalogue ranked by blast radius, an onboarding reading order,
+  a metric glossary, and region, build, and dependency references. The output has no timestamp and is
+  byte-identical when nothing changed, so it can be committed and reviewed as a diff.
+- **`aalekhSnapshot` and `aalekhDiff`.** `aalekhSnapshot` records the architecture as a small, sorted,
+  committable `aalekh-snapshot.json`. `aalekhDiff` compares the current graph against it and writes
+  `aalekh-diff.md` - a pull-request comment listing new cycles, added and removed dependencies and
+  modules, layer moves, and metric deltas. With no snapshot committed it explains how to create one
+  and succeeds. Opt into `failOnArchitectureRegression` to fail on a new cycle or a regressed metric.
+- **Region map** (Map → Regions). Groups modules and aggregates the dependencies between the groups,
+  for projects too large to read module by module. Grouping uses the first source that yields a usable
+  split: `layers { }`, `teams { }`, module path prefixes, then community detection over the dependency
+  edges. The panel states which was used. A region too large to list flat is broken into the groups it
+  contains.
+- **Focus view** (Map → Focus). One module in the middle, its dependents on the left and its
+  dependencies on the right, with a depth slider. The number of nodes drawn is bounded by the depth
+  rather than by the size of the project.
+- **Typed queries in the command palette**: `layer:`, `team:`, `type:`, `plugin:`, `dep:`, `uses:`,
+  `usedby:`, `region:`, `cycle:`, `untested:`, `blast:>50`, `instability:>0.8`, and `influence:>2`.
+  Filters combine, and free text after them ranks the matches. The vocabulary is listed when the
+  palette opens empty.
+- **Build panel and build inventory.** Extraction records plugin ids and versions - read from each
+  `plugins { }` block and resolved through Gradle's version-catalog model, so `alias(libs.plugins.x)`
+  reports both the alias and what it resolves to - along with version catalogs, Java toolchains,
+  Kotlin Multiplatform targets, test source sets, and the detected AGP and Kotlin versions. Findings
+  report split toolchains, plugins applied at more than one version, convention-plugin adoption,
+  single-use plugins, and untested modules ranked by blast radius.
+- **`.aalekh/modules.json`**, an optional committed file describing what Aalekh cannot infer: a
+  module's purpose, owner, layer, status, and links. Values declared there override inference, and the
+  purpose is shown first in the module inspector and the generated documentation.
+- **Ownership from `CODEOWNERS`.** Read from `.github/`, the repository root, `docs/`, or `.gitlab/`
+  when present, so module ownership works without a `teams { }` block. Where sources overlap, the most
+  specific wins: `.aalekh/modules.json`, then `teams { }`, then `CODEOWNERS`.
+- **Presentation mode** (`P`). Steps through the findings one screen at a time - project, shape,
+  regions, where to start, risks, health - for architecture reviews and onboarding sessions.
+- **Two new extension points.** `FindingProvider` contributes findings; `ModuleClassifier` contributes
+  a module's layer, team, or purpose from a project's own convention. Both are discovered with
+  `ServiceLoader` like `MetricProvider`, and both are fail-silent. A classifier is overridden by
+  anything declared explicitly and overrides Aalekh's path-based inference.
+- **Module inspector** now shows the declared purpose, what a change to the module costs, the metrics
+  behind that (each with the question it answers on hover), any findings naming the module, and its
+  plugins, toolchain, targets, and test source sets.
+
+### Fixed
+- **The report groups by the declared `layers { }` block.** The Architecture swimlane and the layer
+  purity table previously grouped modules using a path-keyword heuristic in the report's JavaScript,
+  ignoring `layers { }` entirely - so the report could show a different architecture from the one
+  `aalekhCheck` enforced. Layers are now injected into the report and resolved the same way the rules
+  resolve them (first declared pattern wins), in declaration order. A module matching no declared
+  layer gets its own **Unclassified** lane. With no `layers { }` block the report still infers lanes
+  from module paths, but labels them **Inferred layers**. Layer purity measures a restricted layer
+  against its own `canOnlyDependOn(...)` allowlist.
+- **Declared layers keep their declaration order.** Gradle's named container iterates alphabetically,
+  so `domain, data, presentation` reached the rule engine as `data, domain, presentation`, making
+  overlapping-pattern resolution depend on layer names. Layers now carry their declaration index. If
+  two layers claim the same module, the one declared first wins.
+- **Fixing a dependency cycle no longer trips the `critical-path` quality gate.** A cyclic graph has
+  no topological order, so its critical-path length is recorded as `0`. A baseline captured while the
+  project had a cycle therefore held `0`, and breaking the cycle made the length jump to its real
+  value and fail `forbidRegression("critical-path")`. The comparison is skipped when either side was
+  cyclic. `aalekhDiff` applies the same rule.
+- **`ModuleNode.healthScore` is populated.** The field was documented but never written, leaving the
+  `healthScore` column of `aalekh-metrics.csv` blank. `aalekhExtract` now records it, so `graph.json`,
+  the CSV, the Health table, and the inspector read the same number.
+- **`ModuleNode.sourceSets` is populated.** Multiplatform modules record their source-set names, read
+  reflectively from the Kotlin extension. The inspector's KMP source-sets section now renders.
+- **`DependencyEdge.declarationLine` is populated.** Extraction scans each module's build file for the
+  line a `project(...)` dependency is declared on, recognising `project(":a:b")`, `project(':a:b')`,
+  and the type-safe `projects.a.b` accessor. Cycle-break advice now prints `file:line`. Build files are
+  declared task inputs, so reordering declarations re-runs extraction.
+- **`ModuleNode.buildFilePath` uses the real build file location** from the Gradle model instead of
+  deriving it from the module path, so modules with a non-standard layout resolve. This also improves
+  how `aalekhTemporal` and `aalekhAffected` map changed files to modules.
+- **One project health formula.** The Overview dial computed its score in JavaScript with weights that
+  appeared nowhere else. It now comes from `HealthScoreCalculator.projectScore`, ships in the report
+  summary, and is documented in [Metrics](docs/metrics.md#architecture-health-scores). The dial lists
+  every penalty that fired.
+- **One glob implementation.** The report's JavaScript glob compiled `*` to `[^:]*` and `**` to `.*`,
+  disagreeing with the Kotlin `GlobMatcher` on empty and partial segments. It now matches segment by
+  segment.
+- **Gradle's own infrastructure plugins are no longer recorded.** `HelpTasksPlugin`, `WrapperPlugin`
+  and their kin are applied to every module of every build and were 24% of `graph.json` on a
+  128-module project. Module type detection is unaffected.
+
+### Changed
+- A `Provenance` type (`OBSERVED` / `COMPUTED` / `INFERRED` / `SUGGESTED`) records how Aalekh knows a
+  value. A declared value always overrides an inferred one, and the report says which is in effect.
+- Graph extraction is shared between the settings plugin and the deprecated project plugin
+  (`SubprojectDataCollector`) rather than duplicated. Serialized layer declarations are produced in one
+  place (`AalekhExtension.serializedLayers`).
+
 ## [0.6.1] - 2026-08-31
 
 ### Added

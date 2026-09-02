@@ -1,15 +1,10 @@
 # Real-world examples
 
 Aalekh is dogfooded against real multi-module projects. The sample reports linked from the
-[README](../README.md#sample-reports) are generated from the configs below. Each is a
+[README](../README.md#sample-reports) are generated from the configurations below. Each one is a
 copy-pasteable reference for a common project shape - a large Android app, a Kotlin/Compose
 Multiplatform app with several product shells, and a Compose Multiplatform app with private
 dependency repositories.
-
-All four reports carry the full report shell: the per-module **External dependencies** section and
-the aggregate **Dependencies** tab (declared
-`group:name:version` plus declaration type, read without resolving), and the **Rules** tab, which
-lists every configured rule with its severity and live pass/violation count.
 
 | Project | Type | Modules | Edges | External deps | Rules | `aalekhCheck` |
 |---|---|---:|---:|---:|---:|---|
@@ -38,7 +33,7 @@ pluginManagement {
 }
 
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.6.1"
+    id("io.github.shivathapaa.aalekh") version "0.7.0"
 }
 ```
 

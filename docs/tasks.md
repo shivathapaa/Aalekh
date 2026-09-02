@@ -2,22 +2,24 @@
 
 [← Documentation index](README.md) · [Project README](../README.md)
 
-Aalekh registers nine tasks on the root project, all in the `aalekh` task group.
+Aalekh registers twelve tasks on the root project, all in the `aalekh` task group.
 
 | Task                          | Description                                                                                  |
 |-------------------------------|----------------------------------------------------------------------------------------------|
 | `./gradlew aalekhExtract`     | Extracts the module dependency graph and writes it as JSON to `build/tmp/aalekh/graph.json`  |
 | `./gradlew aalekhReport`      | Generates the interactive HTML report at `build/reports/aalekh/index.html`                   |
 | `./gradlew aalekhCheck`       | Evaluates all architecture rules; fails the build on `ERROR`-severity violations             |
-| `./gradlew aalekhMermaid`     | Exports the graph as diffable Mermaid text (`aalekh-graph.mmd` + `aalekh-graph.md`)          |
+| `./gradlew aalekhMermaid`     | Exports the graph as diffable Mermaid and Graphviz DOT text (`aalekh-graph.mmd`/`.md`/`.dot`) |
 | `./gradlew aalekhBaseline`    | Records current violations to a committed baseline so `aalekhCheck` fails only on new ones   |
 | `./gradlew aalekhTemporal`    | Analyses git history for temporal (change) coupling and hotspots (`aalekh-temporal.md`/`.json`) |
 | `./gradlew aalekhAffected`    | Computes modules affected by a git diff and their blast radius (`aalekh-affected.md`/`.json`) |
 | `./gradlew aalekhMainSequence`| Computes each module's abstractness, instability and distance from the main sequence (`aalekh-main-sequence.md`/`.json`) |
 | `./gradlew aalekhMetrics`     | Runs custom `MetricProvider` SPI implementations and writes their values (`aalekh-custom-metrics.md`/`.json`) |
+| `./gradlew aalekhDocs`        | Writes architecture documentation as Markdown to `build/reports/aalekh/docs/`                |
+| `./gradlew aalekhSnapshot`    | Records the current architecture as a committable `aalekh-snapshot.json`                     |
+| `./gradlew aalekhDiff`        | Reports what this change did to the architecture (`aalekh-diff.md`/`.json`)                  |
 
-`aalekhReport` and `aalekhCheck` both depend on `aalekhExtract` implicitly - you do not need to
-run it manually.
+Every task depends on `aalekhExtract` implicitly - you do not need to run it manually.
 
 `aalekhCheck` is automatically wired into the standard `check` lifecycle task (when the `base`
 plugin is applied, which is the default), so it runs as part of `./gradlew check` without any extra
@@ -64,7 +66,7 @@ See [The report](report.md) for a full tour of the HTML output.
 ```
 
 Evaluates all registered architecture rules against the extracted dependency graph. On completion it
-writes three output files:
+writes four output files:
 
 - `build/reports/aalekh/aalekh-results.xml` - JUnit XML consumed natively by all CI systems
 - `build/reports/aalekh/aalekh-results.json` - full machine-readable report: graph, summary,
@@ -113,7 +115,7 @@ See [Architecture rules](rules.md) for the full rule reference.
 ```
 
 Exports the module graph as [Mermaid](https://mermaid.js.org) text - plain, diffable, and rendered
-inline on GitHub, GitLab, and most IDEs. Two files are written next to the HTML report:
+inline on GitHub, GitLab, and most IDEs. Three files are written next to the HTML report:
 
 - `build/reports/aalekh/aalekh-graph.mmd` - the raw Mermaid definition, for `mermaid-cli` or manual
   embedding.
@@ -307,6 +309,101 @@ skipped and noted in the report - it never fails the build. The task is not cach
 provider jars sit on the classpath is not a declared input. See
 [Metrics & output → Custom metrics (SPI)](metrics.md#custom-metrics-spi) and
 [Extending Aalekh](rules.md#custom-rules) for the provider contract.
+
+## aalekhSnapshot
+
+Records the current architecture as a committable snapshot.
+
+```bash
+./gradlew aalekhSnapshot
+git add aalekh-snapshot.json
+```
+
+Architecture changes are invisible in a normal review: adding one line to a `dependencies { }` block
+can wire two subsystems together, and the diff shows one line. Committing a snapshot and comparing
+against it with [`aalekhDiff`](#aalekhdiff) makes the consequence visible.
+
+The file is deliberately small and sorted so it diffs line by line - module paths, dependency pairs as
+`from>to`, cycle membership, layer assignments, and the structural metrics worth watching. It is not
+the whole graph, which would rewrite itself on every unrelated change.
+
+Change the location with `aalekh { snapshotFile.set("config/architecture.json") }`.
+
+## aalekhDiff
+
+Reports what the current architecture changed relative to the committed snapshot.
+
+```bash
+./gradlew aalekhDiff
+```
+
+Writes `aalekh-diff.md` - a ready-to-post pull-request comment - and `aalekh-diff.json`. The report
+leads with the most consequential change, so a reviewer skimming from the top sees the thing most
+worth their attention first:
+
+```markdown
+This change **introduces a dependency cycle** across 2 modules and adds 1 dependency.
+Worth a closer look before merging.
+
+### 🔴 New dependency cycles
+- `:app`
+- `:feature:login`
+
+### ➕ Dependencies added
+- `:feature:login` → `:app`
+```
+
+With no snapshot committed the task explains how to create one and **succeeds** - the first run of a
+new tool must never fail a build. Aalekh writes local files only; posting the comment is your CI job:
+
+```yaml
+- run: ./gradlew aalekhDiff
+- uses: peter-evans/create-or-update-comment@v4
+  with:
+    issue-number: ${{ github.event.pull_request.number }}
+    body-path: build/reports/aalekh/aalekh-diff.md
+```
+
+Set `aalekh { failOnArchitectureRegression.set(true) }` to fail the build when the change makes the
+architecture structurally worse - a new cycle, or a metric that regressed. Off by default, because a
+diff is a report: it should describe what changed without deciding that the change is wrong.
+
+## aalekhDocs
+
+Writes the project's architecture documentation as Markdown to `build/reports/aalekh/docs/`.
+
+```bash
+./gradlew aalekhDocs
+```
+
+The HTML report is for exploring; these files are for **reading and reviewing**. They render on
+GitHub with no build step, so a reviewer sees them without cloning, and they diff line by line, so an
+architectural change shows up in a pull request next to the code that caused it.
+
+| File | What's inside |
+|------|---------------|
+| `README.md` | Plain-language summary of the project, then every finding grouped by category |
+| `modules.md` | Module catalogue ranked by blast radius, plus any purpose declared in `.aalekh/modules.json` |
+| `onboarding.md` | The reading order for someone new: entry points, foundation, and what to read first |
+| `health.md` | Whole-project metrics with the definition of each and how to read it |
+| `regions.md` | How the project divides into regions and what crosses the boundaries (omitted when too small to group) |
+| `build.md` | Plugins, versions, catalogs and toolchains (omitted when nothing was captured) |
+| `dependencies.md` | Third-party libraries and version conflicts (omitted when none are declared) |
+
+Every sentence is templated from measured values, and the output carries **no timestamp**, so
+re-running on an unchanged project rewrites identical bytes. That is what makes the output worth
+committing: a diff means the architecture moved, not that the tool ran again. Teams that want the
+documentation reviewed alongside the code copy the directory into the repository and add a CI step
+that fails when a re-run produces a diff:
+
+```yaml
+- run: ./gradlew aalekhDocs
+- run: cp -r build/reports/aalekh/docs/. docs/architecture/
+- run: git diff --exit-code docs/architecture/
+```
+
+Files a project no longer warrants are deleted on the next run, so the directory never keeps a stale
+document describing something that has since been removed.
 
 ## aalekhExtract
 
