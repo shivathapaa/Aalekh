@@ -1,20 +1,24 @@
 # Real-world examples
 
 Aalekh is dogfooded against real multi-module projects. The sample reports linked from the
-[README](../README.md#sample-reports) are generated from the configurations below. Each one is a
-copy-pasteable reference for a common project shape - a large Android app, a Kotlin/Compose
+[README](../README.md#sample-reports) are generated from the configurations below, each a
+copy-pasteable reference for a common project shape: a large Android app, a Kotlin/Compose
 Multiplatform app with several product shells, and a Compose Multiplatform app with private
-dependency repositories.
+dependency repositories. One sample has no configuration at all, to show what the plugin produces
+before you have written a rule.
 
 | Project | Type | Modules | Edges | External deps | Rules | `aalekhCheck` |
 |---|---|---:|---:|---:|---:|---|
-| [Now in Android](https://github.com/android/nowinandroid) | Android | 44 | 121 | 406 | 9 | passes (WARNING/INFO only) |
+| [Now in Android](#now-in-android) | Android | 44 | 121 | 406 | 9 | passes |
+| [Now in Android - no configuration](#now-in-android---no-configuration) | Android | 44 | 121 | 406 | 1 | passes |
 | [Now in Android - with cycle](#now-in-android---cyclic-dependency-demo) | Android | 44 | 122 | 406 | 9 | **fails** (`no-cyclic-dependencies`) |
-| Tallyo | KMP + Compose MP | 128 | 523 | 1616 | 5 | passes |
-| GeoKrishiFarm | Compose MP | 51 | 341 | 856 | 6 | passes |
+| [Tallyo](#tallyo-kmp--compose-multiplatform) | KMP + Compose MP | 128 | 523 | 1616 | 5 | passes |
+| [GeoKrishiFarm](#geokrishifarm-compose-multiplatform) | Compose MP | 51 | 341 | 856 | 6 | passes |
 
 Counts come from the `aalekhExtract` log line (e.g. `Aalekh extracted 44 modules, 121 edges,
 406 external deps`); the rule count is the number of distinct rules shown in the report's Rules tab.
+Aalekh evaluates more than that where several rules share an id - Now in Android's three
+`forbidReachable` guards are one card and three evaluations.
 
 ## Applying the plugin
 
@@ -131,10 +135,29 @@ aalekh {
 ```
 
 The Rules tab then lists nine rules - `layer-dependency`, `no-feature-to-feature`,
-`forbidden-transitive-dependency` (×3), `unreachable-module`, `forbidden-dependency`,
-`max-graph-height`, `max-transitive-dependencies`, `no-orphan-modules`, plus the always-on
-`no-cyclic-dependencies`. `./gradlew aalekhCheck` passes: no `ERROR` violations, and the WARNING /
-INFO rules are clean too.
+`forbidden-transitive-dependency` (three guards on one card), `unreachable-module`,
+`forbidden-dependency`, `max-graph-height`, `max-transitive-dependencies`, `no-orphan-modules`, plus
+the always-on `no-cyclic-dependencies` - all passing. `./gradlew aalekhCheck` succeeds with three
+`INFO` findings, all test-only cycles (`:core:datastore` ↔ `:core:datastore-test` and two more),
+which never fail the build.
+
+Now in Android ships a `CODEOWNERS` file, so the report shows module ownership from it alongside the
+`teams { }` block above, with the declared teams taking precedence.
+
+### Now in Android - no configuration
+
+The same project with the `aalekh { }` block removed entirely - only the settings plugin applied.
+This is what `./gradlew aalekhReport` produces on a project that has configured nothing:
+
+- Layers are inferred from module path segments and the Architecture panel labels them
+  **Inferred layers**; the declared version above shows **Declared layers** instead.
+- Regions fall back to module path prefixes rather than the `layers { }` partition.
+- The Rules tab shows only `no-cyclic-dependencies`, which is always active, and explains that
+  Aalekh is in visualization-only mode.
+- Everything else - the findings, the reading order, metrics, the build inventory, ownership from
+  `CODEOWNERS` - is unchanged, because none of it needs configuration.
+
+Compare it against the configured report above to see exactly what the `aalekh { }` block buys.
 
 ### Now in Android - cyclic dependency demo
 
@@ -157,8 +180,11 @@ Aalekh [no-cyclic-dependencies] ERROR - 1 violation(s):
 
 Aalekh: 1 error(s) found across 11 rule(s).
 Aalekh: to break the detected cycle(s), consider removing:
-  * api(project(":core:designsystem")) in core/ui/build.gradle.kts
+  * api(project(":core:designsystem")) in core/ui/build.gradle.kts:29
 ```
+
+The line number comes from the build file itself, so the advice points at the exact declaration to
+delete rather than at the module.
 
 `no-cyclic-dependencies` is built-in and always active. Cycle detection considers main-source edges
 only (`!isTest`); test-only cycles are reported separately and never fail the build.
@@ -219,6 +245,10 @@ aalekh {
 blocks - the extractor reads every captured configuration (`commonMainImplementation`,
 `androidMainImplementation`, and so on), so all 1616 external coordinates surface in the report.
 
+At 128 modules Tallyo lands in the **Grouped** presentation profile, so the report opens on the
+region map rather than the force graph. Ninety-four of its modules are multiplatform, and the
+inspector lists each one's source sets.
+
 ## GeoKrishiFarm (Compose Multiplatform)
 
 GeoKrishiFarm is a Compose Multiplatform app with a clean `core -> feature -> app` layering (no
@@ -277,6 +307,9 @@ Extraction reads declared coordinates only and never resolves, so the private Gi
 GitLab / flatDir repositories GeoKrishiFarm uses are irrelevant to `aalekhReport`; the report
 generates offline, lists all 856 external dependencies, and all six rules pass.
 
+Every one of its 341 dependency edges resolves to a line in a build file, so a layer violation or a
+cycle would be reported with the exact declaration to remove.
+
 ## Notes
 
 - Extraction never triggers dependency resolution - declared `group:name:version` is read at
@@ -294,3 +327,6 @@ generates offline, lists all 856 external dependencies, and all six rules pass.
 - Opt out of external-dependency capture with `aalekh { includeExternalDependencies = false }`. The
   `includeTestDependencies` and `includeCompileOnlyDependencies` flags apply to external
   dependencies too.
+- The **Build** tab needs no configuration. Plugin ids and versions, the version catalog, Java
+  toolchains, KMP targets, test source sets, and the AGP and Kotlin versions are read from the build
+  itself - none of these projects declare anything for it.

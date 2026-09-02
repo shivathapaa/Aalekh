@@ -53,24 +53,28 @@ on top of it.
 
 ## Sample Reports
 
-- Now in Android App
+- Now in Android - 44 modules, layers, feature isolation, teams, nine rules
     - [View locally](assets/report_samples/nowinandroid.html)
     - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid.html)
 
-- Now in Android App - with cyclic dependency
+- Now in Android - no configuration at all, to show what you get out of the box
+    - [View locally](assets/report_samples/nowinandroid_noconfig.html)
+    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_noconfig.html)
+
+- Now in Android - with a cyclic dependency, so `aalekhCheck` fails
     - [View locally](assets/report_samples/nowinandroid_withcyclic.html)
     - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_withcyclic.html)
 
-- Tallyo (CMP)
+- Tallyo - 128 modules of Kotlin/Compose Multiplatform across six product shells
     - [View locally](assets/report_samples/tallyo.html)
     - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/tallyo.html)
 
-- GeoKrishiFarm (CMP)
+- GeoKrishiFarm - 51 modules of Compose Multiplatform behind private repositories
     - [View locally](assets/report_samples/geokrishifarm.html)
     - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/geokrishifarm.html)
 
-The exact `aalekh { }` configuration behind each report - layers, feature isolation, teams, and the
-cyclic-dependency demo - is documented in [docs/real-world-examples.md](docs/real-world-examples.md).
+The exact `aalekh { }` configuration behind each report is documented in
+[docs/real-world-examples.md](docs/real-world-examples.md).
 
 <p align="center">
   <a href="assets/report_samples/nowinandroid.html">
