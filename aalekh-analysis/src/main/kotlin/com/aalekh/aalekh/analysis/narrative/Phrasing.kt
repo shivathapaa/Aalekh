@@ -21,9 +21,20 @@ internal object Phrasing {
 
     private val locale = java.util.Locale.ROOT
 
-    /** `1 module` / `3 modules` - the plural agreement every finding needs. */
-    fun count(n: Int, singular: String, plural: String = singular + "s"): String =
+    /**
+     * `1 module` / `3 modules` - the plural agreement every finding needs. The default handles the
+     * regular `-s` and the `consonant + y -> -ies` case (`library -> libraries`), so a caller only
+     * passes an explicit plural for a genuine irregular.
+     */
+    fun count(n: Int, singular: String, plural: String = defaultPlural(singular)): String =
         "$n ${if (n == 1) singular else plural}"
+
+    private fun defaultPlural(singular: String): String =
+        if (singular.length > 1 && singular.endsWith("y") && singular[singular.length - 2] !in "aeiou") {
+            singular.dropLast(1) + "ies"
+        } else {
+            singular + "s"
+        }
 
     /** `is` / `are`, agreeing with [n]. */
     fun verb(n: Int): String = if (n == 1) "is" else "are"
