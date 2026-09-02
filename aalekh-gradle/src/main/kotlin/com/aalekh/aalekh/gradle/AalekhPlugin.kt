@@ -1,14 +1,17 @@
 package com.aalekh.aalekh.gradle
 
-import com.aalekh.aalekh.gradle.extractor.ConfigurationClassifier
+import com.aalekh.aalekh.gradle.extractor.SubprojectDataCollector
 import com.aalekh.aalekh.gradle.task.AalekhAffectedTask
 import com.aalekh.aalekh.gradle.task.AalekhBaselineTask
 import com.aalekh.aalekh.gradle.task.AalekhCheckTask
+import com.aalekh.aalekh.gradle.task.AalekhDocsTask
 import com.aalekh.aalekh.gradle.task.AalekhExtractTask
 import com.aalekh.aalekh.gradle.task.AalekhMainSequenceTask
 import com.aalekh.aalekh.gradle.task.AalekhMetricsTask
 import com.aalekh.aalekh.gradle.task.AalekhMermaidTask
+import com.aalekh.aalekh.gradle.task.AalekhDiffTask
 import com.aalekh.aalekh.gradle.task.AalekhReportTask
+import com.aalekh.aalekh.gradle.task.AalekhSnapshotTask
 import com.aalekh.aalekh.gradle.task.AalekhTemporalTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -80,9 +83,22 @@ public class AalekhPlugin : Plugin<Project> {
         ) { task ->
             task.projectName.set(project.name)
             task.gradleVersion.set(project.gradle.gradleVersion)
-            task.subprojectData.set(project.provider { buildSubprojectData(project) })
-            task.subprojectExternalData.set(project.provider { buildSubprojectExternalData(project) })
-            task.subprojectPlugins.set(project.provider { buildPluginData(project) })
+            task.subprojectData.set(project.provider { SubprojectDataCollector.dependencies(project) })
+            task.subprojectExternalData.set(
+                project.provider { SubprojectDataCollector.externalDependencies(project) }
+            )
+            task.subprojectPlugins.set(project.provider { SubprojectDataCollector.plugins(project) })
+            task.subprojectSourceSets.set(project.provider { SubprojectDataCollector.sourceSets(project) })
+            task.subprojectBuildFilePaths.set(
+                project.provider { SubprojectDataCollector.buildFilePaths(project) }
+            )
+            task.buildFiles.from(project.provider { SubprojectDataCollector.buildFiles(project) })
+            task.buildInventoryJson.set(
+                project.provider { SubprojectDataCollector.buildInventoryJson(project) }
+            )
+            task.projectMetadataFiles.from(
+                project.provider { SubprojectDataCollector.projectMetadataFiles(project) }
+            )
             // Wire extension flags - same as settings plugin
             task.includeTestDependencies.set(extension.includeTestDependencies)
             task.includeCompileOnlyDependencies.set(extension.includeCompileOnlyDependencies)
@@ -101,14 +117,7 @@ public class AalekhPlugin : Plugin<Project> {
                     .dir(extension.outputDir)
                     .map { it.file("index.html") }
             )
-            task.layerEntries.set(project.provider {
-                extension.layerContainer.map { layer ->
-                    val patterns = layer.modulePatterns.get().joinToString(",")
-                    val allowed = layer.allowedDependencyLayers.get().joinToString(",")
-                    val restricted = layer.hasRestriction.get()
-                    "${layer.name}|$patterns|$allowed|$restricted"
-                }
-            })
+            task.layerEntries.set(project.provider { extension.serializedLayers() })
             task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
             task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
             task.ruleEntries.set(extension.rulesConfig.entries)
@@ -125,14 +134,7 @@ public class AalekhPlugin : Plugin<Project> {
             task.projectName.set(project.name)
             task.outputDir.set(project.layout.buildDirectory.dir(extension.outputDir))
 
-            task.layerEntries.set(project.provider {
-                extension.layerContainer.map { layer ->
-                    val patterns = layer.modulePatterns.get().joinToString(",")
-                    val allowed = layer.allowedDependencyLayers.get().joinToString(",")
-                    val restricted = layer.hasRestriction.get()
-                    "${layer.name}|$patterns|$allowed|$restricted"
-                }
-            })
+            task.layerEntries.set(project.provider { extension.serializedLayers() })
             task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
             task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
             task.ruleEntries.set(extension.rulesConfig.entries)
@@ -164,14 +166,7 @@ public class AalekhPlugin : Plugin<Project> {
         project.tasks.register("aalekhBaseline", AalekhBaselineTask::class.java) { task ->
             task.graphJsonFile.set(graphJsonFile)
             task.projectName.set(project.name)
-            task.layerEntries.set(project.provider {
-                extension.layerContainer.map { layer ->
-                    val patterns = layer.modulePatterns.get().joinToString(",")
-                    val allowed = layer.allowedDependencyLayers.get().joinToString(",")
-                    val restricted = layer.hasRestriction.get()
-                    "${layer.name}|$patterns|$allowed|$restricted"
-                }
-            })
+            task.layerEntries.set(project.provider { extension.serializedLayers() })
             task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
             task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
             task.ruleEntries.set(extension.rulesConfig.entries)
@@ -228,44 +223,51 @@ public class AalekhPlugin : Plugin<Project> {
             task.dependsOn(extractTask)
         }
 
+        project.tasks.register("aalekhDocs", AalekhDocsTask::class.java) { task ->
+            task.graphJsonFile.set(graphJsonFile)
+            task.projectName.set(project.name)
+            task.layerEntries.set(project.provider { extension.serializedLayers() })
+            task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
+            task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
+            task.ruleEntries.set(extension.rulesConfig.entries)
+            task.forbidEntries.set(extension.forbiddenEntries)
+            task.reachabilityEntries.set(extension.rulesConfig.reachabilityEntries)
+            task.sourceSetEntries.set(extension.rulesConfig.sourceSetEntries)
+            task.teamEntries.set(project.provider { extension.teamOwnership.toInputString() })
+            task.outputDir.set(
+                project.layout.buildDirectory.dir(extension.outputDir).map { it.dir("docs") }
+            )
+            task.dependsOn(extractTask)
+        }
+
+        project.tasks.register("aalekhSnapshot", AalekhSnapshotTask::class.java) { task ->
+            task.graphJsonFile.set(graphJsonFile)
+            task.layerEntries.set(project.provider { extension.serializedLayers() })
+            task.snapshotFile.set(
+                extension.snapshotFile.map { project.layout.projectDirectory.file(it) }
+            )
+            task.dependsOn(extractTask)
+        }
+
+        project.tasks.register("aalekhDiff", AalekhDiffTask::class.java) { task ->
+            task.graphJsonFile.set(graphJsonFile)
+            task.projectName.set(project.name)
+            task.layerEntries.set(project.provider { extension.serializedLayers() })
+            task.snapshotFile.set(
+                extension.snapshotFile.map { project.layout.projectDirectory.file(it) }
+            )
+            task.failOnRegression.set(extension.failOnArchitectureRegression)
+            val reportsDir = project.layout.buildDirectory.dir(extension.outputDir)
+            task.markdownFile.set(reportsDir.map { it.file("aalekh-diff.md") })
+            task.jsonFile.set(reportsDir.map { it.file("aalekh-diff.json") })
+            task.dependsOn(extractTask)
+        }
+
         project.pluginManager.withPlugin("base") {
             project.tasks.named("check").configure { it.dependsOn(checkTask) }
         }
     }
 
-    private fun buildSubprojectData(rootProject: Project): Map<String, List<String>> =
-        rootProject.subprojects.associate { sub ->
-            val deps = mutableListOf<String>()
-            sub.configurations
-                .filter { cfg -> ConfigurationClassifier.isCaptured(cfg.name) }
-                .forEach { cfg ->
-                    cfg.dependencies.filterIsInstance<org.gradle.api.artifacts.ProjectDependency>()
-                        .forEach { dep ->
-                            val to = dep.path
-                            if (to != sub.path) deps += "${cfg.name}:$to"
-                        }
-                }
-            sub.path to deps
-        }
-
-    // Mirror of AalekhSettingsPlugin.buildSubprojectExternalData - pipe-delimited external
-    // coordinates, declared only, no resolution. Kept in lock-step with the settings plugin.
-    private fun buildSubprojectExternalData(rootProject: Project): Map<String, List<String>> =
-        rootProject.subprojects.associate { sub ->
-            val deps = mutableListOf<String>()
-            sub.configurations
-                .filter { cfg -> ConfigurationClassifier.isCaptured(cfg.name) }
-                .forEach { cfg ->
-                    cfg.dependencies.filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
-                        .forEach { dep ->
-                            deps += "${cfg.name}|${dep.group}|${dep.name}|${dep.version ?: ""}"
-                        }
-                }
-            sub.path to deps
-        }
-
-    private fun buildPluginData(rootProject: Project): Map<String, List<String>> =
-        rootProject.subprojects.associate { sub ->
-            sub.path to sub.plugins.map { it.javaClass.name }
-        }
+    // Data collection is shared with AalekhSettingsPlugin via SubprojectDataCollector, so the two
+    // entry points can never extract different graphs from the same build.
 }

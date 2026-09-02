@@ -28,9 +28,17 @@ import javax.inject.Inject
  *
  * Module patterns support a single `*` wildcard matching one path segment,
  * and `**` matching any number of segments.
+ *
+ * @param name The layer name, unique within the block.
+ * @param declarationOrder Zero-based position of this layer in the `layers { }` block. Gradle's
+ *   named container iterates alphabetically, which would make an overlapping-pattern resolution -
+ *   and the order the report draws the swimlanes in - depend on layer *spelling* rather than on how
+ *   the architecture was written down. Aalekh sorts by this instead, so `domain, data, presentation`
+ *   stays in that order everywhere.
  */
 public abstract class LayerConfig @Inject constructor(
     public val name: String,
+    public val declarationOrder: Int,
     objects: ObjectFactory,
 ) {
     /** Glob patterns identifying which modules belong to this layer. */

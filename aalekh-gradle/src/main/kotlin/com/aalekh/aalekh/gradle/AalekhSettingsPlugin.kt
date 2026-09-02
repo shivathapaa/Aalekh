@@ -1,14 +1,17 @@
 package com.aalekh.aalekh.gradle
 
-import com.aalekh.aalekh.gradle.extractor.ConfigurationClassifier
+import com.aalekh.aalekh.gradle.extractor.SubprojectDataCollector
 import com.aalekh.aalekh.gradle.task.AalekhAffectedTask
 import com.aalekh.aalekh.gradle.task.AalekhMainSequenceTask
 import com.aalekh.aalekh.gradle.task.AalekhMetricsTask
 import com.aalekh.aalekh.gradle.task.AalekhBaselineTask
 import com.aalekh.aalekh.gradle.task.AalekhCheckTask
+import com.aalekh.aalekh.gradle.task.AalekhDocsTask
 import com.aalekh.aalekh.gradle.task.AalekhExtractTask
 import com.aalekh.aalekh.gradle.task.AalekhMermaidTask
+import com.aalekh.aalekh.gradle.task.AalekhDiffTask
 import com.aalekh.aalekh.gradle.task.AalekhReportTask
+import com.aalekh.aalekh.gradle.task.AalekhSnapshotTask
 import com.aalekh.aalekh.gradle.task.AalekhTemporalTask
 import org.gradle.api.Plugin
 import org.gradle.api.file.RegularFile
@@ -76,13 +79,28 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
                 // fingerprinted - after all subprojects are configured.
                 // No live Project/Configuration objects survive into the task: CC-safe.
                 task.subprojectData.set(rootProject.provider {
-                    buildSubprojectData(rootProject)
+                    SubprojectDataCollector.dependencies(rootProject)
                 })
                 task.subprojectExternalData.set(rootProject.provider {
-                    buildSubprojectExternalData(rootProject)
+                    SubprojectDataCollector.externalDependencies(rootProject)
                 })
                 task.subprojectPlugins.set(rootProject.provider {
-                    buildPluginData(rootProject)
+                    SubprojectDataCollector.plugins(rootProject)
+                })
+                task.subprojectSourceSets.set(rootProject.provider {
+                    SubprojectDataCollector.sourceSets(rootProject)
+                })
+                task.subprojectBuildFilePaths.set(rootProject.provider {
+                    SubprojectDataCollector.buildFilePaths(rootProject)
+                })
+                task.buildFiles.from(rootProject.provider {
+                    SubprojectDataCollector.buildFiles(rootProject)
+                })
+                task.buildInventoryJson.set(rootProject.provider {
+                    SubprojectDataCollector.buildInventoryJson(rootProject)
+                })
+                task.projectMetadataFiles.from(rootProject.provider {
+                    SubprojectDataCollector.projectMetadataFiles(rootProject)
                 })
 
                 task.includeTestDependencies.set(extension.includeTestDependencies)
@@ -105,14 +123,7 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
                         .dir(extension.outputDir)
                         .map { it.file("index.html") }
                 )
-                task.layerEntries.set(rootProject.provider {
-                    extension.layerContainer.map { layer ->
-                        val patterns = layer.modulePatterns.get().joinToString(",")
-                        val allowed = layer.allowedDependencyLayers.get().joinToString(",")
-                        val restricted = layer.hasRestriction.get()
-                        "${layer.name}|$patterns|$allowed|$restricted"
-                    }
-                })
+                task.layerEntries.set(rootProject.provider { extension.serializedLayers() })
                 task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
                 task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
                 task.ruleEntries.set(extension.rulesConfig.entries)
@@ -136,14 +147,7 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
 
                 // Serialize layer config to CC-safe strings at configuration time.
                 // Format: "name|pat1,pat2|allowed1,allowed2|hasRestriction"
-                task.layerEntries.set(rootProject.provider {
-                    extension.layerContainer.map { layer ->
-                        val patterns = layer.modulePatterns.get().joinToString(",")
-                        val allowed = layer.allowedDependencyLayers.get().joinToString(",")
-                        val restricted = layer.hasRestriction.get()
-                        "${layer.name}|$patterns|$allowed|$restricted"
-                    }
-                })
+                task.layerEntries.set(rootProject.provider { extension.serializedLayers() })
 
                 task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
                 task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
@@ -182,14 +186,7 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
             ) { task ->
                 task.graphJsonFile.set(graphJsonFile)
                 task.projectName.set(rootProject.name)
-                task.layerEntries.set(rootProject.provider {
-                    extension.layerContainer.map { layer ->
-                        val patterns = layer.modulePatterns.get().joinToString(",")
-                        val allowed = layer.allowedDependencyLayers.get().joinToString(",")
-                        val restricted = layer.hasRestriction.get()
-                        "${layer.name}|$patterns|$allowed|$restricted"
-                    }
-                })
+                task.layerEntries.set(rootProject.provider { extension.serializedLayers() })
                 task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
                 task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
                 task.ruleEntries.set(extension.rulesConfig.entries)
@@ -258,70 +255,66 @@ public class AalekhSettingsPlugin : Plugin<Settings> {
                 task.dependsOn(extractTask)
             }
 
+            rootProject.tasks.register(
+                "aalekhDocs",
+                AalekhDocsTask::class.java,
+            ) { task ->
+                task.graphJsonFile.set(graphJsonFile)
+                task.projectName.set(rootProject.name)
+                task.layerEntries.set(rootProject.provider { extension.serializedLayers() })
+                task.featurePattern.set(extension.featureIsolationConfig.featurePattern)
+                task.featureAllowedPairs.set(extension.featureIsolationConfig.allowedPairs)
+                task.ruleEntries.set(extension.rulesConfig.entries)
+                task.forbidEntries.set(extension.forbiddenEntries)
+                task.reachabilityEntries.set(extension.rulesConfig.reachabilityEntries)
+                task.sourceSetEntries.set(extension.rulesConfig.sourceSetEntries)
+                task.teamEntries.set(rootProject.provider { extension.teamOwnership.toInputString() })
+                task.outputDir.set(
+                    rootProject.layout.buildDirectory.dir(extension.outputDir).map { it.dir("docs") }
+                )
+                task.dependsOn(extractTask)
+            }
+
+            rootProject.tasks.register("aalekhSnapshot", AalekhSnapshotTask::class.java) { task ->
+                task.graphJsonFile.set(graphJsonFile)
+                task.layerEntries.set(rootProject.provider { extension.serializedLayers() })
+                task.snapshotFile.set(
+                    extension.snapshotFile.map { rootProject.layout.projectDirectory.file(it) }
+                )
+                task.dependsOn(extractTask)
+            }
+
+            rootProject.tasks.register("aalekhDiff", AalekhDiffTask::class.java) { task ->
+                task.graphJsonFile.set(graphJsonFile)
+                task.projectName.set(rootProject.name)
+                task.layerEntries.set(rootProject.provider { extension.serializedLayers() })
+                task.snapshotFile.set(
+                    extension.snapshotFile.map { rootProject.layout.projectDirectory.file(it) }
+                )
+                task.failOnRegression.set(extension.failOnArchitectureRegression)
+                val reportsDir = rootProject.layout.buildDirectory.dir(extension.outputDir)
+                task.markdownFile.set(reportsDir.map { it.file("aalekh-diff.md") })
+                task.jsonFile.set(reportsDir.map { it.file("aalekh-diff.json") })
+                task.dependsOn(extractTask)
+            }
+
             rootProject.pluginManager.withPlugin("base") {
                 rootProject.tasks.named("check").configure { it.dependsOn(checkTask) }
             }
         }
     }
 
-    // Data collection
+    // Data collection lives in SubprojectDataCollector, shared with the deprecated project plugin.
     //
-    // Collects ALL configurations Aalekh considers architecturally significant
-    // ([ConfigurationClassifier.isCaptured]). Filtering by
-    // includeTestDependencies / includeCompileOnlyDependencies happens
-    // inside AalekhExtractTask, not here. This separation means:
-    //   1. The task input is stable (changing a flag doesn't change the raw
-    //      data passed to the task, only how the task processes it).
-    //   2. The CC cache is correctly invalidated via the task's @Input flags,
-    //      not via the provider lambda re-running.
+    // It collects ALL configurations Aalekh considers architecturally significant
+    // ([ConfigurationClassifier.isCaptured]). Filtering by includeTestDependencies /
+    // includeCompileOnlyDependencies happens inside AalekhExtractTask, not there. This separation
+    // means:
+    //   1. The task input is stable (changing a flag doesn't change the raw data passed to the
+    //      task, only how the task processes it).
+    //   2. The CC cache is correctly invalidated via the task's @Input flags, not via the provider
+    //      lambda re-running.
     //
-    // Note: compileOnly IS included in the raw collection here even though
-    // the default extension flag excludes it from the final graph. The task
-    // strips it if includeCompileOnlyDependencies = false.
-
-    private fun buildSubprojectData(
-        rootProject: org.gradle.api.Project,
-    ): Map<String, List<String>> =
-        rootProject.subprojects.associate { subproject ->
-            val deps = mutableListOf<String>()
-            subproject.configurations
-                .filter { cfg -> ConfigurationClassifier.isCaptured(cfg.name) }
-                .forEach { cfg ->
-                    cfg.dependencies
-                        .filterIsInstance<org.gradle.api.artifacts.ProjectDependency>()
-                        .forEach { dep ->
-                            val to = dep.path
-                            if (to != subproject.path) deps += "${cfg.name}:$to"
-                        }
-                }
-            subproject.path to deps
-        }
-
-    // External deps are read from the same captured configurations as project edges, but each
-    // coordinate segment can contain colons, so they are pipe-delimited ("config|group|name|version")
-    // rather than reusing the colon encoding of buildSubprojectData. Declared coordinates only -
-    // no resolution is triggered, keeping this CC-safe.
-    private fun buildSubprojectExternalData(
-        rootProject: org.gradle.api.Project,
-    ): Map<String, List<String>> =
-        rootProject.subprojects.associate { subproject ->
-            val deps = mutableListOf<String>()
-            subproject.configurations
-                .filter { cfg -> ConfigurationClassifier.isCaptured(cfg.name) }
-                .forEach { cfg ->
-                    cfg.dependencies
-                        .filterIsInstance<org.gradle.api.artifacts.ExternalModuleDependency>()
-                        .forEach { dep ->
-                            deps += "${cfg.name}|${dep.group}|${dep.name}|${dep.version ?: ""}"
-                        }
-                }
-            subproject.path to deps
-        }
-
-    private fun buildPluginData(
-        rootProject: org.gradle.api.Project,
-    ): Map<String, List<String>> =
-        rootProject.subprojects.associate { subproject ->
-            subproject.path to subproject.plugins.map { it.javaClass.name }
-        }
+    // Note: compileOnly IS included in the raw collection even though the default extension flag
+    // excludes it from the final graph. The task strips it if includeCompileOnlyDependencies = false.
 }
