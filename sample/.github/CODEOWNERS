@@ -1,0 +1,5 @@
+# Ownership for the Aalekh demo consumer. Aalekh reads this when no teams { } block covers a module,
+# so most projects get an ownership map without configuring anything.
+*                @demo/platform
+/core/           @demo/core-team
+/feature/        @demo/app-team

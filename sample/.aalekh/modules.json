@@ -1,0 +1,16 @@
+{
+  "_comment": "Optional. Anything declared here is an observed fact and overrides Aalekh's inference - a module's purpose in particular can only ever come from a human.",
+  "modules": [
+    {
+      "path": ":core:domain",
+      "purpose": "Pure business rules and the repository interfaces the rest of the app codes against. No frameworks, no IO, no Android - so it stays testable and portable.",
+      "owner": "core-team",
+      "status": "stable"
+    },
+    {
+      "path": ":feature:login",
+      "purpose": "Sign-in screen and its view model. The only module allowed to know how a user authenticates.",
+      "owner": "app-team"
+    }
+  ]
+}
