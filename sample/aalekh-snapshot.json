@@ -1,0 +1,37 @@
+{
+    "modules": [
+        ":app",
+        ":core",
+        ":core:data",
+        ":core:domain",
+        ":feature",
+        ":feature:login"
+    ],
+    "edges": [
+        ":app>:core:data",
+        ":app>:core:domain",
+        ":app>:feature:login",
+        ":core:data>:core:domain",
+        ":feature:login>:core:data",
+        ":feature:login>:core:domain"
+    ],
+    "cycles": [],
+    "entryPoints": [
+        ":app"
+    ],
+    "layers": {
+        ":app": "presentation",
+        ":core:data": "data",
+        ":core:domain": "domain",
+        ":feature:login": "presentation"
+    },
+    "metrics": {
+        "cycleCount": 0,
+        "godModuleCount": 0,
+        "ccd": 12,
+        "tanglePercent": 0.0,
+        "averageInstability": 0.3333333333333333,
+        "criticalPathLength": 4
+    },
+    "aalekhVersion": "0.6.1"
+}
