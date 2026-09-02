@@ -29,15 +29,12 @@ internal class LayerDependencyRule(
     override fun evaluate(graph: ModuleDependencyGraph): List<Violation> {
         if (layers.none { it.hasRestriction }) return emptyList()
 
-        // Pre-resolve which layer each module belongs to
+        // Pre-resolve which layer each module belongs to. First declared match wins - the same
+        // resolution the HTML report uses, so the swimlane a module is drawn in is always the layer
+        // whose rules apply to it.
         val moduleToLayer: Map<String, LayerSpec> = buildMap {
             for (module in graph.modules) {
-                for (layer in layers) {
-                    if (GlobMatcher.matchesAny(layer.modulePatterns, module.path)) {
-                        put(module.path, layer)
-                        break // first matching layer wins
-                    }
-                }
+                LayerSpecParser.layerOf(layers, module.path)?.let { put(module.path, it) }
             }
         }
 
@@ -78,30 +75,10 @@ internal class LayerDependencyRule(
 
     companion object {
         /**
-         * Deserializes layer entries from the format used in task @Input properties.
-         *
-         * Each entry: `"name|pat1,pat2|allowed1,allowed2|true"` where the last segment
-         * is `hasRestriction`.
+         * Deserializes layer entries from the format used in task @Input properties, via the shared
+         * [LayerSpecParser] - the same parse the report and [UncoveredModuleRule] use.
          */
-        fun fromSerializedLayers(entries: List<String>): LayerDependencyRule {
-            val layers = entries.mapNotNull { entry ->
-                val parts = entry.split("|")
-                if (parts.size < 4) return@mapNotNull null
-                val name = parts[0]
-                val patterns = parts[1].split(",").filter { it.isNotBlank() }
-                val allowed = parts[2].split(",").filter { it.isNotBlank() }
-                val hasRestriction = parts[3].toBoolean()
-                LayerSpec(name, patterns, allowed, hasRestriction)
-            }
-            return LayerDependencyRule(layers)
-        }
+        fun fromSerializedLayers(entries: List<String>): LayerDependencyRule =
+            LayerDependencyRule(LayerSpecParser.parse(entries))
     }
 }
-
-/** Parsed representation of one layer declaration. */
-internal data class LayerSpec(
-    val name: String,
-    val modulePatterns: List<String>,
-    val allowedLayers: List<String>,
-    val hasRestriction: Boolean,
-)

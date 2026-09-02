@@ -50,15 +50,11 @@ internal class UncoveredModuleRule(
 
     companion object {
         /**
-         * Extracts the flat list of module patterns from serialized `layers { }` entries (the same
-         * `"name|pat1,pat2|allowed|hasRestriction"` format [LayerDependencyRule] consumes).
+         * Extracts the flat list of module patterns from serialized `layers { }` entries, via the
+         * shared [LayerSpecParser] so this rule and [LayerDependencyRule] can never disagree about
+         * which modules a layer covers.
          */
-        fun fromSerializedLayers(entries: List<String>): UncoveredModuleRule {
-            val patterns = entries.flatMap { entry ->
-                val parts = entry.split("|")
-                if (parts.size < 2) emptyList() else parts[1].split(",").filter { it.isNotBlank() }
-            }
-            return UncoveredModuleRule(patterns)
-        }
+        fun fromSerializedLayers(entries: List<String>): UncoveredModuleRule =
+            UncoveredModuleRule(LayerSpecParser.parse(entries).flatMap { it.modulePatterns })
     }
 }
