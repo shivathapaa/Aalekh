@@ -1,5 +1,6 @@
 package com.aalekh.aalekh.analysis.metrics
 
+import com.aalekh.aalekh.analysis.graph.GraphSummary
 import com.aalekh.aalekh.model.DependencyEdge
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.ModuleNode
@@ -100,5 +101,107 @@ class HealthScoreCalculatorTest {
         )
         val score = HealthScoreCalculator.score(":stable", graph, emptySet())
         assertTrue(score >= 70, "Stable module with no penalty should score >= 70, got $score")
+    }
+
+    // Project score - a different measure from the per-module score above.
+
+    private fun summary(
+        cycleCount: Int = 0,
+        godModuleCount: Int = 0,
+        averageInstability: Double = 0.0,
+    ) = GraphSummary(
+        totalModules = 10,
+        totalEdges = 12,
+        modulesByType = emptyMap(),
+        hasCycles = cycleCount > 0,
+        cycleCount = cycleCount,
+        maxFanOut = 3,
+        maxFanIn = 3,
+        averageInstability = averageInstability,
+        criticalPathLength = 3,
+        godModuleCount = godModuleCount,
+        isolatedModuleCount = 0,
+    )
+
+    @Test
+    fun `clean project scores 100 and is healthy`() {
+        val health = HealthScoreCalculator.projectScore(summary(), errorCount = 0, warningCount = 0)
+
+        assertEquals(100, health.score)
+        assertEquals("Healthy", health.band)
+        assertTrue(health.components.all { it.penalty == 0 })
+    }
+
+    @Test
+    fun `every signal is reported even when it deducts nothing`() {
+        val health = HealthScoreCalculator.projectScore(summary(), errorCount = 0, warningCount = 0)
+
+        assertEquals(
+            listOf("Cycles", "Blocking violations", "Advisories", "Coupling hubs", "Average instability"),
+            health.components.map { it.label },
+        )
+    }
+
+    @Test
+    fun `penalties sum to the deduction from 100`() {
+        val health = HealthScoreCalculator.projectScore(
+            summary(cycleCount = 2, godModuleCount = 1, averageInstability = 0.7),
+            errorCount = 3,
+            warningCount = 2,
+        )
+
+        assertEquals(100 - health.components.sumOf { it.penalty }, health.score)
+    }
+
+    @Test
+    fun `each signal is capped so one problem cannot zero the score`() {
+        val health = HealthScoreCalculator.projectScore(
+            summary(cycleCount = 500),
+            errorCount = 0,
+            warningCount = 0,
+        )
+
+        val cycles = health.components.single { it.label == "Cycles" }
+        assertEquals(cycles.maxPenalty, cycles.penalty)
+        assertTrue(health.score > 0, "A capped signal must leave the score above zero, got ${health.score}")
+    }
+
+    @Test
+    fun `average instability at or below the floor is not penalised`() {
+        val atFloor = HealthScoreCalculator.projectScore(
+            summary(averageInstability = 0.5), errorCount = 0, warningCount = 0
+        )
+        val aboveFloor = HealthScoreCalculator.projectScore(
+            summary(averageInstability = 0.9), errorCount = 0, warningCount = 0
+        )
+
+        assertEquals(0, atFloor.components.single { it.label == "Average instability" }.penalty)
+        assertTrue(aboveFloor.components.single { it.label == "Average instability" }.penalty > 0)
+    }
+
+    @Test
+    fun `band tracks the score`() {
+        val healthy = HealthScoreCalculator.projectScore(summary(), 0, 0)
+        val fair = HealthScoreCalculator.projectScore(summary(cycleCount = 2), errorCount = 1, warningCount = 0)
+        val atRisk = HealthScoreCalculator.projectScore(
+            summary(cycleCount = 5, godModuleCount = 5, averageInstability = 1.0),
+            errorCount = 10,
+            warningCount = 10,
+        )
+
+        assertEquals("Healthy", healthy.band)
+        assertEquals("Fair", fair.band)
+        assertEquals("At risk", atRisk.band)
+    }
+
+    @Test
+    fun `project score is always in range 0 to 100`() {
+        val worst = HealthScoreCalculator.projectScore(
+            summary(cycleCount = 999, godModuleCount = 999, averageInstability = 1.0),
+            errorCount = 999,
+            warningCount = 999,
+        )
+
+        assertTrue(worst.score in 0..100, "Score ${worst.score} out of range")
     }
 }

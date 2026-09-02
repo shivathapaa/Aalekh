@@ -104,4 +104,34 @@ class MetricGateEvaluatorTest {
         val snapshot = MetricGateEvaluator.snapshot(summary)
         assertEquals(MetricSnapshot(2, 1, 12, 40.0, 0.5, 4), snapshot)
     }
+
+    @Test
+    fun `breaking a cycle does not fail the critical-path gate`() {
+        // A cyclic graph has no topological order, so its critical path is recorded as 0 - "not
+        // computable", not "zero-length". Before this was handled, fixing a cycle made the length
+        // jump from 0 to a real value and failed the build for improving the architecture.
+        val baseline = MetricSnapshot(cycleCount = 2, criticalPathLength = 0)
+        val current = MetricSnapshot(cycleCount = 0, criticalPathLength = 7)
+
+        val violations = MetricGateEvaluator.evaluate(
+            current = current,
+            baseline = baseline,
+            gates = setOf(MetricGate.CRITICAL_PATH),
+            severity = Severity.ERROR,
+        )
+
+        assertTrue(violations.isEmpty(), "fixing a cycle must never trip the critical-path gate")
+    }
+
+    @Test
+    fun `the critical-path gate still fires when both sides are acyclic`() {
+        val violations = MetricGateEvaluator.evaluate(
+            current = MetricSnapshot(cycleCount = 0, criticalPathLength = 9),
+            baseline = MetricSnapshot(cycleCount = 0, criticalPathLength = 6),
+            gates = setOf(MetricGate.CRITICAL_PATH),
+            severity = Severity.ERROR,
+        )
+
+        assertEquals(1, violations.size)
+    }
 }

@@ -80,7 +80,8 @@ public object MetricGateEvaluator {
     ): Violation? {
         val now = value(gate, current)
         val was = value(gate, baseline)
-        if (now <= was + EPSILON) return null
+        val regressed = isComparable(gate, current, baseline) && now > was + EPSILON
+        if (!regressed) return null
         return Violation(
             ruleId = RULE_ID,
             severity = severity,
@@ -92,6 +93,21 @@ public object MetricGateEvaluator {
                     "committed baseline, so architecture quality only ratchets in one direction.",
         )
     }
+
+    /**
+     * True when a gate's two values mean the same thing and can be compared.
+     *
+     * A cyclic graph has no topological order, so its critical path is recorded as `0` - meaning "not
+     * computable", not "zero-length". Comparing that sentinel against a real length would fail the
+     * build for **breaking a cycle**, which is the opposite of what the gate is for. The comparison is
+     * therefore skipped whenever either side was cyclic; the `cycles` gate is what guards that case.
+     */
+    private fun isComparable(
+        gate: MetricGate,
+        current: MetricSnapshot,
+        baseline: MetricSnapshot,
+    ): Boolean = gate != MetricGate.CRITICAL_PATH ||
+            (current.cycleCount == 0 && baseline.cycleCount == 0)
 
     private fun value(gate: MetricGate, snapshot: MetricSnapshot): Double = when (gate) {
         MetricGate.CYCLES -> snapshot.cycleCount.toDouble()
