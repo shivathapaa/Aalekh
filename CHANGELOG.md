@@ -119,8 +119,27 @@ All notable changes to this project are documented here. Format based on
   be depended on by at least 5%. Entry points are ordered by how far they reach rather than
   alphabetically, and only an application module claims to be where execution starts - the rest say
   what is actually known, that nothing depends on them.
+- **The Focus view no longer leaks onto the other Map sub-views.** Its module and depth bar was
+  rendered on the Architecture and Regions views too, and its graph did not build until the sub-view
+  was opened. It is now shown only when Focus is active.
+- **Map sub-views resize with the space they have.** The Architecture and Force graph refit when the
+  inspector opens or closes, the line index collapses, or the window resizes - previously they were
+  left stretched or cropped.
+- **Findings and generated documentation no longer over-wrap.** Long evidence lists (a run of module
+  paths) wrapped into a narrow right-aligned column; each value now sits below its label and uses the
+  card width. The inspector's plugin list is one plugin per line instead of a run-on that overflowed.
+- **A plural is formed correctly.** `library` now reads as `libraries`, not `librarys`.
+- **Permalinks to the Dependencies, Build, and Rules tabs restore those tabs** instead of falling
+  back to the Overview.
 
 ### Changed
+- **The line index (the Lines / Legend rail) shows only on the Map, and can be collapsed there.** It
+  is the Map's legend, so on every other panel its column is reclaimed for the report. The collapse
+  state is remembered.
+- **The report explains its own controls.** The status chips now open the panel they summarise; the
+  plugin usage bar, region cohesion bars, region flows, and the region "+N" chips describe themselves
+  on hover, and "+N" expands in place to show the modules it stood for. The canvas legend can be
+  collapsed.
 - A `Provenance` type (`OBSERVED` / `COMPUTED` / `INFERRED` / `SUGGESTED`) records how Aalekh knows a
   value. A declared value always overrides an inferred one, and the report says which is in effect.
 - Graph extraction is shared between the settings plugin and the deprecated project plugin
