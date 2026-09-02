@@ -2,6 +2,7 @@ package com.aalekh.aalekh.report
 
 import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
 import com.aalekh.aalekh.analysis.rules.AppliedRule
+import com.aalekh.aalekh.analysis.rules.LayerSpec
 import com.aalekh.aalekh.model.CoChange
 import com.aalekh.aalekh.model.DependencyEdge
 import com.aalekh.aalekh.model.ExternalDependency
@@ -577,5 +578,96 @@ class HtmlReportGeneratorTest {
         assertTrue(html.contains("\"ccd\":6"), "CCD must be embedded in the summary JSON")
         assertTrue(html.contains("\"tanglePercent\":0"), "A clean DAG must report zero tangle")
         assertTrue(html.contains("\"nccd\":"), "NCCD must be present in the summary JSON")
+    }
+
+    // Declared layers
+    //
+    // The report groups its Architecture swimlanes and layer purity table by these. Without them
+    // it falls back to guessing from module path segments, so what reaches the HTML decides whether
+    // the report shows the enforced architecture or an inference.
+
+    private fun htmlWithLayers(layers: List<LayerSpec>): String {
+        val graph = sampleGraph()
+        return HtmlReportGenerator.generate(
+            projectName = graph.projectName,
+            graph = graph,
+            summary = GraphAnalyzer.summary(graph),
+            layers = layers,
+        )
+    }
+
+    @Test
+    fun `declared layers are embedded with their patterns and allowed lists`() {
+        val html = htmlWithLayers(
+            listOf(
+                LayerSpec("domain", listOf(":core:domain"), emptyList(), hasRestriction = false),
+                LayerSpec("presentation", listOf(":app", ":feature:*"), listOf("domain"), hasRestriction = true),
+            )
+        )
+
+        assertTrue(
+            html.contains("""{"name":"domain","patterns":[":core:domain"],"allowed":[],"restricted":false}"""),
+            "Each declared layer must embed its name, patterns, allowed list, and restriction flag"
+        )
+        assertTrue(
+            html.contains(
+                """{"name":"presentation","patterns":[":app",":feature:*"],""" +
+                    """"allowed":["domain"],"restricted":true}"""
+            ),
+            "A restricted layer must embed its canOnlyDependOn allowlist"
+        )
+    }
+
+    @Test
+    fun `declared layers mark the layer source as declared`() {
+        val html = htmlWithLayers(
+            listOf(LayerSpec("domain", listOf(":core:domain"), emptyList(), hasRestriction = false))
+        )
+
+        assertTrue(
+            html.contains(""""layerSource":"OBSERVED""""),
+            "With layers declared the report must not present the grouping as inferred"
+        )
+    }
+
+    @Test
+    fun `no declared layers marks the layer source as inferred`() {
+        val html = generateHtml()
+
+        assertTrue(html.contains(""""layers":[]"""), "No declared layers must serialize as an empty array")
+        assertTrue(
+            html.contains(""""layerSource":"INFERRED""""),
+            "Without declared layers the report must say the grouping was inferred"
+        )
+    }
+
+    // Project health
+
+    @Test
+    fun `summary JSON embeds the project health score with its components`() {
+        val html = generateHtml()
+
+        assertTrue(html.contains(""""health":{"score":"""), "Project health must be embedded")
+        assertTrue(html.contains(""""band":"Healthy""""), "A clean sample graph must band as Healthy")
+        assertTrue(
+            html.contains(""""label":"Cycles""""),
+            "Health components must be embedded so the dial can explain the score"
+        )
+    }
+
+    @Test
+    fun `project health reflects violations passed to the generator`() {
+        val graph = sampleGraph()
+        val html = HtmlReportGenerator.generate(
+            projectName = graph.projectName,
+            graph = graph,
+            summary = GraphAnalyzer.summary(graph),
+            violations = List(3) {
+                Violation("layer-dependency", Severity.ERROR, "message $it", ":app → :core:domain")
+            },
+        )
+
+        // 3 ERROR violations x 5 points = 15 deducted by the blocking-violations signal.
+        assertTrue(html.contains(""""health":{"score":85"""), "ERROR violations must lower project health")
     }
 }
