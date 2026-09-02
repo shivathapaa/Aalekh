@@ -125,8 +125,9 @@ internal object RiskFinders {
                     "${Phrasing.count(worst.blastRadius, "module")} to rebuild and retest - " +
                     "${Phrasing.percent(worst.blastRadiusPercent)} of the project. " +
                     (if (wide.size > 1) {
-                        "${Phrasing.list(wide.drop(1).map { it.path }, MAX_NAMED)} " +
-                                "reach almost as far. "
+                        val rest = wide.drop(1).map { it.path }
+                        "${Phrasing.list(rest, MAX_NAMED)} " +
+                                "${Phrasing.agree(rest.size, "reaches", "reach")} almost as far. "
                     } else "") +
                     "Changes to these modules are never local, whatever the diff looks like.",
             evidence = wide.take(MAX_NAMED).map {

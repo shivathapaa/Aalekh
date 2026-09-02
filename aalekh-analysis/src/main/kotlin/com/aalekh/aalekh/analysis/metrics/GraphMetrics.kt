@@ -72,7 +72,9 @@ public data class StabilityViolation(
  * @param fanInGini Concentration of fan-in across modules, in `[0, 1]`. 0 means every module is
  *   depended on equally; approaching 1 means a handful of modules absorb nearly all dependencies.
  * @param maxDepth Longest shortest-path from an entry point - how many layers deep the project goes.
- * @param entryPoints Modules nothing depends on, sorted.
+ * @param entryPoints Modules nothing depends on, the ones reaching furthest into the project
+ *   first. A build has several - an app shell, a benchmark, a test-support module - and only the
+ *   ones with real reach are worth naming.
  * @param foundation Modules that depend on nothing, sorted.
  * @param articulationPoints Modules whose removal disconnects the graph, sorted.
  * @param stabilityViolations Edges pointing against the stability gradient, worst gap first.
@@ -195,7 +197,10 @@ public object GraphMetrics {
                 moduleCount = index.size,
                 fanInGini = gini(modules.values.map { it.fanIn.toDouble() }),
                 maxDepth = depth.max(),
-                entryPoints = modules.values.filter { it.isEntryPoint }.map { it.path }.sorted(),
+                entryPoints = modules.values.filter { it.isEntryPoint }
+                    .sortedWith(compareByDescending<ModuleGraphMetrics> { it.transitiveDependencies }
+                        .thenBy { it.path })
+                    .map { it.path },
                 foundation = modules.values.filter { it.isFoundation }.map { it.path }.sorted(),
                 articulationPoints = articulation.map { index.pathOf(it) }.sorted(),
                 stabilityViolations = stabilityViolations(index, modules),
