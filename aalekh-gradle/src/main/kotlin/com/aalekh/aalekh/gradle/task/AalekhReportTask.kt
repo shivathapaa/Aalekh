@@ -567,13 +567,16 @@ public abstract class AalekhCheckTask : DefaultTask() {
             logger.lifecycle("\nAalekh [info] ${infos.size} informational violation(s) - see the report for details.")
         }
 
-        val summary = buildString {
+        val counts = buildString {
             if (errors.isNotEmpty()) append("${errors.size} error(s)")
             if (warnings.isNotEmpty()) {
                 if (isNotEmpty()) append(", ")
                 append("${warnings.size} warning(s)")
             }
         }
+        // A clean run has no counts to report; "no errors or warnings" beats a blank in the middle
+        // of the sentence.
+        val summary = counts.ifEmpty { "no errors or warnings" }
         logger.lifecycle(
             "\nAalekh: $summary found across ${ruleResult.rulesEvaluated} rule(s). " +
                     "Report: ${outDir.absolutePath}/index.html"
