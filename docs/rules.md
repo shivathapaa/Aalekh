@@ -68,6 +68,15 @@ A layer without `canOnlyDependOn(...)` has no dependency restriction. Any layer 
 `canOnlyDependOn(...)` is restricted to only depend on the listed layers; a dependency on any
 module outside those layers is a `layer-dependency` violation.
 
+A module belongs to the **first** layer whose pattern matches it, evaluated in the order the layers
+are declared in the block - not alphabetically. If two layers could claim the same module, the one
+declared first wins. The HTML report resolves layers identically, so the swimlane a module is drawn
+in is always the layer whose rules are enforced on it.
+
+Modules that match no declared layer are unconstrained by `layer-dependency`; the report groups them
+into an **Unclassified** lane, and [`requireLayerForAllModules()`](#exhaustive-layer-coverage) turns
+that condition into a violation.
+
 When a violation is found, the message names the exact build file and dependency to remove:
 
 ```
@@ -467,6 +476,84 @@ aalekh {
 Valid metric keys: `cycles`, `god-modules`, `ccd`, `tangle`, `instability`, `critical-path`. A
 regression on any enabled metric becomes a `metric-regression` violation. Refresh the baseline with
 `aalekhBaseline` after a legitimate, accepted change.
+
+## Extension points
+
+Aalekh has four extension points, each answering a different question about your project. All are
+discovered with the JDK `ServiceLoader` from a jar on the plugin's runtime classpath, and all are
+**pure functions of the graph**: no filesystem, no network, no Gradle API, and deterministic, because
+their output is written into committed documentation and compared in review.
+
+| SPI | Contributes | Use it when |
+|-----|-------------|-------------|
+| `ArchRule` | a violation | the build should **fail** on something |
+| `MetricProvider` | a number | you want to **measure** something Aalekh does not |
+| `FindingProvider` | a sentence | you want the report to **say** something Aalekh cannot know |
+| `ModuleClassifier` | module metadata | Aalekh's guess at a module's layer, team, or purpose is wrong, and you know the real rule |
+
+Every one is fail-silent: an extension that will not load, has a blank or duplicate id, or throws, is
+skipped and reported. A third party's bug must never break someone else's build.
+
+### FindingProvider
+
+Aalekh can see that `:core:legacy` has forty dependents; it cannot know that the migration off it is
+half-finished. A `FindingProvider` turns that into a finding that appears in the report, the generated
+documentation, and the presentation, alongside the built-in ones.
+
+```kotlin
+class MigrationStatusFinding : FindingProvider {
+    override val id = "legacy-migration"
+
+    override fun find(graph: ModuleDependencyGraph): List<Finding> {
+        val remaining = graph.edges.filter { it.to == ":core:legacy" && !it.isTest }
+        if (remaining.isEmpty()) return emptyList()
+        return listOf(
+            Finding(
+                id = id,
+                category = FindingCategory.STRUCTURE,
+                severity = Severity.WARNING,
+                title = "${remaining.size} modules still depend on :core:legacy",
+                detail = "The migration to :core:platform is unfinished. Each remaining " +
+                    "dependency blocks deleting the legacy module.",
+                subjects = remaining.map { it.from },
+                action = "Move each consumer to :core:platform, then delete :core:legacy.",
+            )
+        )
+    }
+}
+```
+
+Register it with `META-INF/services/com.aalekh.aalekh.analysis.spi.FindingProvider`.
+
+### ModuleClassifier
+
+Aalekh infers a module's layer from path segments and its team from glob patterns - both guesses
+about a convention it was not told. A classifier replaces the guess with the rule your team actually
+uses, and states whether the answer is observed or inferred.
+
+```kotlin
+class ServiceRegistryClassifier : ModuleClassifier {
+    override val id = "service-registry"
+
+    override fun classify(modulePath: String, graph: ModuleDependencyGraph) =
+        registry[modulePath]?.let {
+            ModuleClassification(
+                team = it.owningTeam,
+                purpose = it.description,
+                provenance = Provenance.OBSERVED,   // read from the registry, not guessed
+            )
+        }
+}
+```
+
+**Precedence.** A classifier sits between the two things it must not override:
+
+1. anything declared directly - `.aalekh/modules.json`, `layers { }`, `teams { }`
+2. **`ModuleClassifier`**
+3. Aalekh's own path-segment heuristics, and `CODEOWNERS`
+
+An explicit declaration outranks any rule that infers one; a team's real convention beats a generic
+heuristic. Returning null for a module leaves it to the next source.
 
 ## Custom rules
 

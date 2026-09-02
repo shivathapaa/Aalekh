@@ -87,9 +87,17 @@ enabled metric (`cycles`, `god-modules`, `ccd`, `tangle`, `instability`, `critic
 | `includeExternalDependencies`    | `Boolean` | `true`             | Capture external (third-party) dependency coordinates for the report inspector |
 | `exportMetrics`                  | `Boolean` | `false`                 | Write `aalekh-metrics.csv` alongside the HTML report                    |
 | `baselineFile`                   | `String`  | `"aalekh-baseline.json"` | Path (relative to root) of the committed violation baseline; see [rules](rules.md#baseline--freeze) |
+| `snapshotFile`                   | `String`  | `"aalekh-snapshot.json"` | Path (relative to root) of the committed architecture snapshot; see [`aalekhDiff`](tasks.md#aalekhdiff) |
+| `failOnArchitectureRegression`   | `Boolean` | `false`                  | Fail `aalekhDiff` on a new cycle or a regressed metric instead of only reporting it |
 | `temporalCoupling.commitWindow`  | `Int`     | `500`                    | Recent non-merge commits `aalekhTemporal` analyses                          |
 | `temporalCoupling.minSharedCommits` | `Int`  | `2`                      | Minimum shared commits before a co-change pair is reported                  |
 | `temporalCoupling.hiddenCouplingThreshold` | `Double` | `0.6`           | Coupling degree at/above which an undeclared pair is flagged hidden coupling |
+| `affected.baseRef`               | `String`  | `"HEAD~1"`               | Git ref `aalekhAffected` diffs from                                          |
+| `affected.headRef`               | `String`  | `""`                     | Git ref to diff to; empty means the working tree                             |
+| `mermaid.focus(...)`             | `vararg String` | none               | Module patterns to centre the Mermaid/DOT export on; see [filters](tasks.md#focus-and-exclude-filters) |
+| `mermaid.exclude(...)`           | `vararg String` | none               | Module patterns to omit from the Mermaid/DOT export, applied after `focus`   |
+| `mermaid.depth(...)`             | `Int`     | `1`                      | How many dependency hops around a focused module to include                  |
+| `qualityGates.severity`          | `Severity`| `ERROR`                  | Severity of a `metric-regression` violation; see [quality gates](rules.md#quality-gates) |
 
 ## Captured Configurations
 
@@ -131,6 +139,25 @@ and is not a standard configuration above is treated as a KMP source set configu
 The source set name is extracted from the configuration name (e.g. `commonMainImplementation`
 → source set `commonMain`) and stored on the edge for display in the graph.
 
+For multiplatform modules, Aalekh also records the module's **full** source-set list (`commonMain`,
+`androidMain`, `iosMain`, their test counterparts, and so on) by reading the Kotlin extension
+reflectively during extraction. Non-multiplatform modules record none. The list appears in the
+module inspector.
+
+## What else extraction records
+
+Beyond modules, edges, and external coordinates, `aalekhExtract` records:
+
+| Fact | Source | Notes |
+|------|--------|-------|
+| **Build file path** | `Project.getBuildFile()` | The real location, so a module that does not follow the `:a:b` → `a/b/build.gradle.kts` convention still resolves. Used in violation messages and to map changed files to modules in the git-driven analyses. |
+| **Declaration line** | A scan of the module's build file | The 1-based line each `project(...)` dependency is declared on. Recognises `project(":a:b")`, `project(':a:b')`, and the type-safe `projects.a.b` accessor. Reported as `file:line` in cycle-break advice. Null when the declaration cannot be located - never a guessed line. |
+| **KMP source sets** | The Kotlin extension, reflectively | Multiplatform modules only. |
+| **Module health score** | Computed from the finished graph | See [Metrics](metrics.md#architecture-health-scores). |
+
+The build files are declared as task inputs, so reordering two dependency declarations correctly
+re-runs extraction rather than leaving stale line numbers in a cached result.
+
 ## Module Types
 
 Aalekh infers the module type from applied plugin class names. Detection runs in priority order -
@@ -166,6 +193,52 @@ source replacement for a published coordinate) resolves as an external module de
 project dependency. It appears under external dependencies in the inspector rather than as a graph
 edge to that module. Single-build projects that use `build-logic` only for convention plugins - the
 common Android/KMP shape - are fully covered.
+
+## Declaring what Aalekh cannot infer
+
+Aalekh works out a great deal from module paths, applied plugins, and the dependency graph, and every
+inference is a chance to be wrong. `.aalekh/modules.json` is the way out: whatever a team states there
+is an **observed fact** that overrides any guess. A module's *purpose* in particular can only come
+from a human - no amount of graph analysis reveals why a module exists.
+
+```json
+{
+  "modules": [
+    {
+      "path": ":core:sync",
+      "purpose": "Owns the offline queue and conflict resolution. Everything that writes while
+                  offline goes through here.",
+      "owner": "platform-team",
+      "layer": "core",
+      "status": "frozen",
+      "links": { "Design doc": "https://example.com/adr-14" }
+    }
+  ]
+}
+```
+
+| Field | Effect |
+|-------|--------|
+| `path` | The module this describes. Required; entries without one are ignored. |
+| `purpose` | Shown first in the module inspector and in `modules.md`. The only source of intent Aalekh has. |
+| `owner` | Overrides both `teams { }` and `CODEOWNERS` for this module. |
+| `layer` | Overrides layer matching for this module. |
+| `status` | A lifecycle marker such as `experimental`, `deprecated`, or `frozen`. |
+| `links` | Named URLs - design docs, dashboards, ADRs - rendered in the inspector. |
+
+Every field is optional and the file is entirely optional. Describing the eight modules newcomers
+keep asking about, and nothing else, is a perfectly good use of it. A malformed file produces a
+warning and is treated as absent: documentation must never fail a build.
+
+## Ownership without configuration
+
+If the repository has a `CODEOWNERS` file, Aalekh reads it - `.github/`, the root, `docs/`, and
+`.gitlab/` are all checked - and uses it for module ownership. Most projects that care about
+ownership already have one, so this is a team map for free.
+
+Where more than one source claims a module, the most specific wins: `.aalekh/modules.json`, then
+`teams { }`, then `CODEOWNERS`. Rules that Aalekh cannot model exactly (negation, brace expansion)
+are skipped rather than half-applied, because assigning the wrong owner is worse than assigning none.
 
 ## Configuration Cache
 

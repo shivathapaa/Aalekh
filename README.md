@@ -16,34 +16,40 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/></a>
 </p>
 
-**Architecture Visualization & Linting for Gradle Multi-Module Projects**
+**Understand, document, and enforce the architecture of a Gradle multi-module project**
 
-Aalekh is a Gradle plugin that extracts, visualizes, and enforces architectural rules across any
-Gradle multi-module project - Kotlin Multiplatform, Android, JVM, or any Gradle project. It gives
-teams three capabilities that no existing tool provides together: an **interactive module graph**, a
-**Kotlin DSL for architecture rule enforcement**, and **historical metrics tracking** - in a single
-plugin, with zero external dependencies beyond the browser.
+Aalekh is a Gradle plugin that reads your build - Kotlin Multiplatform, Android, JVM, or plain
+Gradle - and produces an interactive report that explains the project, Markdown documentation you can
+commit, and a rule engine that fails the build when the architecture drifts. It runs inside the
+build, so it sees what you declared rather than guessing at it, and needs no external service.
 
-| Tool       | Visualizes | Enforces rules | Tracks metrics | KMP-aware |
-|------------|:----------:|:--------------:|:--------------:|:---------:|
-| **Aalekh** |   **✓**    |     **✓**      |     **✓**      |   **✓**   |
+`./gradlew aalekhReport` works with no configuration at all. Rules, layers, and ownership are opt-in
+on top of it.
 
 ## Highlights
 
-- **Interactive HTML report** - offline and self-contained: force graph, layer swimlane, adjacency
-  matrix, tree, module inspector, an applied-rules panel, command palette, drag-drop diff,
-  dark/light themes, and a KPI panel.
+- **Interactive HTML report** - offline and self-contained: region map, force graph, layer swimlane,
+  focus view, adjacency matrix, tree, module inspector, rules and violations panels, a searchable
+  command palette, dark/light themes, and a KPI panel.
+- **Plain-language findings** - the report explains what it found rather than only plotting it, with
+  the measurements behind each statement and a suggested reading order for a project you do not know.
 - **Architecture rule DSL** - layers, feature isolation, reachability, per-source-set / KMP rules,
   graph-height and orphan checks, inline `forbid { }` predicates, and custom `ArchRule`s.
 - **Baseline & quality gates** - freeze existing violations and fail only on new ones, and ratchet
   structural metrics (cycles, CCD, %tangle, instability) so they can only improve.
-- **Text graph exports** - diffable Mermaid and Graphviz DOT, with focus/exclude filters for large
-  graphs.
-- **Metrics** - Martin instability, Lakos CCD/ACD/NCCD and %tangle, distance from the main sequence,
-  a rolling trend window, and a `MetricProvider` SPI for your own metrics.
+- **Architecture diffs** - commit a snapshot, and every pull request gets a comment listing the
+  dependencies, modules, and cycles it added or removed.
+- **Generated documentation** - a Markdown module catalogue, onboarding guide, and metric glossary you
+  can commit and review as a diff.
+- **Project inventory** - plugins and their versions, version catalogs, Java toolchains, KMP targets,
+  test source sets, and ownership from `CODEOWNERS`.
+- **Metrics** - blast radius, influence, betweenness, Martin instability, Lakos CCD/ACD/NCCD and
+  %tangle, distance from the main sequence, a rolling trend window, and a `MetricProvider` SPI.
 - **Git-aware analysis** - temporal (change) coupling and hotspots, plus an affected-graph blast
   radius for a diff, each written as a local, PR-reviewable artefact.
-- **CI-ready outputs** - HTML, JSON, JUnit XML, SARIF, GitLab Code Quality, and CSV.
+- **Text graph exports** - diffable Mermaid and Graphviz DOT, with focus/exclude filters for large
+  graphs.
+- **CI-ready outputs** - HTML, Markdown, JSON, JUnit XML, SARIF, GitLab Code Quality, and CSV.
 
 ## Sample Reports
 
@@ -78,7 +84,7 @@ cyclic-dependency demo - is documented in [docs/real-world-examples.md](docs/rea
 
 ```kotlin
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.6.1"
+    id("io.github.shivathapaa.aalekh") version "0.7.0"
 }
 ```
 
@@ -100,7 +106,7 @@ across configuration cache entries, preventing cache misses on subsequent runs.
 ```kotlin
 // settings.gradle.kts
 plugins {
-    id("io.github.shivathapaa.aalekh") version "0.6.1"
+    id("io.github.shivathapaa.aalekh") version "0.7.0"
 }
 ```
 
@@ -119,7 +125,7 @@ time. To migrate: move the plugin declaration to `settings.gradle.kts` and remov
 ```kotlin
 // build.gradle.kts (root project only) - deprecated, migrate to settings plugin
 plugins {
-    id("io.github.shivathapaa.aalekh.project") version "0.6.1"
+    id("io.github.shivathapaa.aalekh.project") version "0.7.0"
 }
 ```
 
@@ -129,7 +135,7 @@ plugins {
 
 ## Tasks at a glance
 
-Aalekh registers nine tasks on the root project, all in the `aalekh` task group.
+Aalekh registers twelve tasks on the root project, all in the `aalekh` task group.
 
 | Task                       | Description                                                                                  |
 |----------------------------|----------------------------------------------------------------------------------------------|
@@ -142,8 +148,11 @@ Aalekh registers nine tasks on the root project, all in the `aalekh` task group.
 | `./gradlew aalekhAffected` | Computes modules affected by a git diff and their blast radius (`aalekh-affected.md` / `.json`) |
 | `./gradlew aalekhMainSequence` | Abstractness/instability/distance-from-main-sequence per module (`aalekh-main-sequence.md` / `.json`) |
 | `./gradlew aalekhMetrics`  | Runs custom `MetricProvider` SPI implementations and writes their values (`aalekh-custom-metrics.md` / `.json`) |
+| `./gradlew aalekhDocs`     | Writes architecture documentation as Markdown to `build/reports/aalekh/docs/` |
+| `./gradlew aalekhSnapshot` | Records the current architecture as a committable `aalekh-snapshot.json` |
+| `./gradlew aalekhDiff`     | Reports what a change did to the architecture, as a PR comment (`aalekh-diff.md` / `.json`) |
 
-All tasks depend on `aalekhExtract` implicitly, and `aalekhCheck` wires into the standard `check`
+Every task depends on `aalekhExtract` implicitly, and `aalekhCheck` wires into the standard `check`
 lifecycle automatically. See [Gradle tasks](docs/tasks.md) for details.
 
 ## Documentation
@@ -152,12 +161,13 @@ Full reference documentation lives in [`docs/`](docs/README.md):
 
 | Guide | What's inside |
 |-------|---------------|
-| [Gradle tasks](docs/tasks.md) | All nine `aalekh*` tasks — what each does and produces |
-| [The report](docs/report.md) | The interactive HTML report: six panels, toolbar, command palette, themes, permalinks, inspector, cycle detection |
-| [Configuration](docs/configuration.md) | The `aalekh { }` block, captured configurations, module types, configuration cache |
-| [Architecture rules](docs/rules.md) | Built-in rules, layers, feature isolation, team ownership, reachability & per-source-set/KMP rules, quality gates, baseline, gradual adoption, SARIF, custom rules |
+| [Gradle tasks](docs/tasks.md) | All twelve `aalekh*` tasks — what each does and produces |
+| [The report](docs/report.md) | The interactive HTML report: nine panels, findings, typed queries, presentation mode, themes, permalinks, inspector |
+| [Configuration](docs/configuration.md) | The `aalekh { }` block, captured configurations, module types, declared metadata, configuration cache |
+| [Architecture rules](docs/rules.md) | Built-in rules, layers, feature isolation, team ownership, reachability & per-source-set/KMP rules, quality gates, baseline, gradual adoption, SARIF, custom rules, extension points |
 | [Metrics & output](docs/metrics.md) | Graph metrics, Lakos coupling & main-sequence, temporal coupling, output files, CSV export, trend history |
-| [CI setup](docs/ci.md) | Wiring `aalekhCheck` and the report into GitHub Actions |
+| [CI setup](docs/ci.md) | Wiring checks, architecture diffs, and generated documentation into a pipeline |
+| [Real-world examples](docs/real-world-examples.md) | Working `aalekh { }` configurations from three real projects |
 
 A minimal `aalekh { }` block to enforce layered architecture:
 
@@ -184,13 +194,9 @@ per-source-set rules, `forbid { }` predicates, quality gates, baselines, and cus
 
 ## Compatibility
 
-| Aalekh | Gradle | Kotlin | AGP  | JDK        |
-|--------|--------|--------|------|------------|
-| 0.5.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
-| 0.4.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
-| 0.3.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
-| 0.2.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
-| 0.1.x  | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
+| Aalekh        | Gradle | Kotlin | AGP  | JDK        |
+|---------------|--------|--------|------|------------|
+| 0.1.x - 0.7.x | 9.0+   | 2.3+   | 9.1+ | 11, 17, 21 |
 
 Aalekh requires the **settings plugin** (`settings.gradle.kts`) on Gradle 9.x because configuration
 cache is enabled by default and the project plugin cannot safely capture inter-project state across

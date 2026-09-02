@@ -14,8 +14,70 @@
 | **Critical path**    | Longest dependency chain in the graph - the primary constraint on build parallelism                                                                                                       |
 | **God modules**      | Modules with both high fan-in AND high fan-out - architectural hotspots that are difficult to change safely                                                                               |
 | **Isolated modules** | Modules with zero fan-in and zero fan-out - candidates for removal                                                                                                                        |
-| **Layer purity**     | Per-layer percentage of dependency edges flowing in the correct declared direction                                                                                                        |
-| **Health score**     | 0–100 composite score. Weighted from instability (30%), god module (25%), cycle participation (25%), transitive dep count (20%). Shown in the metrics table and module inspector sidebar. |
+| **Layer purity**     | Per-layer share of outgoing production edges that point at a permitted layer                                                                                                              |
+| **Health score**     | Two separate 0–100 scores - one per module, one per project. See [Architecture health scores](#architecture-health-scores) below                                                          |
+
+## Architecture health scores
+
+Aalekh computes **two** health scores. They answer different questions and are never
+interchangeable: a project of individually healthy modules can still score poorly as a whole if
+those modules are tangled together. Both are single-sourced in `HealthScoreCalculator`
+(`aalekh-analysis`), so the report, the CSV export, and `graph.json` always agree.
+
+### Module health score
+
+*"Is this module in a healthy position in the graph?"* Recorded on every module during
+`aalekhExtract`, so it appears in `graph.json`, the `aalekh-metrics.csv` `healthScore` column, the
+Health panel's per-module table, and the module inspector. Starts at 100 and deducts:
+
+| Signal               | Weight | Rationale                                                    |
+|----------------------|--------|--------------------------------------------------------------|
+| Instability index    | 30     | How dependent vs depended-upon the module is                  |
+| God module status    | 25     | High fan-in **and** fan-out - hard to change, hard to test     |
+| Cycle participation  | 25     | Cycles prevent independent builds and refactoring              |
+| Transitive dep count | 20     | Proxy for hidden coupling and build-time impact, zero at 50+   |
+
+100 means stable, not a coupling hotspot, in no cycle, and with few transitive dependencies. Below
+40 is a strong signal the module needs architectural attention.
+
+### Project health score
+
+*"Is this project's architecture in good shape right now?"* Shown on the Overview dial and embedded
+in the report summary as `health`. It weighs project-level facts a single module cannot express.
+Starts at 100 and deducts, each signal **capped** so no single problem can drive the score to zero:
+
+| Signal               | Points each | Cap | Notes                                              |
+|----------------------|-------------|-----|-----------------------------------------------------|
+| Cycles               | 12          | 40  | Main-code dependency loops                          |
+| Blocking violations  | 5           | 25  | `ERROR`-severity rule violations                    |
+| Advisories           | 2           | 10  | `WARNING`-severity rule violations                  |
+| Coupling hubs        | 4           | 15  | God modules                                         |
+| Average instability  | —           | 15  | `(avg − 0.5) × 30`; nothing deducted at or below 0.5 |
+
+Bands: **Healthy** at 80+, **Fair** at 55–79, **At risk** below 55. The Overview panel lists every
+penalty that fired, with its arithmetic, so the headline number is inspectable rather than a
+verdict.
+
+## Structural metrics
+
+Computed per module from the production graph, and shown in the Health table, the module inspector,
+and `modules.md`. Each answers a question a developer actually asks; the report carries the same
+definitions inline, so a number never appears without its meaning attached.
+
+| Metric | Question it answers | How to read it |
+|--------|---------------------|----------------|
+| **Blast radius** | If I make a breaking change here, how much must be rebuilt, retested and reviewed? | The real cost of changing a module. Above about a third of the project, every change is a whole-project change. |
+| **Influence** | Which modules is this project actually built on? | PageRank over the dependency graph, normalised so the mean module is `1.0`. Unlike fan-in it weighs *who* depends on you: being used by the app counts for more than being used by a leaf. |
+| **Betweenness** | Is this a choke point the project's structure routes through? | The share of shortest dependency paths passing through it. High betweenness means changes ripple in both directions. |
+| **Comprehension cost** | How much of the codebase must I read to understand this module? | The modules whose behaviour can affect it. One you cannot understand without reading fifty others is expensive to own. |
+| **API surface** | How much of what this module depends on does it re-export? | Every `api` dependency lands on every consumer's compile classpath, widening their blast radius too. |
+| **Depth** | How far is this from where execution starts? | `0` is an entry point. Nothing to fix - use it to navigate. |
+| **Articulation point** | Would removing this module split the project in two? | A structural bottleneck rather than merely a busy one. Computed on the undirected projection: the question is about connectivity, not direction. |
+| **Dependency concentration** | Is dependency spread across the project, or absorbed by a few modules? | Gini coefficient of fan-in. Approaching `1` means a small core the whole project routes through - not wrong, but it makes those modules the bottleneck for every change. |
+
+**Percentiles over thresholds.** The report ranks modules against their own project rather than
+against a fixed number: "99th-percentile fan-in *for this project*" means something on a 20-module
+build and on a 900-module one, where "fan-in ≥ 5" does not.
 
 ## System coupling (Lakos)
 
@@ -112,6 +174,10 @@ never fatal. Values land in `aalekh-custom-metrics.json` (machine-readable) and
 | `build/reports/aalekh/aalekh-main-sequence.json` | `aalekhMainSequence`| The same main-sequence data, machine-readable.                                          |
 | `build/reports/aalekh/aalekh-custom-metrics.md`  | `aalekhMetrics`     | Custom `MetricProvider` SPI values: system table and per-module tables.                  |
 | `build/reports/aalekh/aalekh-custom-metrics.json`| `aalekhMetrics`     | The same custom-metric data, machine-readable, with any provider failures.              |
+| `build/reports/aalekh/docs/`                     | `aalekhDocs`        | Generated Markdown: `README.md`, `modules.md`, `onboarding.md`, `health.md`, `regions.md`, `build.md`, `dependencies.md`. No timestamp, so unchanged input yields identical files. |
+| `aalekh-snapshot.json`                           | `aalekhSnapshot`    | Committed architecture snapshot: modules, edges, layers, cycles, and metrics, all sorted. Path set by `snapshotFile`. |
+| `build/reports/aalekh/aalekh-diff.md`            | `aalekhDiff`        | Pull-request comment: new cycles, added and removed dependencies and modules, layer moves, metric deltas. |
+| `build/reports/aalekh/aalekh-diff.json`          | `aalekhDiff`        | The same architecture diff, machine-readable.                                           |
 
 ## Metrics CSV export
 
