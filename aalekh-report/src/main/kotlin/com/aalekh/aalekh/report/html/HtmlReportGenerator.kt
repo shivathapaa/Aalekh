@@ -2,12 +2,22 @@ package com.aalekh.aalekh.report.html
 
 import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
 import com.aalekh.aalekh.analysis.graph.GraphSummary
+import com.aalekh.aalekh.analysis.graph.PresentationProfile
+import com.aalekh.aalekh.analysis.graph.RegionAnalyzer
+import com.aalekh.aalekh.analysis.graph.RegionMap
+import com.aalekh.aalekh.analysis.metrics.GraphMetricSet
+import com.aalekh.aalekh.analysis.metrics.GraphMetrics
+import com.aalekh.aalekh.analysis.metrics.HealthScoreCalculator
+import com.aalekh.aalekh.analysis.metrics.MetricCatalog
 import com.aalekh.aalekh.analysis.rules.AppliedRule
+import com.aalekh.aalekh.analysis.rules.LayerSpec
 import com.aalekh.aalekh.model.AalekhBuildConfig
 import com.aalekh.aalekh.model.CoChange
 import com.aalekh.aalekh.model.ModuleChurn
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.ModuleMainSequence
+import com.aalekh.aalekh.model.NarrativeReport
+import com.aalekh.aalekh.model.Provenance
 import com.aalekh.aalekh.model.Violation
 import kotlinx.serialization.json.Json
 import java.time.Instant
@@ -49,6 +59,9 @@ public object HtmlReportGenerator {
     private const val VERSION_PLACEHOLDER = "{{AALEKH_VERSION}}"
     private const val D3_PLACEHOLDER = "{{D3_INLINE}}"
 
+    /** Metric values are embedded rounded to four decimals; see [round]. */
+    private const val ROUNDING_SCALE = 10_000.0
+
     /**
      * Stable anchor in the HTML template that marks where JSON data tags are
      * injected. Using a comment rather than matching JS source text means the
@@ -74,6 +87,11 @@ public object HtmlReportGenerator {
      *                    `teams { }` DSL. Injected as `summary.teamOwners`; the report resolves
      *                    module→team client-side and draws the ownership colour overlay. Empty
      *                    map (the default) leaves the overlay disabled.
+     * @param layers      The layers declared in the `layers { }` DSL, in declaration order. Injected
+     *                    as `summary.layers` so the Architecture swimlane and the layer purity table
+     *                    group modules by what the build actually enforces. When empty, the report
+     *                    falls back to inferring layers from module path segments and labels them as
+     *                    inferred - it never presents a guess as a declaration.
      */
     // The parameters are the report's independent data channels (graph, summary, violations, trend,
     // team overlay, scatter points). Bundling them into a holder would add indirection at every call
@@ -90,12 +108,20 @@ public object HtmlReportGenerator {
         mainSequence: List<ModuleMainSequence> = emptyList(),
         hiddenCoupling: List<CoChange> = emptyList(),
         churn: List<ModuleChurn> = emptyList(),
+        layers: List<LayerSpec> = emptyList(),
+        metrics: GraphMetricSet? = null,
+        narrative: NarrativeReport = NarrativeReport.EMPTY,
+        regions: RegionMap? = null,
+        profile: PresentationProfile? = null,
     ): String {
         val template = loadTemplate()
         val graphJson = json.encodeToString(graph)
         val summaryJson = buildSummaryJson(
             summary, violations, appliedRules, graph, trendJson, teamOwners,
-            mainSequence, hiddenCoupling, churn,
+            mainSequence, hiddenCoupling, churn, layers,
+            metrics ?: GraphMetrics.compute(graph), narrative,
+            regions ?: RegionAnalyzer.analyze(graph),
+            profile ?: PresentationProfile.of(graph),
         )
 
         // Build the two data script tags that the template JS reads via
@@ -145,6 +171,11 @@ public object HtmlReportGenerator {
         mainSequence: List<ModuleMainSequence>,
         hiddenCoupling: List<CoChange>,
         churn: List<ModuleChurn>,
+        layers: List<LayerSpec>,
+        metrics: GraphMetricSet,
+        narrative: NarrativeReport,
+        regions: RegionMap,
+        profile: PresentationProfile,
     ): String {
         val byType = summary.modulesByType.entries.joinToString(",") { (k, v) -> "\"$k\":$v" }
         val violationsJson = violations.joinToString(",") { v ->
@@ -228,6 +259,54 @@ public object HtmlReportGenerator {
             "\"${escapeJson(c.module)}\":${c.commits}"
         }
 
+        // Declared layers, in declaration order, so the report resolves each module to the layer whose
+        // rules actually apply to it (first pattern match wins, mirroring LayerDependencyRule). With
+        // none declared the report falls back to a path-keyword guess and layerSource says so, so an
+        // inference is never rendered as if it were configuration.
+        val layersJson = layers.joinToString(",") { layer ->
+            val patterns = layer.modulePatterns.joinToString(",") { "\"${escapeJson(it)}\"" }
+            val allowed = layer.allowedLayers.joinToString(",") { "\"${escapeJson(it)}\"" }
+            "{\"name\":\"${escapeJson(layer.name)}\",\"patterns\":[$patterns]," +
+                "\"allowed\":[$allowed],\"restricted\":${layer.hasRestriction}}"
+        }
+        // The report labels the grouping from this: layers read out of the consumer's configuration
+        // are OBSERVED, a path-keyword guess is INFERRED. Emitting the tier rather than a private
+        // "declared"/"inferred" vocabulary keeps one provenance language across the whole codebase.
+        val layerSource = if (layers.isEmpty()) Provenance.INFERRED else Provenance.OBSERVED
+
+        // Whole-project health, computed once in Kotlin so the dial, this JSON, and the docs cannot
+        // disagree. The components let the reader see which penalties produced the number.
+        val health = HealthScoreCalculator.projectScore(
+            summary = summary,
+            errorCount = violations.count { it.severity.name == "ERROR" },
+            warningCount = violations.count { it.severity.name == "WARNING" },
+        )
+        val healthComponentsJson = health.components.joinToString(",") { c ->
+            "{\"label\":\"${escapeJson(c.label)}\",\"penalty\":${c.penalty}," +
+                "\"max\":${c.maxPenalty},\"detail\":\"${escapeJson(c.detail)}\"}"
+        }
+
+        // Per-module structural metrics as positional arrays rather than objects: on a 500-module
+        // project the repeated key names would cost more than the numbers themselves. The key order
+        // ships alongside as moduleMetricKeys so the payload stays self-describing.
+        val moduleMetricsJson = metrics.modules.entries
+            .sortedBy { it.key }
+            .joinToString(",") { (path, m) ->
+                "\"${escapeJson(path)}\":[${m.blastRadius},${round(m.blastRadiusPercent)}," +
+                    "${round(m.influence)},${round(m.betweenness)},${m.depthFromEntry}," +
+                    "${round(m.apiSurfaceRatio)},${m.transitiveDependencies}," +
+                    "${if (m.isArticulationPoint) 1 else 0}]"
+            }
+
+        // The metric catalogue travels with the report so every number can explain itself offline.
+        val catalogJson = MetricCatalog.all.joinToString(",") { d ->
+            "{\"id\":\"${escapeJson(d.id)}\",\"name\":\"${escapeJson(d.name)}\"," +
+                "\"unit\":\"${escapeJson(d.unit)}\",\"formula\":\"${escapeJson(d.formula)}\"," +
+                "\"question\":\"${escapeJson(d.question)}\"," +
+                "\"interpretation\":\"${escapeJson(d.interpretation)}\"," +
+                "\"action\":\"${escapeJson(d.action)}\"}"
+        }
+
         return """{
 "totalModules":${summary.totalModules},
 "totalEdges":${summary.totalEdges},
@@ -261,6 +340,24 @@ public object HtmlReportGenerator {
 "mainSequence":[$mainSequenceJson],
 "hiddenCoupling":[$hiddenCouplingJson],
 "churn":{$churnJson},
+"layers":[$layersJson],
+"layerSource":"${layerSource.name}",
+"health":{"score":${health.score},"band":"${escapeJson(health.band)}","components":[$healthComponentsJson]},
+"narrative":${json.encodeToString(narrative)},
+"regions":${json.encodeToString(regions)},
+"regionSource":"${regions.source.label}",
+"regionProvenance":"${regions.source.provenance.name}",
+"profile":"${profile.name}",
+"profileRationale":"${escapeJson(profile.rationale)}",
+"landingView":"${profile.landingView}",
+"allowsGlobalGraph":${profile.allowsGlobalGraph},
+"moduleMetricKeys":["blast","blastPct","influence","betweenness","depth","apiRatio","reach","cut"],
+"moduleMetrics":{$moduleMetricsJson},
+"metricCatalog":[$catalogJson],
+"entryPoints":${jsonArray(metrics.project.entryPoints)},
+"articulationPoints":${jsonArray(metrics.project.articulationPoints)},
+"fanInGini":${round(metrics.project.fanInGini)},
+"maxDepth":${metrics.project.maxDepth},
 "adrLinks":{$adrLinksJson}
 }""".replace("\n", "")  // single line for embedding in HTML
     }
@@ -282,6 +379,18 @@ public object HtmlReportGenerator {
             )
         return stream.bufferedReader().use { it.readText() }
     }
+
+    /**
+     * Rounds a metric to four decimals before embedding it.
+     *
+     * A raw `Double` serialises with full binary precision, which adds a dozen meaningless digits per
+     * value; across every module that is real payload for numbers no one reads past two decimals.
+     */
+    private fun round(value: Double): Double =
+        kotlin.math.round(value * ROUNDING_SCALE) / ROUNDING_SCALE
+
+    private fun jsonArray(values: List<String>): String =
+        values.joinToString(",", prefix = "[", postfix = "]") { "\"${escapeJson(it)}\"" }
 
     private fun escapeJson(s: String): String = s
         .replace("\\", "\\\\")
