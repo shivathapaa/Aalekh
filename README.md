@@ -53,31 +53,17 @@ on top of it.
 
 ## Sample Reports
 
-- Now in Android - 44 modules, layers, feature isolation, teams, nine rules
-    - [View locally](assets/report_samples/nowinandroid.html)
-    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid.html)
-
-- Now in Android - no configuration at all, to show what you get out of the box
-    - [View locally](assets/report_samples/nowinandroid_noconfig.html)
-    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_noconfig.html)
-
-- Now in Android - with a cyclic dependency, so `aalekhCheck` fails
-    - [View locally](assets/report_samples/nowinandroid_withcyclic.html)
-    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_withcyclic.html)
-
-- Tallyo - 128 modules of Kotlin/Compose Multiplatform across six product shells
-    - [View locally](assets/report_samples/tallyo.html)
-    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/tallyo.html)
-
-- GeoKrishiFarm - 51 modules of Compose Multiplatform behind private repositories
-    - [View locally](assets/report_samples/geokrishifarm.html)
-    - [View on GitHub Pages](https://shivathapaa.github.io/Aalekh/assets/report_samples/geokrishifarm.html)
+- [Now in Android](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid.html) - 44 modules, layers, feature isolation, teams, nine rules
+- [Now in Android, no configuration](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_noconfig.html) - what you get out of the box
+- [Now in Android, with a cyclic dependency](https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid_withcyclic.html) - so `aalekhCheck` fails
+- [Tallyo](https://shivathapaa.github.io/Aalekh/assets/report_samples/tallyo.html) - 128 modules of Kotlin/Compose Multiplatform across six product shells
+- [GeoKrishiFarm](https://shivathapaa.github.io/Aalekh/assets/report_samples/geokrishifarm.html) - 51 modules of Compose Multiplatform behind private repositories
 
 The exact `aalekh { }` configuration behind each report is documented in
 [docs/real-world-examples.md](docs/real-world-examples.md).
 
 <p align="center">
-  <a href="assets/report_samples/nowinandroid.html">
+  <a href="https://shivathapaa.github.io/Aalekh/assets/report_samples/nowinandroid.html">
     <img src="assets/images/nowinandroid_sample.gif" alt="Now in Android App Demo" width="600"/>
   </a>
 </p>
