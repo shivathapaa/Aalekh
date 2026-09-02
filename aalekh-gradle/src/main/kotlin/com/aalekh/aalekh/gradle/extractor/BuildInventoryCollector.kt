@@ -109,20 +109,39 @@ internal object BuildInventoryCollector {
      * Build-tool versions for the whole build.
      *
      * AGP and the Kotlin Gradle plugin are detected reflectively against their own version constants,
-     * never via a compile dependency. A tool that is absent simply has no entry - the report says
+     * never via a compile dependency. They are not on Aalekh's own classpath - a settings plugin
+     * loads in a different scope from the build scripts that apply them - so the buildscript
+     * classloaders are searched first. A tool that is absent simply has no entry; the report says
      * "not detected" rather than inventing a version.
      */
     fun toolVersions(rootProject: Project): Map<String, String> = buildMap {
         put("gradle", rootProject.gradle.gradleVersion)
-        detectVersion("com.android.builder.model.Version", "ANDROID_GRADLE_PLUGIN_VERSION")
+        val loaders = buildscriptClassLoaders(rootProject)
+        detectVersion(loaders, "com.android.builder.model.Version", "ANDROID_GRADLE_PLUGIN_VERSION")
             ?.let { put("agp", it) }
-        detectVersion("org.jetbrains.kotlin.config.KotlinCompilerVersion", "VERSION")
+        detectVersion(loaders, "org.jetbrains.kotlin.config.KotlinCompilerVersion", "VERSION")
             ?.let { put("kotlin", it) }
     }
 
-    private fun detectVersion(className: String, fieldName: String): String? = runCatching {
-        Class.forName(className).getField(fieldName).get(null) as? String
-    }.getOrNull()?.takeIf { it.isNotBlank() }
+    /**
+     * Classloaders that may hold a build plugin, most likely first.
+     *
+     * The root buildscript covers the usual `alias(...) apply false` declaration; a subproject's
+     * covers a build that only applies AGP or Kotlin further down, including via a convention plugin
+     * from an included build. Aalekh's own loader is the last resort.
+     */
+    private fun buildscriptClassLoaders(rootProject: Project): List<ClassLoader> =
+        (listOf(rootProject) + rootProject.subprojects)
+            .mapNotNull { runCatching { it.buildscript.classLoader }.getOrNull() }
+            .plus(BuildInventoryCollector::class.java.classLoader)
+            .distinct()
+
+    private fun detectVersion(loaders: List<ClassLoader>, className: String, fieldName: String): String? =
+        loaders.firstNotNullOfOrNull { loader ->
+            runCatching {
+                Class.forName(className, false, loader).getField(fieldName).get(null) as? String
+            }.getOrNull()?.takeIf { it.isNotBlank() }
+        }
 
     /**
      * Owners assigned by a `CODEOWNERS` file, resolved to module paths.
