@@ -59,12 +59,20 @@ jobs:
 
       - name: Assert class-file major version is 55 (Java 11) for every module
         run: |
-          set -euo pipefail
+          # No pipefail: the pipelines below feed awk, which exits after the first match and
+          # closes the pipe early. Under pipefail that SIGPIPEs the upstream ls/unzip and fails
+          # the step even though the check passed. Every real failure is caught explicitly below.
+          set -eu
           mkdir -p /tmp/aalekh-bytecode-check
           fail=0
           for mod in aalekh-model aalekh-analysis aalekh-report aalekh-gradle; do
-            jarfile=$(ls "$mod"/build/libs/"$mod"-*.jar | grep -v sources | grep -v javadoc | head -n1)
-            entry=$(unzip -Z1 "$jarfile" | grep '\.class$' | grep -v 'module-info' | head -n1)
+            jarfile=$(ls "$mod"/build/libs/"$mod"-*.jar 2>/dev/null | awk '!/sources|javadoc/{print; exit}')
+            if [ -z "$jarfile" ]; then
+              echo "::error::No library JAR found for $mod"
+              fail=1
+              continue
+            fi
+            entry=$(unzip -Z1 "$jarfile" 2>/dev/null | awk '/\.class$/ && !/module-info/{print; exit}')
             if [ -z "$entry" ]; then
               echo "::error::No class entries found in $jarfile"
               fail=1
