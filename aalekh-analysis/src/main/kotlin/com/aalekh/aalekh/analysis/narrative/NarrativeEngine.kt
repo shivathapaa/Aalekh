@@ -2,6 +2,7 @@ package com.aalekh.aalekh.analysis.narrative
 
 import com.aalekh.aalekh.model.Finding
 import com.aalekh.aalekh.model.FindingCategory
+import com.aalekh.aalekh.model.ModuleType
 import com.aalekh.aalekh.model.NarrativeReport
 import com.aalekh.aalekh.model.ReadingStep
 import com.aalekh.aalekh.model.Severity
@@ -26,6 +27,15 @@ public object NarrativeEngine {
 
     /** Below this module count a reading order is noise - just read all of them. */
     private const val MIN_MODULES_FOR_READING_ORDER = 8
+
+    /**
+     * Share of the project a module must be depended on by to earn a place in the reading order.
+     *
+     * Without a floor the order pads itself out to [READING_STEPS] with whatever ranks next, which
+     * on a real project means test-support and tooling modules that explain nothing. A short list of
+     * modules that matter is more useful than a full one that does not.
+     */
+    private const val MIN_FOUNDATION_SHARE = 0.05
 
     /** Builds the full narrative for [context]. Returns [NarrativeReport.EMPTY] for an empty graph. */
     public fun analyze(context: NarrativeContext): NarrativeReport {
@@ -115,8 +125,19 @@ public object NarrativeEngine {
         val chosen = LinkedHashMap<String, String>()
         val areasSeen = mutableSetOf<String>()
 
+        val applications = context.graph.modules
+            .filter { it.type == ModuleType.ANDROID_APP }
+            .map { it.path }
+            .toSet()
         context.metrics.project.entryPoints.take(MAX_ENTRY_STEPS).forEach { path ->
-            chosen[path] = "Execution starts here - it shows what the project actually does."
+            // Only an application module is somewhere execution actually starts. The rest are
+            // entry points in the graph sense - nothing depends on them - which is a weaker claim
+            // and should read as one.
+            chosen[path] = if (path in applications) {
+                "Execution starts here - it shows what the project actually does."
+            } else {
+                "Nothing depends on it, so it is a place to start rather than a building block."
+            }
             areasSeen += areaOf(path)
         }
 
@@ -141,7 +162,7 @@ public object NarrativeEngine {
             .asSequence()
             .filter { it !in chosen }
             .mapNotNull { path -> context.metrics.of(path) }
-            .filter { it.fanIn > 0 }
+            .filter { it.fanIn > 0 && it.blastRadiusPercent >= MIN_FOUNDATION_SHARE * PERCENT }
             .filterNot { oneAreaEach && areaOf(it.path) in areasSeen && chosen.size > MAX_ENTRY_STEPS }
             .take(READING_STEPS)
             .forEach { metrics ->
@@ -168,4 +189,6 @@ public object NarrativeEngine {
             .filterValues { it.isNotEmpty() }
 
     private const val MAX_ENTRY_STEPS = 2
+
+    private const val PERCENT = 100.0
 }
