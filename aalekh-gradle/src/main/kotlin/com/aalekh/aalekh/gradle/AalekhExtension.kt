@@ -109,7 +109,31 @@ public abstract class AalekhExtension @Inject constructor(private val objects: O
     public val baselineFile: Property<String> = objects.property(String::class.java)
         .convention("aalekh-baseline.json")
 
+    /**
+     * Path (relative to the root project) of the committed architecture snapshot.
+     * Default: `"aalekh-snapshot.json"`.
+     *
+     * Run `./gradlew aalekhSnapshot` to write it, then commit it. `aalekhDiff` compares the current
+     * architecture against it and reports what the branch changed.
+     */
+    public val snapshotFile: Property<String> = objects.property(String::class.java)
+        .convention("aalekh-snapshot.json")
+
+    /**
+     * Fail `aalekhDiff` when the change makes the architecture structurally worse - a new dependency
+     * cycle, or a structural metric that regressed against the snapshot. Default: `false`.
+     *
+     * Off by default because a diff is a *report*: it should describe what changed without deciding
+     * that the change is wrong. Turn it on in CI once the snapshot is trusted.
+     */
+    public val failOnArchitectureRegression: Property<Boolean> =
+        objects.property(Boolean::class.java).convention(false)
+
     // Rule DSL
+
+    // Incremented as each layer is created, so declaration order survives the container's
+    // alphabetical iteration. See LayerConfig.declarationOrder.
+    private var nextLayerOrder: Int = 0
 
     /**
      * Named container of [LayerConfig] objects. Each entry declares one architectural
@@ -117,8 +141,25 @@ public abstract class AalekhExtension @Inject constructor(private val objects: O
      */
     public val layerContainer: NamedDomainObjectContainer<LayerConfig> =
         objects.domainObjectContainer(LayerConfig::class.java) { name ->
-            objects.newInstance(LayerConfig::class.java, name)
+            objects.newInstance(LayerConfig::class.java, name, nextLayerOrder++)
         }
+
+    /**
+     * The declared layers serialized for a task `@Input`, in declaration order.
+     *
+     * Format per entry: `"name|pat1,pat2|allowed1,allowed2|hasRestriction"`, the format
+     * `com.aalekh.aalekh.analysis.rules.LayerSpecParser` reads back at execution time. Plain strings
+     * keep the tasks configuration-cache safe; producing them here means `aalekhCheck`,
+     * `aalekhReport`, and `aalekhBaseline` cannot be given different views of the same declaration.
+     */
+    internal fun serializedLayers(): List<String> =
+        layerContainer
+            .sortedBy { it.declarationOrder }
+            .map { layer ->
+                val patterns = layer.modulePatterns.get().joinToString(",")
+                val allowed = layer.allowedDependencyLayers.get().joinToString(",")
+                "${layer.name}|$patterns|$allowed|${layer.hasRestriction.get()}"
+            }
 
     /** Declares architectural layers and their permitted dependency directions. */
     public fun layers(configure: Action<NamedDomainObjectContainer<LayerConfig>>) {

@@ -1,20 +1,32 @@
 package com.aalekh.aalekh.gradle.task
 
+import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
+import com.aalekh.aalekh.analysis.metrics.HealthScoreCalculator
+import com.aalekh.aalekh.gradle.extractor.BuildInventoryAssembler
+import com.aalekh.aalekh.gradle.extractor.BuildInventoryCollector
 import com.aalekh.aalekh.gradle.extractor.ConfigurationClassifier
+import com.aalekh.aalekh.gradle.extractor.DeclarationLineFinder
+import com.aalekh.aalekh.gradle.extractor.ModuleMetadataReader
 import com.aalekh.aalekh.gradle.extractor.ModuleTypeDetector
+import com.aalekh.aalekh.gradle.extractor.PluginBlockParser
 import com.aalekh.aalekh.model.AalekhBuildConfig
+import com.aalekh.aalekh.model.BuildInventory
 import com.aalekh.aalekh.model.DependencyEdge
 import com.aalekh.aalekh.model.ExternalDependency
 import com.aalekh.aalekh.model.ModuleDependencyGraph
 import com.aalekh.aalekh.model.ModuleNode
 import kotlinx.serialization.json.Json
 import org.gradle.api.DefaultTask
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.MapProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.CacheableTask
 import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import java.time.Instant
 
@@ -103,6 +115,65 @@ public abstract class AalekhExtractTask : DefaultTask() {
     public abstract val subprojectPlugins: MapProperty<String, List<String>>
 
     /**
+     * Kotlin Multiplatform source-set names per subproject, empty for non-KMP modules.
+     *
+     * Format: `Map<subprojectPath, List<sourceSetName>>`, e.g.
+     * `{ ":core:domain" -> ["commonMain", "androidMain", "iosMain"] }`.
+     *
+     * Populates [ModuleNode.sourceSets]. Read reflectively from the Kotlin extension by the plugins,
+     * so a module whose extension cannot be read simply contributes an empty list.
+     */
+    @get:Input
+    public abstract val subprojectSourceSets: MapProperty<String, List<String>>
+
+    /**
+     * Repo-relative build file path per subproject, forward-slash separated.
+     *
+     * Format: `Map<subprojectPath, "feature/login/build.gradle.kts">`. Read from the real
+     * `Project.getBuildFile()` rather than derived from the module path, so modules that do not follow
+     * the directory convention still resolve. Modules absent from this map fall back to the
+     * conventional location.
+     */
+    @get:Input
+    public abstract val subprojectBuildFilePaths: MapProperty<String, String>
+
+    /**
+     * The subproject build files themselves, scanned to locate the line each project dependency is
+     * declared on ([DependencyEdge.declarationLine]).
+     *
+     * Declared as an input because their **contents** change the output: reordering two dependency
+     * declarations changes the recorded lines without changing any other input, and a cached run
+     * would otherwise report stale line numbers. `RELATIVE` path sensitivity keeps the task
+     * relocatable across checkout directories.
+     */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    public abstract val buildFiles: ConfigurableFileCollection
+
+    /**
+     * The configuration-time half of the build inventory, as JSON.
+     *
+     * Version catalogs, toolchains, KMP targets, test source sets, and tool versions are read from
+     * the Gradle object model while it is still available, then flattened to one string rather than a
+     * dozen map properties. The execution-time half - plugin ids from build scripts, CODEOWNERS,
+     * declared module metadata - is merged in by [extract], because those come from files that must
+     * be declared as task inputs to be tracked correctly.
+     */
+    @get:Input
+    public abstract val buildInventoryJson: Property<String>
+
+    /**
+     * Optional project-level files that describe the build rather than the code: `CODEOWNERS` and
+     * `.aalekh/modules.json`.
+     *
+     * Declared as inputs so editing either correctly re-runs extraction. Both are optional; a project
+     * with neither simply has no ownership map and no declared metadata.
+     */
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    public abstract val projectMetadataFiles: ConfigurableFileCollection
+
+    /**
      * Whether to include test configurations (testImplementation,
      * androidTestImplementation, etc.) in the extracted graph.
      *
@@ -160,47 +231,55 @@ public abstract class AalekhExtractTask : DefaultTask() {
         val depsData = subprojectData.get()
         val externalData = subprojectExternalData.get()
         val pluginsData = subprojectPlugins.get()
+        val sourceSetData = subprojectSourceSets.getOrElse(emptyMap())
         val includeTest = includeTestDependencies.getOrElse(true)
         val includeCompileOnly = includeCompileOnlyDependencies.getOrElse(false)
         val includeExternal = includeExternalDependencies.getOrElse(true)
 
+        val buildFilePaths = depsData.keys.associateWith { path -> resolveBuildFilePath(path) }
+        val buildFileLines = readBuildFiles(buildFilePaths)
+
         val nodes = depsData.keys.sorted().map { path ->
             val plugins = pluginsData[path] ?: emptyList()
+            // Type detection runs against the full class list, including Gradle's own; only the
+            // recorded set is trimmed, so detection is unaffected by the noise filter.
             val type = ModuleTypeDetector.detectFromPluginNames(plugins)
-            val tags = inferTags(path)
             ModuleNode(
                 path = path,
                 name = path.substringAfterLast(":"),
                 type = type,
-                plugins = plugins.toSet(),
-                tags = tags,
-                sourceSets = emptySet(),
-                buildFilePath = resolveBuildFilePath(path),
+                plugins = BuildInventoryAssembler.meaningfulPluginClasses(plugins),
+                tags = inferTags(path),
+                sourceSets = sourceSetData[path]?.toSet() ?: emptySet(),
+                buildFilePath = buildFilePaths[path],
             )
         }
 
-        val edges = buildEdges(depsData, includeTest, includeCompileOnly)
+        val edges = buildEdges(depsData, includeTest, includeCompileOnly, buildFileLines)
 
         val externalDependencies =
             if (includeExternal) buildExternalDependencies(externalData, includeTest, includeCompileOnly)
             else emptyList()
 
-        val graph = ModuleDependencyGraph(
-            projectName = projectName.get(),
-            modules = nodes,
-            edges = edges,
-            externalDependencies = externalDependencies,
-            metadata = mapOf(
-                "gradleVersion" to gradleVersion.get(),
-                "extractedAt" to Instant.now().toString(),
-                "moduleCount" to nodes.size.toString(),
-                "edgeCount" to edges.size.toString(),
-                "externalDepCount" to externalDependencies.size.toString(),
-                "aalekhVersion" to AalekhBuildConfig.VERSION,
-                "includeTestDependencies" to includeTest.toString(),
-                "includeCompileOnlyDependencies" to includeCompileOnly.toString(),
-                "includeExternalDependencies" to includeExternal.toString(),
-            ),
+        val graph = scoreHealth(
+            ModuleDependencyGraph(
+                projectName = projectName.get(),
+                modules = nodes,
+                edges = edges,
+                externalDependencies = externalDependencies,
+                buildInventory = buildInventory(depsData.keys.toList(), pluginsData, buildFileLines, buildFilePaths),
+                metadata = mapOf(
+                    "gradleVersion" to gradleVersion.get(),
+                    "extractedAt" to Instant.now().toString(),
+                    "moduleCount" to nodes.size.toString(),
+                    "edgeCount" to edges.size.toString(),
+                    "externalDepCount" to externalDependencies.size.toString(),
+                    "aalekhVersion" to AalekhBuildConfig.VERSION,
+                    "includeTestDependencies" to includeTest.toString(),
+                    "includeCompileOnlyDependencies" to includeCompileOnly.toString(),
+                    "includeExternalDependencies" to includeExternal.toString(),
+                ),
+            )
         )
 
         val json = Json { encodeDefaults = true }
@@ -222,8 +301,10 @@ public abstract class AalekhExtractTask : DefaultTask() {
         depsData: Map<String, List<String>>,
         includeTest: Boolean,
         includeCompileOnly: Boolean,
+        buildFileLines: Map<String, List<String>>,
     ): List<DependencyEdge> =
         depsData.flatMap { (fromPath, depStrings) ->
+            val lines = buildFileLines[fromPath].orEmpty()
             depStrings.mapNotNull { depString ->
                 val colonIdx = depString.indexOf(':')
                 if (colonIdx < 0) return@mapNotNull null
@@ -238,9 +319,89 @@ public abstract class AalekhExtractTask : DefaultTask() {
                     to = toPath,
                     configuration = config,
                     sourceSet = ConfigurationClassifier.kmpSourceSetName(config),
+                    declarationLine = DeclarationLineFinder.lineOf(lines, toPath),
                 )
             }
         }.distinctBy { Triple(it.from, it.to, it.configuration) }
+
+    /**
+     * Assembles the build inventory: the configuration-time half from [buildInventoryJson], merged
+     * with the parts that can only be read from files at execution time.
+     *
+     * Plugin ids come from each module's own `plugins { }` block - the build files are already in
+     * memory for declaration-line scanning, so this costs nothing extra - resolved against the
+     * version catalogs and topped up from applied classes for whatever a convention plugin applied
+     * without the script naming it.
+     */
+    private fun buildInventory(
+        modulePaths: List<String>,
+        pluginsData: Map<String, List<String>>,
+        buildFileLines: Map<String, List<String>>,
+        buildFilePaths: Map<String, String?>,
+    ): BuildInventory {
+        val base = runCatching {
+            inventoryJson.decodeFromString(BuildInventory.serializer(), buildInventoryJson.getOrElse(""))
+        }.getOrElse { BuildInventory.EMPTY }
+
+        val declaredPlugins = buildFileLines.mapValues { (_, lines) -> PluginBlockParser.parse(lines) }
+        val moduleInfo = BuildInventoryAssembler.moduleInfo(
+            modulePaths = modulePaths,
+            declaredPlugins = declaredPlugins,
+            appliedClasses = pluginsData,
+            catalogs = base.catalogs,
+            toolchains = base.modules.associate { it.path to it.javaToolchain.orEmpty() }
+                .filterValues { it.isNotEmpty() },
+            kmpTargets = base.modules.associate { it.path to it.kmpTargets }.filterValues { it.isNotEmpty() },
+            testSourceSets = base.modules.associate { it.path to it.testSourceSets }
+                .filterValues { it.isNotEmpty() },
+        )
+
+        val rootDir = java.io.File(rootProjectDir.get())
+        val moduleDirectories = buildFilePaths
+            .mapNotNull { (path, file) -> file?.substringBeforeLast('/', "")?.let { path to it } }
+            .filter { it.second.isNotEmpty() }
+            .toMap()
+
+        return BuildInventoryAssembler.merge(
+            base = base,
+            modules = moduleInfo,
+            codeowners = BuildInventoryCollector.codeowners(rootDir, moduleDirectories),
+            declaredMetadata = ModuleMetadataReader.read(rootDir, logger),
+        )
+    }
+
+    /**
+     * Reads each module's build file once, so [DeclarationLineFinder] can scan it for every edge
+     * leaving that module. A file that cannot be read contributes no lines - an edge then simply has
+     * no declaration line, which is the same as before this data existed.
+     */
+    private fun readBuildFiles(buildFilePaths: Map<String, String?>): Map<String, List<String>> {
+        val rootDir = java.io.File(rootProjectDir.get())
+        return buildFilePaths.mapNotNull { (modulePath, relativePath) ->
+            if (relativePath == null) return@mapNotNull null
+            val lines = runCatching { rootDir.resolve(relativePath).readLines() }.getOrElse { ex ->
+                logger.info("Aalekh: could not read $relativePath for $modulePath - ${ex.message}")
+                return@mapNotNull null
+            }
+            modulePath to lines
+        }.toMap()
+    }
+
+    /**
+     * Fills in each module's [ModuleNode.healthScore] from the assembled graph.
+     *
+     * A second pass because the score needs the finished graph: it reads fan-in, fan-out, transitive
+     * reach, and cycle membership. Computing it here rather than in each consumer means the CSV
+     * export, the report table, and any downstream tool all read one number produced by one formula.
+     */
+    private fun scoreHealth(graph: ModuleDependencyGraph): ModuleDependencyGraph {
+        val cycleNodes = GraphAnalyzer.findMainOnlyCycles(graph).flatten().toSet()
+        return graph.copy(
+            modules = graph.modules.map { module ->
+                module.copy(healthScore = HealthScoreCalculator.score(module.path, graph, cycleNodes))
+            }
+        )
+    }
 
     // Parses the pipe-delimited external-dependency strings collected by the plugins into model
     // objects, applying the same test / compileOnly scope filters used for inter-module edges.
@@ -278,13 +439,17 @@ public abstract class AalekhExtractTask : DefaultTask() {
     }
 
     /**
-     * Derives the conventional build file path from a Gradle module path.
+     * The repo-relative build file path for a module.
      *
-     * Gradle convention: `:feature:login:data` lives at `feature/login/data/build.gradle.kts`.
-     * Check `.kts` first then fall back to `.gradle` (Groovy DSL projects).
-     * Returns null if neither file exists - the module may use a non-standard location.
+     * Prefers the real location reported by the Gradle model ([subprojectBuildFilePaths]), which is
+     * correct even when a module does not follow the directory convention. Falls back to the
+     * conventional `:feature:login:data` → `feature/login/data/build.gradle.kts` derivation for graphs
+     * produced without that data, checking `.kts` before `.gradle`. Null when nothing resolves - the
+     * module then simply has no build file hint in violation messages.
      */
     private fun resolveBuildFilePath(modulePath: String): String? {
+        subprojectBuildFilePaths.getOrElse(emptyMap())[modulePath]?.let { return it }
+
         val relativeDirPath = modulePath.trimStart(':').replace(':', '/')
         val rootDir = java.io.File(rootProjectDir.get())
         val kts = rootDir.resolve("$relativeDirPath/build.gradle.kts")
@@ -299,6 +464,9 @@ public abstract class AalekhExtractTask : DefaultTask() {
     private companion object {
         // "configurationName|group|name|version" - four pipe-delimited fields.
         const val EXTERNAL_DEP_FIELD_COUNT = 4
+
+        // Tolerant on read: an inventory written by a newer plugin version must not fail an older one.
+        val inventoryJson = Json { ignoreUnknownKeys = true }
     }
 
 }

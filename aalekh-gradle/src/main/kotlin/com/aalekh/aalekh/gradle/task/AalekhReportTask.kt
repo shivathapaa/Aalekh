@@ -5,6 +5,7 @@ import com.aalekh.aalekh.analysis.graph.CycleAdvisor
 import com.aalekh.aalekh.analysis.graph.GraphAnalyzer
 import com.aalekh.aalekh.analysis.metrics.MetricGate
 import com.aalekh.aalekh.analysis.metrics.MetricGateEvaluator
+import com.aalekh.aalekh.analysis.rules.LayerSpecParser
 import com.aalekh.aalekh.analysis.rules.RuleEngine
 import com.aalekh.aalekh.analysis.rules.RuleEngineResult
 import com.aalekh.aalekh.model.MainSequenceReport
@@ -139,7 +140,15 @@ public abstract class AalekhReportTask : DefaultTask() {
             sourceSetEntries = sourceSetEntries.get(),
         )
         val ruleResult = ruleEngine.evaluate(graph)
-        val report = ReportCoordinator(graph, ruleResult, projectName.get())
+        // Third-party FindingProviders and ModuleClassifiers are discovered from the plugin
+        // classpath, the same route custom rules and metric providers use.
+        val report = ReportCoordinator.withExtensions(
+            graph = graph,
+            ruleResult = ruleResult,
+            projectName = projectName.get(),
+            classLoader = javaClass.classLoader,
+        )
+        report.extensionFailures.forEach { logger.warn("Aalekh: extension skipped - $it") }
         val outputPath = outputFile.get().asFile
 
         // Collect trend history before writing the report so the current run is included.
@@ -156,6 +165,7 @@ public abstract class AalekhReportTask : DefaultTask() {
                 mainSequence = mainSequence,
                 hiddenCoupling = temporal?.hiddenCoupling?.take(MAX_HIDDEN_COUPLING) ?: emptyList(),
                 churn = temporal?.churn ?: emptyList(),
+                layers = LayerSpecParser.parse(layerEntries.get()),
             )
         )
 

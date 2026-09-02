@@ -374,6 +374,397 @@ class AalekhPluginFunctionalTest {
     }
 
     @Test
+    fun `aalekhReport wires the layers DSL through to the report in declaration order`() {
+        setupLayerViolationProject()
+        gradleRunner("aalekhReport", "--no-configuration-cache").build()
+        val html = projectDir.resolve("build/reports/aalekh/index.html").readText()
+
+        assertTrue(
+            html.contains(""""layerSource":"OBSERVED""""),
+            "With layers { } declared the report must not group modules by an inference"
+        )
+        assertTrue(
+            html.contains(
+                """"layers":[{"name":"domain","patterns":[":core:domain"],"allowed":[],""" +
+                    """"restricted":false},{"name":"data","patterns":[":feature:*:data"],""" +
+                    """"allowed":["domain"],"restricted":true},{"name":"presentation",""" +
+                    """"patterns":[":feature:*:ui"],"allowed":["domain","data"],"restricted":true}]"""
+            ),
+            "Layers must reach the report in declaration order with their patterns and allowlists, " +
+                    "not in the named container's alphabetical order"
+        )
+    }
+
+    @Test
+    fun `aalekhReport falls back to inferred layers and says so when none are declared`() {
+        setupMultiModuleProject()
+        gradleRunner("aalekhReport", "--no-configuration-cache").build()
+        val html = projectDir.resolve("build/reports/aalekh/index.html").readText()
+
+        assertTrue(html.contains(""""layers":[]"""), "No declared layers must serialize as empty")
+        assertTrue(
+            html.contains(""""layerSource":"INFERRED""""),
+            "Without a layers { } block the report must mark the grouping as inferred"
+        )
+    }
+
+    @Test
+    fun `extraction populates health scores and declaration lines`() {
+        setupMultiModuleProject()
+        gradleRunner("aalekhExtract", "--no-configuration-cache").build()
+        val graph = projectDir.resolve("build/tmp/aalekh/graph.json").readText()
+
+        assertFalse(
+            Regex(""""healthScore":null""").containsMatchIn(graph),
+            "every module must carry a health score so the CSV and report read one number"
+        )
+        assertFalse(
+            Regex(""""declarationLine":null""").containsMatchIn(graph),
+            "every edge declared in a build file must carry the line it was declared on"
+        )
+        assertTrue(
+            graph.contains(""""buildFilePath":"feature/login/build.gradle.kts""""),
+            "build file paths must come from the Gradle model"
+        )
+    }
+
+    @Test
+    fun `aalekhReport embeds a project health score with its component breakdown`() {
+        setupMultiModuleProject()
+        gradleRunner("aalekhReport", "--no-configuration-cache").build()
+        val html = projectDir.resolve("build/reports/aalekh/index.html").readText()
+
+        assertTrue(html.contains(""""health":{"score":"""), "project health must reach the report")
+        assertTrue(
+            html.contains(""""label":"Cycles""""),
+            "the health components must be embedded so the dial can explain its own number"
+        )
+    }
+
+    @Test
+    fun `aalekhSnapshot writes a committable snapshot and aalekhDiff reports what changed`() {
+        setupMultiModuleProject()
+        gradleRunner("aalekhSnapshot", "--no-configuration-cache").build()
+        val snapshot = projectDir.resolve("aalekh-snapshot.json")
+
+        assertTrue(snapshot.exists(), "the snapshot must be written into the source tree to be committed")
+        assertTrue(
+            snapshot.readText().contains(""":core:data>:core:domain"""),
+            "dependencies must be recorded in a line-diffable form: ${snapshot.readText()}",
+        )
+
+        // Nothing changed yet, so the diff must say so rather than inventing a change.
+        gradleRunner("aalekhDiff", "--no-configuration-cache").build()
+        assertTrue(
+            projectDir.resolve("build/reports/aalekh/aalekh-diff.md").readText()
+                .contains("No architectural change"),
+        )
+
+        // Now wire a cycle and confirm the report leads with it.
+        projectDir.resolve("core/domain/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies { implementation(project(":core:data")) }
+            """.trimIndent()
+        )
+        val result = gradleRunner("aalekhDiff", "--no-configuration-cache").build()
+        val report = projectDir.resolve("build/reports/aalekh/aalekh-diff.md").readText()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":aalekhDiff")?.outcome)
+        assertTrue(
+            report.contains("introduces a dependency cycle"),
+            "the headline must lead with the most consequential change: $report",
+        )
+        assertTrue(
+            report.contains("`:core:domain` → `:core:data`"),
+            "the report must name the dependency that caused it: $report",
+        )
+    }
+
+    @Test
+    fun `aalekhDiff succeeds and explains itself when no snapshot is committed`() {
+        // The first run of a new tool must never fail a build.
+        setupMultiModuleProject()
+        val result = gradleRunner("aalekhDiff", "--no-configuration-cache").build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":aalekhDiff")?.outcome)
+        assertTrue(
+            result.output.contains("no committed snapshot found"),
+            "the task must say how to create one: ${result.output}",
+        )
+    }
+
+    @Test
+    fun `aalekhDiff fails on a regression only when asked to`() {
+        setupMultiModuleProject()
+        projectDir.resolve("build.gradle.kts").writeText(
+            """
+            aalekh {
+                openBrowserAfterReport.set(false)
+                failOnArchitectureRegression.set(true)
+            }
+            """.trimIndent()
+        )
+        gradleRunner("aalekhSnapshot", "--no-configuration-cache").build()
+
+        projectDir.resolve("core/domain/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies { implementation(project(":core:data")) }
+            """.trimIndent()
+        )
+        val result = gradleRunner("aalekhDiff", "--no-configuration-cache").buildAndFail()
+
+        assertEquals(TaskOutcome.FAILED, result.task(":aalekhDiff")?.outcome)
+        assertTrue(result.output.contains("structurally worse"), result.output)
+    }
+
+    @Test
+    fun `aalekhDocs writes readable Markdown documentation`() {
+        setupLayerViolationProject()
+        gradleRunner("aalekhDocs", "--no-configuration-cache").build()
+        val docs = projectDir.resolve("build/reports/aalekh/docs")
+
+        assertTrue(docs.resolve("README.md").exists(), "the docs set must have a landing document")
+        assertTrue(docs.resolve("modules.md").exists())
+        assertTrue(docs.resolve("onboarding.md").exists())
+        assertTrue(docs.resolve("health.md").exists())
+
+        val readme = docs.resolve("README.md").readText()
+        assertTrue(readme.startsWith("# layer-test"), "the README must name the project: $readme")
+        assertTrue(
+            readme.contains("is a Gradle project of"),
+            "the README must open with a plain-language summary: $readme",
+        )
+        assertTrue(readme.contains("| Modules |"), "the README must carry the at-a-glance table")
+
+        val modules = docs.resolve("modules.md").readText()
+        assertTrue(
+            modules.contains("Blast radius"),
+            "the catalogue must state what a change to each module costs: $modules",
+        )
+        assertTrue(modules.contains("`:core:domain`"), "every module must appear: $modules")
+    }
+
+    @Test
+    fun `aalekhDocs output is byte-identical when nothing changed`() {
+        // The property that makes committing the docs worthwhile: a diff means the architecture
+        // moved, never that the tool ran again. A timestamp in the output would destroy it.
+        setupMultiModuleProject()
+        gradleRunner("aalekhDocs", "--no-configuration-cache").build()
+        val first = projectDir.resolve("build/reports/aalekh/docs/README.md").readText()
+
+        gradleRunner("aalekhDocs", "--no-configuration-cache", "--rerun-tasks").build()
+        val second = projectDir.resolve("build/reports/aalekh/docs/README.md").readText()
+
+        assertEquals(first, second, "regenerating unchanged docs must not produce a diff")
+    }
+
+    @Test
+    fun `aalekhDocs removes a document it no longer produces`() {
+        setupMultiModuleProject()
+        gradleRunner("aalekhDocs", "--no-configuration-cache").build()
+        val stale = projectDir.resolve("build/reports/aalekh/docs/regions.md")
+        stale.writeText("# Left over from an older run")
+
+        gradleRunner("aalekhDocs", "--no-configuration-cache", "--rerun-tasks").build()
+
+        assertFalse(
+            stale.exists(),
+            "a document the project no longer warrants must not linger and mislead",
+        )
+    }
+
+    @Test
+    fun `extraction records the build inventory - plugins, catalog, owners and declared metadata`() {
+        listOf("core/domain", "feature/login", "gradle", ".github", ".aalekh")
+            .forEach { projectDir.resolve(it).mkdirs() }
+
+        projectDir.resolve("gradle/libs.versions.toml").writeText(
+            """
+            [versions]
+            kotlin = "2.3.0"
+
+            [plugins]
+            kotlinJvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+
+            [libraries]
+            okhttp = { module = "com.squareup.okhttp3:okhttp", version = "4.12.0" }
+            """.trimIndent()
+        )
+        projectDir.resolve(".github/CODEOWNERS").writeText(
+            """
+            *              @org/platform
+            /core/         @org/core-team
+            """.trimIndent()
+        )
+        projectDir.resolve(".aalekh/modules.json").writeText(
+            """
+            {
+              "modules": [
+                {
+                  "path": ":core:domain",
+                  "purpose": "Pure business rules. No Android, no IO, no frameworks.",
+                  "owner": "domain-guild",
+                  "status": "frozen"
+                }
+              ]
+            }
+            """.trimIndent()
+        )
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins { id("io.github.shivathapaa.aalekh") }
+            rootProject.name = "inventory-test"
+            include(":core:domain", ":feature:login")
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """aalekh { openBrowserAfterReport.set(false) }"""
+        )
+        projectDir.resolve("core/domain/build.gradle.kts").writeText(
+            """
+            plugins { alias(libs.plugins.kotlinJvm) }
+            java { toolchain { languageVersion.set(JavaLanguageVersion.of(17)) } }
+            """.trimIndent()
+        )
+        projectDir.resolve("feature/login/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies { implementation(project(":core:domain")) }
+            """.trimIndent()
+        )
+
+        gradleRunner("aalekhExtract", "--no-configuration-cache").build()
+        val graph = projectDir.resolve("build/tmp/aalekh/graph.json").readText()
+
+        assertTrue(
+            graph.contains(""""alias":"kotlinJvm""""),
+            "a plugin applied through a catalog alias must record the alias: $graph"
+        )
+        assertTrue(
+            graph.contains(""""coordinates":"org.jetbrains.kotlin.jvm""""),
+            "the catalog must resolve the alias to a real plugin id: $graph"
+        )
+        assertTrue(
+            graph.contains(""""javaToolchain":"17""""),
+            "a declared Java toolchain must be recorded: $graph"
+        )
+        assertTrue(
+            graph.contains("@org/core-team"),
+            "CODEOWNERS must give ownership for free when no teams { } block is declared: $graph"
+        )
+        assertTrue(
+            graph.contains("Pure business rules"),
+            "declared module metadata must reach the graph verbatim: $graph"
+        )
+        assertTrue(
+            graph.contains(""""owner":"domain-guild""""),
+            "a declared owner must be recorded: $graph"
+        )
+        assertFalse(
+            graph.contains("HelpTasksPlugin"),
+            "Gradle's own infrastructure plugins must not be carried in the payload: $graph"
+        )
+    }
+
+    @Test
+    fun `a malformed module metadata file warns and never fails the build`() {
+        setupMultiModuleProject()
+        projectDir.resolve(".aalekh").mkdirs()
+        projectDir.resolve(".aalekh/modules.json").writeText("{ this is not json")
+
+        val result = gradleRunner("aalekhExtract", "--no-configuration-cache").build()
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":aalekhExtract")?.outcome)
+        assertTrue(
+            result.output.contains("could not read .aalekh/modules.json"),
+            "a broken metadata file must be reported, not swallowed silently",
+        )
+    }
+
+    @Test
+    fun `extraction records KMP source sets on multiplatform modules only`() {
+        projectDir.resolve("shared").mkdirs()
+        projectDir.resolve("jvmlib").mkdirs()
+        projectDir.resolve("settings.gradle.kts").writeText(
+            """
+            plugins { id("io.github.shivathapaa.aalekh") }
+            rootProject.name = "kmp-test"
+            include(":shared", ":jvmlib")
+            """.trimIndent()
+        )
+        projectDir.resolve("build.gradle.kts").writeText(
+            """aalekh { openBrowserAfterReport.set(false) }"""
+        )
+        projectDir.resolve("shared/build.gradle.kts").writeText(
+            """
+            plugins { kotlin("multiplatform") version "2.3.0" }
+            kotlin { jvm() }
+            """.trimIndent()
+        )
+        projectDir.resolve("jvmlib/build.gradle.kts").writeText(
+            """plugins { kotlin("jvm") version "2.3.0" }"""
+        )
+
+        gradleRunner("aalekhExtract", "--no-configuration-cache").build()
+        val graph = projectDir.resolve("build/tmp/aalekh/graph.json").readText()
+
+        assertTrue(
+            graph.contains("commonMain") && graph.contains("jvmMain"),
+            "a multiplatform module must record its source sets, so the inspector and the " +
+                    "per-source-set rules have something to work with: $graph"
+        )
+        assertTrue(
+            graph.contains(""""path":":jvmlib","name":"jvmlib","type":"JVM_LIBRARY","plugins""") &&
+                    graph.substringAfter(""""path":":jvmlib"""").substringBefore("}")
+                        .contains(""""sourceSets":[]"""),
+            "a non-multiplatform module must record no source sets: $graph"
+        )
+    }
+
+    @Test
+    fun `aalekhExtract is configuration cache compatible on second run`() {
+        setupJavaModuleProject()
+
+        gradleRunner("aalekhExtract", "--configuration-cache").build()
+        val secondRun = gradleRunner("aalekhExtract", "--configuration-cache").build()
+
+        assertTrue(
+            secondRun.output.contains("Reusing configuration cache") ||
+                    secondRun.output.contains("Configuration cache entry reused"),
+            "Second run should reuse the configuration cache"
+        )
+    }
+
+    @Test
+    fun `aalekhExtract reruns when a build file dependency order changes`() {
+        setupMultiModuleProject()
+        gradleRunner("aalekhExtract").build()
+        val loginBuildFile = projectDir.resolve("feature/login/build.gradle.kts")
+        val before = projectDir.resolve("build/tmp/aalekh/graph.json").readText()
+
+        // Swapping the two declarations changes only the recorded lines. Without the build files as
+        // a task input the task would stay UP-TO-DATE and report stale line numbers.
+        loginBuildFile.writeText(
+            """
+            plugins { kotlin("jvm") version "2.3.0" }
+            dependencies {
+                implementation(project(":core:data"))
+                implementation(project(":core:domain"))
+            }
+            """.trimIndent()
+        )
+        val rerun = gradleRunner("aalekhExtract").build()
+
+        assertEquals(TaskOutcome.SUCCESS, rerun.task(":aalekhExtract")?.outcome)
+        assertFalse(
+            projectDir.resolve("build/tmp/aalekh/graph.json").readText() == before,
+            "reordering dependency declarations must change the recorded declaration lines"
+        )
+    }
+
+    @Test
     fun `aalekhReport wires the teams DSL through to the report teamOwners map`() {
         setupTeamOwnershipProject()
         gradleRunner("aalekhReport", "--no-configuration-cache").build()
@@ -574,6 +965,10 @@ class AalekhPluginFunctionalTest {
         assertTrue(
             result.output.contains("project(\":module-a\")") || result.output.contains("project(\":module-b\")"),
             "the advice must name the specific project dependency to remove",
+        )
+        assertTrue(
+            Regex("""build\.gradle\.kts:\d+""").containsMatchIn(result.output),
+            "the advice must point at the exact line to delete, not just the file: ${result.output}",
         )
     }
 
