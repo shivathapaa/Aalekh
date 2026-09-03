@@ -13,7 +13,7 @@ All notable changes to this project are documented here. Format based on
   Maven Central `-javadoc` jars for `aalekh-model`, `aalekh-analysis`, and `aalekh-report` now carry
   this generated documentation instead of an empty placeholder. A `pages.yml` workflow publishes the
   site to GitHub Pages from `main` at
-  [shivathapaa.github.io/aalekh/api](https://shivathapaa.github.io/aalekh/api/).
+  [shivathapaa.github.io/Aalekh/api](https://shivathapaa.github.io/Aalekh/api/).
 
 ## [0.7.0] - 2026-09-02
 

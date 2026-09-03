@@ -28,7 +28,7 @@ extensions.configure<DokkaExtension> {
         sourceLink {
             localDirectory.set(layout.projectDirectory.dir("src"))
             remoteUrl.set(
-                URI("https://github.com/shivathapaa/aalekh/blob/main/$moduleRelPath/src")
+                URI("https://github.com/shivathapaa/Aalekh/blob/main/$moduleRelPath/src")
             )
             remoteLineSuffix.set("#L")
         }

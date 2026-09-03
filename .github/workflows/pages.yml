@@ -1,8 +1,8 @@
 name: Deploy API docs to Pages
 
 # Builds the Dokka multi-module API reference on every push to main and publishes it to Pages:
-#   https://shivathapaa.github.io/aalekh/      -> redirects to the API reference
-#   https://shivathapaa.github.io/aalekh/api/  -> API reference
+#   https://shivathapaa.github.io/Aalekh/      -> redirects to the API reference
+#   https://shivathapaa.github.io/Aalekh/api/  -> API reference
 #
 # Aalekh ships no web demo, so the Dokka HTML is nested under api/ (matching the README and the
 # other libraries' layout) and the site root is a small redirect into it.
