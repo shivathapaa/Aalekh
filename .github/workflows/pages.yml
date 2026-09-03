@@ -1,0 +1,100 @@
+name: Deploy API docs to Pages
+
+# Builds the Dokka multi-module API reference on every push to main and publishes it to Pages:
+#   https://shivathapaa.github.io/aalekh/      -> redirects to the API reference
+#   https://shivathapaa.github.io/aalekh/api/  -> API reference
+#
+# Aalekh ships no web demo, so the Dokka HTML is nested under api/ (matching the README and the
+# other libraries' layout) and the site root is a small redirect into it.
+#
+# PRs do NOT trigger this: Pages has a single live environment and PR previews would either burn
+# quota or fight for the deploy lock. PR branches still get built by the other workflows, just no
+# deploy.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  validate-wrapper:
+    name: Validate Gradle wrapper
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: gradle/actions/wrapper-validation@v6
+
+  build:
+    name: Build API docs
+    needs: validate-wrapper
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6
+        with:
+          distribution: 'zulu'
+          java-version: 21
+
+      - name: Cache Gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml') }}
+          restore-keys: gradle-
+
+      - name: Generate API docs (Dokka multi-module HTML)
+        run: ./gradlew :dokkaGeneratePublicationHtml --stacktrace
+
+      - name: Assemble Pages site (docs under /api, root redirect)
+        run: |
+          site=pages-site
+          mkdir -p "$site/api"
+          cp -r build/dokka/html/. "$site/api/"
+          cat > "$site/index.html" <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta http-equiv="refresh" content="0; url=./api/">
+            <link rel="canonical" href="./api/">
+            <title>Aalekh API reference</title>
+          </head>
+          <body>
+            <p>Redirecting to the <a href="./api/">Aalekh API reference</a>&hellip;</p>
+          </body>
+          </html>
+          HTML
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: pages-site
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -7,6 +7,7 @@ junit5 = "5.14.4" # Pinned to 5.x: JUnit 6 requires a Java 17 baseline; Aalekh t
 kotest = "6.2.4"
 detekt = "1.23.8"
 vanniktech-publish = "0.37.0"
+dokka = "2.2.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -24,6 +25,7 @@ vanniktech-publish = { module = "com.vanniktech:gradle-maven-publish-plugin", ve
 kotlin-gradlePlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 gradle-plugin-publish = { module = "com.gradle.publish:plugin-publish-plugin", version.ref = "gradle-plugin-publish" }
 detekt-gradlePlugin = { module = "io.gitlab.arturbosch.detekt:detekt-gradle-plugin", version.ref = "detekt" }
+dokka-gradlePlugin = { module = "org.jetbrains.dokka:dokka-gradle-plugin", version.ref = "dokka" }
 
 [bundles]
 testing-unit = [
@@ -43,3 +45,4 @@ kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", versi
 vanniktech-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktech-publish" }
 gradle-plugin-publish = { id = "com.gradle.plugin-publish", version.ref = "gradle-plugin-publish" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }

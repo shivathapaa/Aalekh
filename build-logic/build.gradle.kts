@@ -7,4 +7,5 @@ dependencies {
     implementation(libs.gradle.plugin.publish)
     implementation(libs.detekt.gradlePlugin)
     implementation(libs.vanniktech.publish)
+    implementation(libs.dokka.gradlePlugin)
 }

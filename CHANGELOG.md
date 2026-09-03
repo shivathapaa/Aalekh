@@ -6,6 +6,15 @@ All notable changes to this project are documented here. Format based on
 
 ## [Unreleased]
 
+### Added
+- **API reference (KDoc via Dokka).** `./gradlew dokkaGenerate` builds a combined, fully offline API
+  reference for all four modules into `build/dokka/html`. Public declarations only, with GitHub source
+  links back to the defining line and a per-module overview from each module's `Module.md`. The
+  Maven Central `-javadoc` jars for `aalekh-model`, `aalekh-analysis`, and `aalekh-report` now carry
+  this generated documentation instead of an empty placeholder. A `pages.yml` workflow publishes the
+  site to GitHub Pages from `main` at
+  [shivathapaa.github.io/aalekh/api](https://shivathapaa.github.io/aalekh/api/).
+
 ## [0.7.0] - 2026-09-02
 
 ### Added

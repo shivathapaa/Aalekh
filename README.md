@@ -13,6 +13,7 @@
 <p align="center">
   <a href="https://plugins.gradle.org/plugin/io.github.shivathapaa.aalekh"><img src="https://img.shields.io/gradle-plugin-portal/v/io.github.shivathapaa.aalekh?label=Gradle%20Plugin%20Portal&color=02303A&logo=gradle" alt="Gradle Plugin Portal"/></a>
   <a href="https://docs.gradle.org/current/userguide/configuration_cache.html"><img src="https://img.shields.io/badge/Configuration%20Cache-compatible-brightgreen" alt="Configuration Cache"/></a>
+  <a href="https://shivathapaa.github.io/aalekh/api/"><img src="https://img.shields.io/badge/API%20reference-%E2%86%92-12100E?labelColor=E8EEF6" alt="API reference"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"/></a>
 </p>
 
@@ -158,6 +159,11 @@ Full reference documentation lives in [`docs/`](docs/README.md):
 | [Metrics & output](docs/metrics.md) | Graph metrics, Lakos coupling & main-sequence, temporal coupling, output files, CSV export, trend history |
 | [CI setup](docs/ci.md) | Wiring checks, architecture diffs, and generated documentation into a pipeline |
 | [Real-world examples](docs/real-world-examples.md) | Working `aalekh { }` configurations from three real projects |
+
+**API reference** — full Dokka docs for all four modules, with source links back to each definition:
+[shivathapaa.github.io/aalekh/api](https://shivathapaa.github.io/aalekh/api/). Published to GitHub
+Pages from `main` by the `pages.yml` workflow. Build it locally with `./gradlew dokkaGenerate`
+(combined, fully offline site at `build/dokka/html/index.html`).
 
 A minimal `aalekh { }` block to enforce layered architecture:
 

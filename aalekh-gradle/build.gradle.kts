@@ -1,6 +1,7 @@
 plugins {
     id("aalekh.gradle-plugin")
     id("aalekh.publishing")
+    id("aalekh.dokka")
     alias(libs.plugins.kotlin.serialization)
 }
 
