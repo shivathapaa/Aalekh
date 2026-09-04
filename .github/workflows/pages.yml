@@ -1,16 +1,9 @@
 name: Deploy API docs to Pages
 
 # Builds the Dokka multi-module API reference on every push to main and publishes it to Pages:
-#   https://shivathapaa.github.io/Aalekh/      -> redirects to the API reference
-#   https://shivathapaa.github.io/Aalekh/api/  -> API reference
-#
-# Aalekh ships no web demo, so the Dokka HTML is nested under api/ (matching the README and the
-# other libraries' layout) and the site root is a small redirect into it.
-#
-# PRs do NOT trigger this: Pages has a single live environment and PR previews would either burn
-# quota or fight for the deploy lock. PR branches still get built by the other workflows, just no
-# deploy.
-
+#   https://shivathapaa.github.io/Aalekh/                        -> redirects to the API reference
+#   https://shivathapaa.github.io/Aalekh/api/                    -> API reference
+#   https://shivathapaa.github.io/Aalekh/assets/report_samples/  -> the self-contained sample reports linked from the README
 on:
   push:
     branches: [main]
@@ -66,6 +59,8 @@ jobs:
           site=pages-site
           mkdir -p "$site/api"
           cp -r build/dokka/html/. "$site/api/"
+          cp -r assets "$site/assets"
+          find "$site/assets" -name '.DS_Store' -delete
           cat > "$site/index.html" <<'HTML'
           <!doctype html>
           <html lang="en">
