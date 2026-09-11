@@ -118,6 +118,20 @@ jobs:
             echo 'aalekh { openBrowserAfterReport.set(false) }' >> "$ROOT_BUILD"
           fi
 
+          # Aalekh reads every subproject's model at configuration time, so it is
+          # not compatible with Isolated Projects. Some targets (e.g. NowInAndroid)
+          # enable IP, which makes the --no-configuration-cache flag below illegal
+          # ("Configuration Cache cannot be disabled when Isolated Projects is
+          # enabled"). Disable IP for the validation run. The last value wins when
+          # a properties key is repeated, so appending overrides the declared value.
+          if [ -f gradle.properties ]; then
+            {
+              echo ''
+              echo 'org.gradle.isolated-projects=false'
+              echo 'org.gradle.unsafe.isolated-projects=false'
+            } >> gradle.properties
+          fi
+
       - name: Run aalekhExtract
         working-directory: target-project
         run: |
@@ -204,6 +218,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate
     if: failure()
+    permissions:
+      issues: write
     steps:
       - name: Create GitHub issue on failure
         uses: actions/github-script@v9
