@@ -1,6 +1,6 @@
 [versions]
 plugin-version = "0.7.0"
-kotlin = "2.4.20"
+kotlin = "2.4.21"
 kotlinx-serialization = "1.11.0"
 gradle-plugin-publish = "2.1.1"
 junit5 = "5.14.4" # Pinned to 5.x: JUnit 6 requires a Java 17 baseline; Aalekh targets JVM 11.
